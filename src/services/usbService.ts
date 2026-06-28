@@ -543,6 +543,95 @@ export async function setTappingTerm(ms: number): Promise<boolean> {
 
 import { Layer } from '../types';
 
+// Pointing (trackball) APIs
+export async function getSensitivity(): Promise<{ cpi: number; cursorNum: number; cursorDen: number; scrollNum: number; scrollDen: number } | null> {
+  try {
+    const resp = await sendRequest({ pointing: { getSensitivity: {} } });
+    const s = resp.pointing?.getSensitivity;
+    if (s) {
+      return { cpi: s.cpi, cursorNum: s.cursor?.numerator ?? 1, cursorDen: s.cursor?.denominator ?? 1, scrollNum: s.scroll?.numerator ?? 1, scrollDen: s.scroll?.denominator ?? 1 };
+    }
+    return null;
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `getSensitivity failed: ${e.message}`);
+    return null;
+  }
+}
+
+export async function setSensitivity(cpi: number, scrollNum: number, scrollDen: number): Promise<boolean> {
+  try {
+    await sendRequest({ pointing: { setSensitivity: { cpi, cursor: { numerator: 1, denominator: 1 }, scroll: { numerator: scrollNum, denominator: scrollDen } } } });
+    debugLog('INF', 'USB', `Sensitivity set: CPI=${cpi}, scroll=${scrollNum}/${scrollDen}`);
+    return true;
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `setSensitivity failed: ${e.message}`);
+    return false;
+  }
+}
+
+export async function getAutoLayer(): Promise<{ enabled: boolean; requirePriorIdleMs: number; excludedPositions: number[]; motionThreshold: number } | null> {
+  try {
+    const resp = await sendRequest({ pointing: { getAutoLayer: {} } });
+    return resp.pointing?.getAutoLayer || null;
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `getAutoLayer failed: ${e.message}`);
+    return null;
+  }
+}
+
+export async function setAutoLayer(enabled: boolean, requirePriorIdleMs: number, excludedPositions: number[], motionThreshold: number): Promise<boolean> {
+  try {
+    await sendRequest({ pointing: { setAutoLayer: { enabled, requirePriorIdleMs, excludedPositions, motionThreshold } } });
+    debugLog('INF', 'USB', `AML set: enabled=${enabled}, idle=${requirePriorIdleMs}ms`);
+    return true;
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `setAutoLayer failed: ${e.message}`);
+    return false;
+  }
+}
+
+export async function getPrecisionScale(): Promise<{ numerator: number; denominator: number } | null> {
+  try {
+    const resp = await sendRequest({ pointing: { getPrecisionScale: {} } });
+    return resp.pointing?.getPrecisionScale?.precision || null;
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `getPrecisionScale failed: ${e.message}`);
+    return null;
+  }
+}
+
+export async function setPrecisionScale(numerator: number, denominator: number): Promise<boolean> {
+  try {
+    await sendRequest({ pointing: { setPrecisionScale: { precision: { numerator, denominator } } } });
+    debugLog('INF', 'USB', `Precision set: ${numerator}/${denominator}`);
+    return true;
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `setPrecisionScale failed: ${e.message}`);
+    return false;
+  }
+}
+
+export async function getAccel(): Promise<{ enabled: boolean; maxMilli: number; threshold: number; range: number } | null> {
+  try {
+    const resp = await sendRequest({ pointing: { getAccel: {} } });
+    return resp.pointing?.getAccel?.accel || null;
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `getAccel failed: ${e.message}`);
+    return null;
+  }
+}
+
+export async function setAccel(enabled: boolean, maxMilli: number, threshold: number, range: number): Promise<boolean> {
+  try {
+    await sendRequest({ pointing: { setAccel: { accel: { enabled, maxMilli, threshold, range } } } });
+    debugLog('INF', 'USB', `Accel set: enabled=${enabled}, max=${maxMilli}, threshold=${threshold}, range=${range}`);
+    return true;
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `setAccel failed: ${e.message}`);
+    return false;
+  }
+}
+
 function labelToParam(label: string, keyCode: string): number {
   // Check shifted symbols
   if (LABEL_TO_SHIFTED[label] !== undefined) {

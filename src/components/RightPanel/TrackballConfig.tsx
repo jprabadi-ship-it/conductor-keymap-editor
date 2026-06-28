@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { KeymapStore } from '../../store/useKeymapStore';
+import { isConnected, setSensitivity, setAutoLayer, setPrecisionScale, setAccel, getSensitivity, getAutoLayer, getPrecisionScale, getAccel, saveChanges as savePointingChanges } from '../../services/usbService';
+import { debugLog } from '../DebugConsole';
 
 interface Props {
   store: KeymapStore;
@@ -39,6 +41,72 @@ export function TrackballConfig({ store }: Props) {
   const [accelMaxRatio, setAccelMaxRatio] = useState(1.2);
   const [accelStartSpeed, setAccelStartSpeed] = useState(10);
   const [accelRampWidth, setAccelRampWidth] = useState(28);
+  const [loaded, setLoaded] = useState(false);
+
+  // Load settings from device on mount if connected
+  useEffect(() => {
+    if (!isConnected() || loaded) return;
+    (async () => {
+      const sens = await getSensitivity();
+      if (sens) {
+        setCpi(sens.cpi);
+        if (sens.scrollDen > 0) setScrollSensitivity(sens.scrollNum / sens.scrollDen);
+        debugLog('INF', 'Trackball', `Loaded: CPI=${sens.cpi}, scroll=${sens.scrollNum}/${sens.scrollDen}`);
+      }
+      const aml = await getAutoLayer();
+      if (aml) {
+        setAmlEnabled(aml.enabled);
+        setAmlTimeout(aml.requirePriorIdleMs);
+        setAmlMinDistance(aml.motionThreshold);
+        debugLog('INF', 'Trackball', `AML: enabled=${aml.enabled}, idle=${aml.requirePriorIdleMs}ms`);
+      }
+      const prec = await getPrecisionScale();
+      if (prec && prec.denominator > 0) {
+        setPrecisionSensitivity(prec.numerator / prec.denominator);
+      }
+      const acc = await getAccel();
+      if (acc) {
+        setAccelMode(acc.enabled ? 1 : 0);
+        setAccelMaxRatio(acc.maxMilli / 1000);
+        setAccelStartSpeed(acc.threshold);
+        setAccelRampWidth(acc.range);
+      }
+      setLoaded(true);
+    })();
+  }, [loaded]);
+
+  // Realtime send helper
+  const sendIfRealtime = useCallback(async (fn: () => Promise<any>) => {
+    if (!realtimePreview || !isConnected()) return;
+    await fn();
+  }, [realtimePreview]);
+
+  const handleCpiChange = (val: number) => {
+    setCpi(val);
+    sendIfRealtime(() => setSensitivity(val, Math.round(scrollSensitivity * 100), 100));
+  };
+
+  const handleScrollChange = (val: number) => {
+    setScrollSensitivity(val);
+    sendIfRealtime(() => setSensitivity(cpi, Math.round(val * 100), 100));
+  };
+
+  const handlePrecisionChange = (val: number) => {
+    setPrecisionSensitivity(val);
+    sendIfRealtime(() => setPrecisionScale(Math.round(val * 100), 100));
+  };
+
+  const handleAccelModeChange = (val: number) => {
+    setAccelMode(val);
+    sendIfRealtime(() => setAccel(val > 0, Math.round(accelMaxRatio * 1000), accelStartSpeed, accelRampWidth));
+  };
+
+  const handleAccelDetailChange = (maxR: number, start: number, ramp: number) => {
+    setAccelMaxRatio(maxR);
+    setAccelStartSpeed(start);
+    setAccelRampWidth(ramp);
+    sendIfRealtime(() => setAccel(accelMode > 0, Math.round(maxR * 1000), start, ramp));
+  };
 
   return (
     <div>
@@ -79,7 +147,11 @@ export function TrackballConfig({ store }: Props) {
           </div>
         </div>
 
-        <button className="btn btn-outline" style={{ width: '100%', fontSize: 12, marginBottom: 8 }}>AML設定を適用</button>
+        <button className="btn btn-outline" style={{ width: '100%', fontSize: 12, marginBottom: 8 }} onClick={async () => {
+          if (!isConnected()) return;
+          await setAutoLayer(amlEnabled, amlTimeout, store.amlExcluded.map((_, i) => i), amlMinDistance);
+          debugLog('INF', 'Trackball', 'AML settings applied');
+        }}>AML設定を適用</button>
 
         <div style={{ marginBottom: 8 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
@@ -142,13 +214,13 @@ export function TrackballConfig({ store }: Props) {
           <span>カーソル感度 (CPI)</span>
           <span style={{ color: 'var(--accent)', fontWeight: 700, fontSize: 16 }}>{cpi}</span>
         </div>
-        <input type="range" className="timing-slider" min={200} max={3200} step={100} value={cpi} onChange={e => setCpi(Number(e.target.value))} />
+        <input type="range" className="timing-slider" min={200} max={3200} step={100} value={cpi} onChange={e => handleCpiChange(Number(e.target.value))} />
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)' }}>
           <span>200</span><span>3200</span>
         </div>
         <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', marginTop: 4 }}>
           {CPI_PRESETS.map(p => (
-            <button key={p} className={`preset-btn ${cpi === p ? 'selected' : ''}`} onClick={() => setCpi(p)}>{p}</button>
+            <button key={p} className={`preset-btn ${cpi === p ? 'selected' : ''}`} onClick={() => handleCpiChange(p)}>{p}</button>
           ))}
         </div>
       </div>
@@ -159,13 +231,13 @@ export function TrackballConfig({ store }: Props) {
           <span>スクロール感度</span>
           <span style={{ color: 'var(--accent)', fontWeight: 700, fontSize: 16 }}>{scrollSensitivity.toFixed(2)}x</span>
         </div>
-        <input type="range" className="timing-slider" min={0.25} max={4} step={0.25} value={scrollSensitivity} onChange={e => setScrollSensitivity(Number(e.target.value))} />
+        <input type="range" className="timing-slider" min={0.25} max={4} step={0.25} value={scrollSensitivity} onChange={e => handleScrollChange(Number(e.target.value))} />
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)' }}>
           <span>0.25x</span><span>4x</span>
         </div>
         <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', marginTop: 4 }}>
           {SCROLL_PRESETS.map(p => (
-            <button key={p} className={`preset-btn ${scrollSensitivity === p ? 'selected' : ''}`} onClick={() => setScrollSensitivity(p)}>{p}x</button>
+            <button key={p} className={`preset-btn ${scrollSensitivity === p ? 'selected' : ''}`} onClick={() => handleScrollChange(p)}>{p}x</button>
           ))}
         </div>
       </div>
@@ -188,13 +260,13 @@ export function TrackballConfig({ store }: Props) {
         <div className="config-description">
           Precision レイヤー（13番目）がONの間、カーソル速度がこの倍率になります。製図など細かい操作向け。1.0 で等倍。
         </div>
-        <input type="range" className="timing-slider" min={0.1} max={1.0} step={0.05} value={precisionSensitivity} onChange={e => setPrecisionSensitivity(Number(e.target.value))} />
+        <input type="range" className="timing-slider" min={0.1} max={1.0} step={0.05} value={precisionSensitivity} onChange={e => handlePrecisionChange(Number(e.target.value))} />
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)' }}>
           <span>0.10x</span><span>1.00x</span>
         </div>
         <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', marginTop: 4 }}>
           {PRECISION_PRESETS.map(p => (
-            <button key={p.label} className={`preset-btn ${Math.abs(precisionSensitivity - p.value) < 0.01 ? 'selected' : ''}`} onClick={() => setPrecisionSensitivity(p.value)}>{p.label}</button>
+            <button key={p.label} className={`preset-btn ${Math.abs(precisionSensitivity - p.value) < 0.01 ? 'selected' : ''}`} onClick={() => handlePrecisionChange(p.value)}>{p.label}</button>
           ))}
         </div>
       </div>
@@ -210,7 +282,7 @@ export function TrackballConfig({ store }: Props) {
         </div>
         <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
           {ACCEL_OPTIONS.map(opt => (
-            <button key={opt.value} className={`preset-btn ${accelMode === opt.value ? 'selected' : ''}`} onClick={() => setAccelMode(opt.value)}>{opt.label}</button>
+            <button key={opt.value} className={`preset-btn ${accelMode === opt.value ? 'selected' : ''}`} onClick={() => handleAccelModeChange(opt.value)}>{opt.label}</button>
           ))}
         </div>
       </div>
@@ -252,21 +324,21 @@ export function TrackballConfig({ store }: Props) {
                 <span>最大倍率</span>
                 <span style={{ color: 'var(--accent)', fontWeight: 600 }}>{accelMaxRatio.toFixed(1)}x</span>
               </div>
-              <input type="range" className="timing-slider" min={1.0} max={3.0} step={0.1} value={accelMaxRatio} onChange={e => setAccelMaxRatio(Number(e.target.value))} />
+              <input type="range" className="timing-slider" min={1.0} max={3.0} step={0.1} value={accelMaxRatio} onChange={e => handleAccelDetailChange(Number(e.target.value), accelStartSpeed, accelRampWidth)} />
             </div>
             <div style={{ marginBottom: 12 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
                 <span>効き始める速度</span>
                 <span style={{ color: 'var(--accent)', fontWeight: 600 }}>{accelStartSpeed}</span>
               </div>
-              <input type="range" className="timing-slider" min={0} max={50} step={1} value={accelStartSpeed} onChange={e => setAccelStartSpeed(Number(e.target.value))} />
+              <input type="range" className="timing-slider" min={0} max={50} step={1} value={accelStartSpeed} onChange={e => handleAccelDetailChange(accelMaxRatio, Number(e.target.value), accelRampWidth)} />
             </div>
             <div style={{ marginBottom: 8 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
                 <span>立ち上がりの幅</span>
                 <span style={{ color: 'var(--accent)', fontWeight: 600 }}>{accelRampWidth}</span>
               </div>
-              <input type="range" className="timing-slider" min={1} max={100} step={1} value={accelRampWidth} onChange={e => setAccelRampWidth(Number(e.target.value))} />
+              <input type="range" className="timing-slider" min={1} max={100} step={1} value={accelRampWidth} onChange={e => handleAccelDetailChange(accelMaxRatio, accelStartSpeed, Number(e.target.value))} />
             </div>
           </div>
         )}
@@ -275,11 +347,21 @@ export function TrackballConfig({ store }: Props) {
       {/* Save / Reset / Default */}
       <div className="save-actions" style={{ flexDirection: 'column', gap: 8 }}>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn btn-primary" style={{ flex: 1 }}>💾 保存</button>
-          <button className="btn btn-outline" style={{ flex: 1 }}>元に戻す</button>
-          <button className="btn btn-outline" style={{ flex: 1 }}>初期値</button>
+          <button className="btn btn-primary" style={{ flex: 1 }} onClick={async () => {
+            if (!isConnected()) return;
+            await setSensitivity(cpi, Math.round(scrollSensitivity * 100), 100);
+            await setPrecisionScale(Math.round(precisionSensitivity * 100), 100);
+            await setAccel(accelMode > 0, Math.round(accelMaxRatio * 1000), accelStartSpeed, accelRampWidth);
+            await savePointingChanges();
+            debugLog('INF', 'Trackball', 'All settings saved to flash');
+          }}>💾 保存</button>
+          <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => { setLoaded(false); }}>元に戻す</button>
+          <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => {
+            setCpi(800); setScrollSensitivity(1.0); setPrecisionSensitivity(0.25);
+            setAccelMode(1); setAccelMaxRatio(1.2); setAccelStartSpeed(10); setAccelRampWidth(28);
+          }}>初期値</button>
         </div>
-        <button className="btn btn-outline" style={{ width: '100%', fontSize: 12 }}>再読込</button>
+        <button className="btn btn-outline" style={{ width: '100%', fontSize: 12 }} onClick={() => setLoaded(false)}>再読込</button>
       </div>
       <div className="save-note">
         スライダーを動かすとリアルタイムで反映されます。「保存」でFlashに永続化してください。
