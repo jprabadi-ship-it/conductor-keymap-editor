@@ -1,9 +1,59 @@
 import { useState } from 'react';
 import { KeymapStore } from '../../store/useKeymapStore';
 import { Combo } from '../../types';
+import { KEYBOARD_LAYOUT } from '../../data/layout';
 
 interface Props {
   store: KeymapStore;
+}
+
+function MiniKeyboard({ selected, onToggle }: { selected: string[]; onToggle: (id: string) => void }) {
+  const leftKeys = KEYBOARD_LAYOUT.filter(k => k.half === 'left');
+  const rightKeys = KEYBOARD_LAYOUT.filter(k => k.half === 'right');
+  const maxColL = Math.max(...leftKeys.map(k => k.col));
+  const maxColR = Math.max(...rightKeys.map(k => k.col));
+  const maxRow = Math.max(...KEYBOARD_LAYOUT.map(k => k.row));
+
+  const renderHalf = (keys: typeof KEYBOARD_LAYOUT, maxCol: number) => {
+    const cells: React.ReactNode[] = [];
+    for (let row = 0; row <= maxRow; row++) {
+      for (let col = 0; col <= maxCol; col++) {
+        const pos = keys.find(p => p.row === row && p.col === col);
+        if (pos) {
+          const isSelected = selected.includes(pos.id);
+          cells.push(
+            <button
+              key={pos.id}
+              onClick={() => onToggle(pos.id)}
+              style={{
+                width: 22, height: 22, borderRadius: 3, border: '1px solid',
+                borderColor: isSelected ? 'var(--accent)' : 'var(--border)',
+                background: isSelected ? 'var(--accent)' : 'var(--bg-tertiary)',
+                color: isSelected ? 'white' : 'var(--text-muted)',
+                fontSize: 7, cursor: 'pointer', padding: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+              title={pos.id}
+            >{pos.id.substring(1)}</button>
+          );
+        } else {
+          cells.push(<div key={`e-${row}-${col}`} style={{ width: 22, height: 22 }} />);
+        }
+      }
+    }
+    return (
+      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${maxCol + 1}, 22px)`, gap: 2 }}>
+        {cells}
+      </div>
+    );
+  };
+
+  return (
+    <div style={{ display: 'flex', gap: 6, justifyContent: 'center', padding: '4px 0' }}>
+      {renderHalf(leftKeys, maxColL)}
+      {renderHalf(rightKeys, maxColR)}
+    </div>
+  );
 }
 
 const BINDING_TYPES = [
@@ -117,30 +167,17 @@ export function ComboList({ store }: Props) {
                 />
               </div>
 
-              {/* Trigger Keys */}
+              {/* Trigger Keys - Mini Keyboard */}
               <div className="combo-edit-field">
                 <label className="combo-edit-label">TRIGGER KEYS ({editDraft.keyPositions?.length || 0} SELECTED, MIN 2)</label>
-                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 4 }}>
-                  {(editDraft.keyPositions || []).map(pos => (
-                    <span key={pos} className="combo-key-badge" style={{ cursor: 'pointer' }} onClick={() => {
-                      setEditDraft({ ...editDraft, keyPositions: editDraft.keyPositions?.filter(p => p !== pos) });
-                    }}>{pos} ✕</span>
-                  ))}
-                </div>
-                <select
-                  style={{ width: '100%', background: 'var(--bg-primary)', border: '1px solid var(--border)', color: 'var(--text-primary)', padding: '4px', borderRadius: 4, fontSize: 11 }}
-                  value=""
-                  onChange={e => {
-                    if (e.target.value && !editDraft.keyPositions?.includes(e.target.value)) {
-                      setEditDraft({ ...editDraft, keyPositions: [...(editDraft.keyPositions || []), e.target.value] });
-                    }
+                <MiniKeyboard
+                  selected={editDraft.keyPositions || []}
+                  onToggle={(id) => {
+                    const positions = editDraft.keyPositions || [];
+                    const newPositions = positions.includes(id) ? positions.filter(p => p !== id) : [...positions, id];
+                    setEditDraft({ ...editDraft, keyPositions: newPositions });
                   }}
-                >
-                  <option value="">+ キーを追加...</option>
-                  {store.selectedLayer?.keys.map(k => (
-                    <option key={k.id} value={k.id} disabled={editDraft.keyPositions?.includes(k.id)}>{k.id}</option>
-                  ))}
-                </select>
+                />
               </div>
 
               {/* Binding Type */}
