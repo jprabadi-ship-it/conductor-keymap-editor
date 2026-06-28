@@ -91,9 +91,9 @@ function App() {
                 className={`right-panel-tab ${store.rightPanelTab === tab ? 'active' : ''}`}
                 onClick={() => store.setRightPanelTab(tab)}
               >
-                {tab === 'key-config' ? '⚙ Key Config' :
-                 tab === 'trackball' ? '🖲 Trackball' :
-                 tab === 'timing' ? '⏱ Timing' : '📡 Bluetooth'}
+                {tab === 'key-config' ? 'Key Config' :
+                 tab === 'trackball' ? 'Trackball' :
+                 tab === 'timing' ? 'Timing' : 'Bluetooth'}
               </button>
             ))}
           </div>

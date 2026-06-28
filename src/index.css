@@ -337,12 +337,16 @@ input:focus { border-color: var(--accent); }
   overflow: hidden;
 }
 
-.right-panel-tabs { display: flex; border-bottom: 1px solid var(--border); }
-
+.right-panel-tabs {
+  display: flex; border-bottom: 1px solid var(--border);
+  overflow: hidden;
+}
 .right-panel-tab {
-  padding: 8px 12px; font-size: 12px; font-weight: 500;
+  flex: 1; min-width: 0;
+  padding: 8px 4px; font-size: 11px; font-weight: 500;
   border-bottom: 2px solid transparent;
   transition: all 0.15s; white-space: nowrap;
+  text-align: center; overflow: hidden; text-overflow: ellipsis;
 }
 .right-panel-tab:hover { background: var(--bg-hover); }
 .right-panel-tab.active { border-bottom-color: var(--accent); color: var(--accent); }
