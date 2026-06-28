@@ -497,6 +497,9 @@ export async function readKeymap(): Promise<any> {
 
         bindings[posId] = { type, keyCode, label, ...extra };
         rawBindings[`${layer.id}:${posId}`] = { behaviorId: binding.behaviorId, param1: binding.param1, param2: binding.param2 };
+        if (layer.id === 0 && (posId === 'L00' || posId === 'L01')) {
+          debugLog('INF', 'USB', `  RAW ${posId}: beh=${binding.behaviorId} p1=0x${binding.param1.toString(16)} p2=0x${binding.param2.toString(16)} → "${label}"`);
+        }
       });
 
       const layerName = layer.name && layer.name.length > 0 ? layer.name : `Layer ${layer.id}`;
@@ -540,13 +543,13 @@ export async function saveChanges(): Promise<boolean> {
     debugLog('INF', 'USB', 'Saving changes to device flash...');
     const resp = await sendRequest({ keymap: { saveChanges: true } });
     const saveResp = resp.keymap?.saveChanges;
-    if (saveResp?.err !== undefined && saveResp?.err !== null) {
-      const errNames: Record<number, string> = { 0: 'OK', 1: 'GENERIC', 2: 'NOT_SUPPORTED', 3: 'NO_SPACE' };
-      debugLog('ERR', 'USB', `Save error: ${errNames[saveResp.err] || saveResp.err}`);
+    if (saveResp?.err !== undefined && saveResp?.err !== null && saveResp.err !== 0) {
+      const errNames: Record<number, string> = { 1: 'GENERIC', 2: 'NOT_SUPPORTED', 3: 'NO_SPACE' };
+      debugLog('ERR', 'USB', `Save error: ${errNames[saveResp.err] || `code ${saveResp.err}`}`);
       return false;
     }
-    debugLog('INF', 'USB', `Save response: ok=${saveResp?.ok}`);
-    return saveResp?.ok === true;
+    debugLog('INF', 'USB', 'Changes saved to flash');
+    return true;
   } catch (e: any) {
     debugLog('ERR', 'USB', `Save failed: ${e.message}`);
     return false;
