@@ -34,7 +34,7 @@ const RIGHT_MODS: { mod: Modifier; label: string }[] = [
 
 export function KeyConfig({ store }: Props) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>('Letters');
 
   const key = store.selectedKey;
   if (!key) {

@@ -17,6 +17,15 @@ export const KEYCODES: KeyCodeEntry[] = [
 
   // Numbers
   ...'1234567890'.split('').map(c => ({ code: `KC_${c}`, label: c, category: 'Numbers' })),
+  // Numpad
+  ...Array.from({ length: 10 }, (_, i) => ({ code: `KC_KP${i}`, label: `KP ${i}`, category: 'Numbers' })),
+  { code: 'KC_KP_DOT', label: 'KP .', category: 'Numbers' },
+  { code: 'KC_KP_PLUS', label: 'KP +', category: 'Numbers' },
+  { code: 'KC_KP_MINUS', label: 'KP -', category: 'Numbers' },
+  { code: 'KC_KP_ASTERISK', label: 'KP *', category: 'Numbers' },
+  { code: 'KC_KP_SLASH', label: 'KP /', category: 'Numbers' },
+  { code: 'KC_KP_ENTER', label: 'KP Enter', category: 'Numbers' },
+  { code: 'KC_NLCK', label: 'Num Lock', category: 'Numbers' },
 
   // Modifiers
   { code: 'KC_LSFT', label: 'L Shift', category: 'Modifiers' },
@@ -40,8 +49,8 @@ export const KEYCODES: KeyCodeEntry[] = [
   { code: 'KC_INS', label: 'Insert', category: 'Navigation' },
   { code: 'KC_DEL', label: 'Delete', category: 'Navigation' },
 
-  // Function keys
-  ...Array.from({ length: 12 }, (_, i) => ({ code: `KC_F${i + 1}`, label: `F${i + 1}`, category: 'Function' })),
+  // Function keys (F1-F24)
+  ...Array.from({ length: 24 }, (_, i) => ({ code: `KC_F${i + 1}`, label: `F${i + 1}`, category: 'Function' })),
 
   // Special
   { code: 'KC_ENT', label: 'Enter', category: 'Special' },

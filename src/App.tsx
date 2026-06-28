@@ -1,5 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useKeymapStore } from './store/useKeymapStore';
+import { writeToDevice, readFromDevice } from './services/usbService';
+import { debugLog } from './components/DebugConsole';
 import { Header } from './components/Header/Header';
 import { LayerList } from './components/LeftPanel/LayerList';
 import { ComboList } from './components/LeftPanel/ComboList';
@@ -60,9 +62,37 @@ function App() {
         onToggleConsole={() => setShowConsole(v => !v)}
         usbConnected={usbConnected}
         unsaved={unsaved}
-        onWrite={() => { setUnsaved(false); }}
-        onRead={() => {}}
-        onSave={() => { setUnsaved(false); }}
+        onWrite={async () => {
+          const data = store.exportProject();
+          const encoded = new TextEncoder().encode(JSON.stringify(data));
+          const ok = await writeToDevice(encoded);
+          if (ok) {
+            setUnsaved(false);
+            debugLog('INF', 'USB', `Wrote ${encoded.length} bytes to device`);
+          } else {
+            debugLog('ERR', 'USB', 'Failed to write to device');
+          }
+        }}
+        onRead={async () => {
+          const data = await readFromDevice(4096);
+          if (data) {
+            try {
+              const text = new TextDecoder().decode(data);
+              const project = JSON.parse(text);
+              store.importProject(project);
+              debugLog('INF', 'USB', `Read ${data.length} bytes from device`);
+            } catch {
+              debugLog('ERR', 'USB', 'Failed to parse data from device');
+            }
+          } else {
+            debugLog('ERR', 'USB', 'Failed to read from device');
+          }
+        }}
+        onSave={() => {
+          store.autoSave();
+          setUnsaved(false);
+          debugLog('INF', 'Editor', 'Saved to LocalStorage');
+        }}
       />
 
       <div className="app-layout">
