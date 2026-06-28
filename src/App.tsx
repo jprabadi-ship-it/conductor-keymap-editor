@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useKeymapStore } from './store/useKeymapStore';
-import { readKeymap, writeKeymapToDevice, saveChanges, getDeviceInfo, requestUnlock, isUnlocked, connectUsb as connectUsbService, disconnectUsb } from './services/usbService';
+import { readKeymap, writeKeymapToDevice, saveChanges, setLayerProps, getDeviceInfo, requestUnlock, isUnlocked, connectUsb as connectUsbService, disconnectUsb } from './services/usbService';
 import { debugLog } from './components/DebugConsole';
 import { Header } from './components/Header/Header';
 import { LayerList } from './components/LeftPanel/LayerList';
@@ -73,6 +73,12 @@ function App() {
             }
           }
           debugLog('INF', 'Editor', `Writing keymap to device... (${store.dirtyKeys.size} keys modified)`);
+          // Write layer names
+          for (const layer of store.layers) {
+            await setLayerProps(layer.index, layer.name);
+          }
+          debugLog('INF', 'Editor', `Layer names written (${store.layers.length} layers)`);
+          // Write key bindings
           const ok = await writeKeymapToDevice(store.layers, store.dirtyKeys);
           if (ok) {
             const saved = await saveChanges();

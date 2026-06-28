@@ -538,6 +538,23 @@ export async function setLayerBinding(layerId: number, keyPosition: number, beha
   }
 }
 
+export async function setLayerProps(layerId: number, name: string): Promise<boolean> {
+  try {
+    const resp = await sendRequest({
+      keymap: { setLayerProps: { layerId, name } },
+    });
+    const result = resp.keymap?.setLayerProps;
+    if (typeof result === 'number' && result !== 0) {
+      debugLog('ERR', 'USB', `setLayerProps response: ${result}`);
+      return false;
+    }
+    return true;
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `setLayerProps failed: ${e.message}`);
+    return false;
+  }
+}
+
 export async function saveChanges(): Promise<boolean> {
   try {
     debugLog('INF', 'USB', 'Saving changes to device flash...');
