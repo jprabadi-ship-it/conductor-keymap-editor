@@ -779,10 +779,11 @@ export async function getMacroData(macroId: number): Promise<DeviceMacroData | n
       return null;
     }
     const steps: DeviceMacroStep[] = (macro.steps || []).map((s: any) => {
-      if (s.keyPress !== undefined) return { action: 'keyPress' as const, value: s.keyPress };
-      if (s.keyRelease !== undefined) return { action: 'keyRelease' as const, value: s.keyRelease };
-      if (s.waitMs !== undefined) return { action: 'waitMs' as const, value: s.waitMs };
-      return { action: 'keyPress' as const, value: 0 };
+      const actionType = s.actionType ?? 1;
+      const value = s.value ?? 0;
+      if (actionType === 2) return { action: 'keyRelease' as const, value };
+      if (actionType === 3) return { action: 'waitMs' as const, value };
+      return { action: 'keyPress' as const, value };
     });
     debugLog('INF', 'USB', `getMacroData(${macroId}): "${macro.name}", ${steps.length} steps: ${steps.map(s => `${s.action}=0x${s.value.toString(16)}`).join(', ')}`);
     return { id: macro.id ?? macroId, name: macro.name ?? '', steps };
@@ -795,11 +796,8 @@ export async function getMacroData(macroId: number): Promise<DeviceMacroData | n
 export async function setMacro(macroId: number, name: string, steps: DeviceMacroStep[]): Promise<boolean> {
   try {
     const protoSteps = steps.map(s => {
-      switch (s.action) {
-        case 'keyPress': return { keyPress: s.value };
-        case 'keyRelease': return { keyRelease: s.value };
-        case 'waitMs': return { waitMs: s.value };
-      }
+      const actionType = s.action === 'keyRelease' ? 2 : s.action === 'waitMs' ? 3 : 1;
+      return { actionType, value: s.value };
     });
     const resp = await sendRequest({
       macros: { setMacro: { macro: { id: macroId, name, steps: protoSteps } } }
