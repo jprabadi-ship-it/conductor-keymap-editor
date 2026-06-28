@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { KeymapStore } from '../../store/useKeymapStore';
 import { MacroAction } from '../../types';
-import { writeMacroToDevice, isConnected } from '../../services/usbService';
+import { writeMacroToDevice, isConnected, claimFreeMacroSlot, getFreeMacroSlots } from '../../services/usbService';
 
 interface Props {
   store: KeymapStore;
@@ -262,13 +262,23 @@ export function MacroEditor({ store }: Props) {
       </div>
 
       {/* Write to Device */}
-      {macro.deviceId !== undefined && isConnected() && (
+      {isConnected() && (macro.deviceId !== undefined || getFreeMacroSlots().length > 0) && (
         <div className="config-section" style={{ marginTop: 16 }}>
           <button
             className="btn"
             style={{ width: '100%', fontSize: 12, border: '1px solid var(--accent)', color: 'var(--accent)', padding: '6px' }}
             onClick={async () => {
-              const ok = await writeMacroToDevice(macro.deviceId!, macro);
+              let targetId = macro.deviceId;
+              if (targetId === undefined) {
+                const slot = claimFreeMacroSlot();
+                if (slot === null) {
+                  alert('No free macro slots on device.');
+                  return;
+                }
+                targetId = slot;
+                store.updateMacro(idx, { deviceId: targetId });
+              }
+              const ok = await writeMacroToDevice(targetId, macro);
               if (ok) {
                 alert(`Macro "${macro.name}" written to device. Save Changes to persist.`);
               } else {

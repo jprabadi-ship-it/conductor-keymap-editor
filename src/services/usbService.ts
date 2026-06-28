@@ -819,14 +819,41 @@ export async function setMacro(macroId: number, name: string, steps: DeviceMacro
   }
 }
 
+let freeDeviceMacroSlots: number[] = [];
+
+export function getFreeMacroSlots(): number[] {
+  return freeDeviceMacroSlots;
+}
+
+export function claimFreeMacroSlot(): number | null {
+  return freeDeviceMacroSlots.shift() ?? null;
+}
+
+function isDynamicSlot(name: string): boolean {
+  return /^m_dyn_\d+$/.test(name);
+}
+
 export async function readMacrosFromDevice(): Promise<import('../types').Macro[] | null> {
   try {
     const result = await listAllMacros();
     if (!result || result.macros.length === 0) return null;
 
     const macros: import('../types').Macro[] = [];
+    freeDeviceMacroSlots = [];
+
     for (const summary of result.macros) {
       const data = await getMacroData(summary.id);
+
+      if (isDynamicSlot(summary.name)) {
+        const hasRealSteps = data && data.steps.length > 0 &&
+          !(data.steps.length === 1 && data.steps[0].action === 'keyPress' && data.steps[0].value === 0);
+        if (!hasRealSteps) {
+          freeDeviceMacroSlots.push(summary.id);
+          debugLog('INF', 'USB', `Free macro slot: ${summary.name} (id=${summary.id})`);
+          continue;
+        }
+      }
+
       if (!data) {
         macros.push({ name: summary.name, waitMs: 30, tapMs: 30, bindings: [], deviceId: summary.id });
         continue;
@@ -859,7 +886,7 @@ export async function readMacrosFromDevice(): Promise<import('../types').Macro[]
 
       macros.push({ name: data.name, waitMs: 30, tapMs: 30, bindings: merged, deviceId: summary.id });
     }
-    debugLog('INF', 'USB', `readMacrosFromDevice: ${macros.length} macros loaded`);
+    debugLog('INF', 'USB', `readMacrosFromDevice: ${macros.length} macros loaded, ${freeDeviceMacroSlots.length} free slots`);
     return macros;
   } catch (e: any) {
     debugLog('ERR', 'USB', `readMacrosFromDevice failed: ${e.message}`);
