@@ -916,7 +916,41 @@ export async function writeMacroToDevice(macroId: number, macro: import('../type
   return setMacro(macroId, macro.name, steps);
 }
 
+const ZMK_TO_USAGE: Record<string, number> = {
+  ENTER: 40, ESC: 41, BSPC: 42, DEL: 76, TAB: 43, SPACE: 44, CAPS: 57,
+  UP: 82, DOWN: 81, LEFT: 80, RIGHT: 79, HOME: 74, END: 77, PG_UP: 75, PG_DN: 78,
+  MINUS: 45, EQUAL: 46, LBKT: 47, RBKT: 48, BSLH: 49, SEMI: 51, SQT: 52,
+  GRAVE: 53, COMMA: 54, DOT: 55, FSLH: 56,
+  LSHIFT: 225, RSHIFT: 229, LCTRL: 224, RCTRL: 228,
+  LALT: 226, RALT: 230, LGUI: 227, RGUI: 231,
+  N1: 30, N2: 31, N3: 32, N4: 33, N5: 34, N6: 35, N7: 36, N8: 37, N9: 38, N0: 39,
+  LANG1: 144, LANG2: 145, LANG3: 146,
+  INT_RO: 135, INT_KANA: 136, INT_YEN: 137,
+};
+
+const ZMK_TO_SHIFTED: Record<string, number> = {
+  EXCL: 30, AT: 31, HASH: 32, DLLR: 33, PRCNT: 34, CARET: 35,
+  AMPS: 36, STAR: 37, LPAR: 38, RPAR: 39,
+  PLUS: 46, UNDER: 45, TILDE: 53, PIPE: 49,
+};
+
+const ZMK_TO_CONSUMER: Record<string, number> = {
+  C_VOL_UP: 0xE9, C_VOL_DN: 0xEA, C_MUTE: 0xE2,
+  C_PLAY_PAUSE: 0xCD, C_NEXT: 0xB5, C_PREV: 0xB6,
+  C_BRI_UP: 0x6F, C_BRI_DN: 0x70,
+};
+
 function labelToParam(label: string, keyCode: string): number {
+  // ZMK-style labels from macro editor
+  if (ZMK_TO_SHIFTED[label] !== undefined) {
+    return (0x02 << 24) | (0x07 << 16) | ZMK_TO_SHIFTED[label];
+  }
+  if (ZMK_TO_USAGE[label] !== undefined) {
+    return (0x07 << 16) | ZMK_TO_USAGE[label];
+  }
+  if (ZMK_TO_CONSUMER[label] !== undefined) {
+    return (0x0C << 16) | ZMK_TO_CONSUMER[label];
+  }
   // Check shifted symbols
   if (LABEL_TO_SHIFTED[label] !== undefined) {
     return (0x02 << 24) | (0x07 << 16) | LABEL_TO_SHIFTED[label];
