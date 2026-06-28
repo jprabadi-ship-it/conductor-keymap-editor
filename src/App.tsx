@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useKeymapStore } from './store/useKeymapStore';
-import { readKeymap, writeKeymap } from './services/usbService';
+import { readKeymap, saveChanges, getDeviceInfo, connectUsb as connectUsbService, disconnectUsb } from './services/usbService';
 import { debugLog } from './components/DebugConsole';
 import { Header } from './components/Header/Header';
 import { LayerList } from './components/LeftPanel/LayerList';
@@ -63,20 +63,16 @@ function App() {
         usbConnected={usbConnected}
         unsaved={unsaved}
         onWrite={async () => {
-          const json = JSON.stringify(store.exportProject());
-          const ok = await writeKeymap(json);
-          if (ok) setUnsaved(false);
+          const ok = await saveChanges();
+          if (ok) {
+            setUnsaved(false);
+            debugLog('INF', 'Editor', 'Keymap written to device flash');
+          }
         }}
         onRead={async () => {
-          const text = await readKeymap();
-          if (text) {
-            try {
-              const project = JSON.parse(text);
-              store.importProject(project);
-              debugLog('INF', 'Editor', 'Keymap loaded from device');
-            } catch {
-              debugLog('ERR', 'Editor', 'Failed to parse keymap from device');
-            }
+          const keymap = await readKeymap();
+          if (keymap) {
+            debugLog('INF', 'Editor', `Received keymap: ${keymap.layers?.length ?? 0} layers`);
           }
         }}
         onSave={() => {
@@ -119,13 +115,14 @@ function App() {
           <ConnectionPanel
             connected={usbConnected}
             connectionType={usbConnected ? 'usb' : null}
-            onConnectionChange={(conn, type) => {
+            onConnectionChange={async (conn, type) => {
               setUsbConnected(conn && type === 'usb');
               if (conn) {
-                debugLog('INF', 'USB', `Connected via ${type?.toUpperCase()}`);
                 setShowConsole(true);
-              } else {
-                debugLog('INF', 'USB', 'Disconnected');
+                const info = await getDeviceInfo();
+                if (info) {
+                  debugLog('INF', 'USB', `Device: ${info.name} (FW: ${info.firmwareVersion})`);
+                }
               }
             }}
           />

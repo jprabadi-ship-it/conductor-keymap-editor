@@ -1,8 +1,5 @@
 import { connectUsb, disconnectUsb } from '../../services/usbService';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const nav = navigator as any;
-
 interface Props {
   connected: boolean;
   connectionType: 'usb' | 'bluetooth' | null;
@@ -22,24 +19,6 @@ export function ConnectionPanel({ connected, connectionType, onConnectionChange 
     }
   };
 
-  const handleBluetoothConnect = async () => {
-    try {
-      if (!nav.bluetooth) {
-        alert('Web Bluetooth is not supported in this browser.');
-        return;
-      }
-      const device = await nav.bluetooth.requestDevice({
-        acceptAllDevices: true,
-        optionalServices: [],
-      });
-      if (device) {
-        onConnectionChange(true, 'bluetooth');
-      }
-    } catch {
-      // user cancelled or error
-    }
-  };
-
   return (
     <div className="connection-panel">
       <div style={{ display: 'flex', gap: 12, marginBottom: 8 }}>
@@ -54,15 +33,9 @@ export function ConnectionPanel({ connected, connectionType, onConnectionChange 
       <button className="connect-btn connect-btn-usb" onClick={handleUsbConnect}>
         ⚡ {connected && connectionType === 'usb' ? 'Disconnect USB' : 'Connect via USB'}
       </button>
-      {!connected && (
-        <button className="connect-btn connect-btn-bt" onClick={handleBluetoothConnect}>
-          ⇄ Connect via Bluetooth
-        </button>
-      )}
 
       <div className="connection-help">
-        USBケーブルまたはBluetoothで接続してください。
-        Bluetooth接続時は「Q」「A」「Z」を同時押しするとペアリング候補に表示されます。
+        USBケーブルで接続してください。Web Serial API（Chrome/Edge）が必要です。
       </div>
     </div>
   );

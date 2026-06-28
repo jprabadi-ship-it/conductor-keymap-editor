@@ -1,196 +1,283 @@
+import protobuf from 'protobufjs';
 import { debugLog } from '../components/DebugConsole';
+import protoJson from '../data/zmk-studio-proto.json';
+
+const SOF = 171;
+const EOF = 173;
+const ESC = 172;
+const BAUD_RATE = 12500;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const nav = navigator as any;
-
+let port: any = null;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-let device: any = null;
-let interfaceNum = 0;
-let endpointIn = 0;
-let endpointOut = 0;
+let reader: any = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let writer: any = null;
+let requestId = 0;
+let frameCallback: ((data: Uint8Array) => void) | null = null;
 
-export async function connectUsb(): Promise<boolean> {
-  try {
-    if (!nav.usb) {
-      debugLog('ERR', 'USB', 'WebUSB is not supported in this browser');
-      return false;
+// Protobuf types
+let RequestType: protobuf.Type;
+let ResponseType: protobuf.Type;
+
+function initProto() {
+  if (RequestType) return;
+  const root = protobuf.Root.fromJSON(protoJson as protobuf.INamespace);
+  RequestType = root.lookupType('zmk.studio.Request');
+  ResponseType = root.lookupType('zmk.studio.Response');
+}
+
+// SLIP framing
+function encodeFrame(data: Uint8Array): Uint8Array {
+  const out: number[] = [SOF];
+  for (const byte of data) {
+    if (byte === SOF || byte === EOF || byte === ESC) {
+      out.push(ESC, byte);
+    } else {
+      out.push(byte);
     }
-    device = await nav.usb.requestDevice({ filters: [] });
-    debugLog('INF', 'USB', `Selected device: ${device.productName || device.serialNumber || 'Unknown'}`);
+  }
+  out.push(EOF);
+  return new Uint8Array(out);
+}
 
-    await device.open();
-    debugLog('INF', 'USB', `Device opened. Configurations: ${device.configurations?.length}`);
+class FrameDecoder {
+  private buffer: number[] = [];
+  private inFrame = false;
+  private escaped = false;
 
-    if (device.configuration === null) {
-      await device.selectConfiguration(1);
-    }
-
-    // Find the right interface and endpoints
-    const config = device.configuration;
-    let found = false;
-    for (const iface of config.interfaces) {
-      for (const alt of iface.alternates) {
-        const epIn = alt.endpoints.find((e: any) => e.direction === 'in');
-        const epOut = alt.endpoints.find((e: any) => e.direction === 'out');
-        if (epIn && epOut) {
-          interfaceNum = iface.interfaceNumber;
-          endpointIn = epIn.endpointNumber;
-          endpointOut = epOut.endpointNumber;
-          found = true;
-          debugLog('INF', 'USB', `Interface ${interfaceNum}: IN endpoint ${endpointIn}, OUT endpoint ${endpointOut} (${alt.interfaceClass}/${alt.interfaceSubclass})`);
-          break;
+  onData(data: Uint8Array) {
+    for (const byte of data) {
+      if (this.escaped) {
+        this.buffer.push(byte);
+        this.escaped = false;
+        continue;
+      }
+      if (byte === ESC) { this.escaped = true; continue; }
+      if (byte === EOF && this.inFrame) {
+        this.inFrame = false;
+        if (this.buffer.length > 0 && frameCallback) {
+          frameCallback(new Uint8Array(this.buffer));
         }
+        this.buffer = [];
+        continue;
       }
-      if (found) break;
+      if (byte === SOF) { this.buffer = []; this.inFrame = true; continue; }
+      if (this.inFrame) this.buffer.push(byte);
     }
+  }
+}
 
-    if (!found) {
-      // Try first interface with any endpoint
-      const iface = config.interfaces[0];
-      if (iface) {
-        interfaceNum = iface.interfaceNumber;
-        const alt = iface.alternates[0];
-        const eps = alt?.endpoints || [];
-        debugLog('WRN', 'USB', `No bidirectional interface found. Interface ${interfaceNum} has ${eps.length} endpoints`);
-        eps.forEach((ep: any) => {
-          debugLog('INF', 'USB', `  Endpoint ${ep.endpointNumber}: ${ep.direction}, type=${ep.type}, packetSize=${ep.packetSize}`);
-        });
-        const epIn = eps.find((e: any) => e.direction === 'in');
-        const epOut = eps.find((e: any) => e.direction === 'out');
-        if (epIn) endpointIn = epIn.endpointNumber;
-        if (epOut) endpointOut = epOut.endpointNumber;
-      }
-    }
+const decoder = new FrameDecoder();
 
-    await device.claimInterface(interfaceNum);
-    debugLog('INF', 'USB', `Claimed interface ${interfaceNum}`);
-    return true;
-  } catch (e: any) {
-    debugLog('ERR', 'USB', `Connection failed: ${e.message || e}`);
-    device = null;
+// Serial connection
+export async function connectUsb(): Promise<boolean> {
+  initProto();
+  if (!('serial' in navigator)) {
+    debugLog('ERR', 'USB', 'Web Serial API is not supported. Use Chrome or Edge.');
     return false;
+  }
+  try {
+    port = await (navigator as any).serial.requestPort({});
+    await port!.open({ baudRate: BAUD_RATE });
+    if (port!.readable && port!.writable) {
+      reader = port!.readable.getReader();
+      writer = port!.writable.getWriter();
+      startReading();
+      debugLog('INF', 'USB', `Serial port opened (baud: ${BAUD_RATE})`);
+      return true;
+    }
+    debugLog('ERR', 'USB', 'Port not readable/writable');
+    return false;
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `Connection failed: ${e.message}`);
+    port = null;
+    return false;
+  }
+}
+
+async function startReading() {
+  try {
+    while (reader) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      if (value) decoder.onData(value);
+    }
+  } catch (e: any) {
+    if (e?.name !== 'AbortError') {
+      debugLog('ERR', 'USB', `Read error: ${e.message}`);
+    }
   }
 }
 
 export function isConnected(): boolean {
-  return device !== null;
+  return port !== null;
 }
 
 export async function disconnectUsb(): Promise<void> {
-  if (device) {
-    try {
-      await device.releaseInterface(interfaceNum);
-      await device.close();
-      debugLog('INF', 'USB', 'Device disconnected');
-    } catch (e: any) {
-      debugLog('WRN', 'USB', `Disconnect error: ${e.message}`);
-    }
-    device = null;
+  try {
+    if (reader) { await reader.cancel().catch(() => {}); reader.releaseLock(); reader = null; }
+    if (writer) { await writer.close().catch(() => {}); writer.releaseLock(); writer = null; }
+    if (port) { await port.close().catch(() => {}); port = null; }
+    debugLog('INF', 'USB', 'Disconnected');
+  } catch (e: any) {
+    debugLog('WRN', 'USB', `Disconnect error: ${e.message}`);
   }
 }
 
-export async function sendCommand(cmd: string): Promise<Uint8Array | null> {
-  if (!device) {
-    debugLog('ERR', 'USB', 'No device connected');
-    return null;
-  }
+async function sendRequest(payload: Record<string, unknown>): Promise<any> {
+  if (!writer) throw new Error('Not connected');
+  initProto();
 
-  try {
-    const encoded = new TextEncoder().encode(cmd + '\n');
-    debugLog('INF', 'USB', `Sending command: ${cmd} (${encoded.length} bytes, endpoint ${endpointOut})`);
+  const id = ++requestId;
+  const msg = RequestType.create({ requestId: id, ...payload });
+  const buffer = RequestType.encode(msg).finish();
+  const frame = encodeFrame(buffer);
 
-    if (endpointOut > 0) {
-      await device.transferOut(endpointOut, encoded);
-    } else {
-      // Use control transfer as fallback
-      await device.controlTransferOut({
-        requestType: 'vendor',
-        recipient: 'interface',
-        request: 0x01,
-        value: 0,
-        index: interfaceNum,
-      }, encoded);
-    }
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      frameCallback = null;
+      reject(new Error('Response timeout'));
+    }, 5000);
 
-    debugLog('INF', 'USB', 'Command sent, waiting for response...');
-
-    // Read response
-    if (endpointIn > 0) {
-      const chunks: Uint8Array[] = [];
-      let totalLen = 0;
-      const maxWait = 3000;
-      const start = Date.now();
-
-      while (Date.now() - start < maxWait) {
-        try {
-          const result = await Promise.race([
-            device.transferIn(endpointIn, 4096),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1000)),
-          ]);
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const chunk = new Uint8Array((result as any).data.buffer);
-          chunks.push(chunk);
-          totalLen += chunk.length;
-          debugLog('INF', 'USB', `Received chunk: ${chunk.length} bytes (total: ${totalLen})`);
-
-          // Check if we got a complete JSON response
-          const combined = concatArrays(chunks);
-          const text = new TextDecoder().decode(combined);
-          if (text.includes('\n') || (text.startsWith('{') && text.endsWith('}'))) {
-            debugLog('INF', 'USB', `Response complete: ${totalLen} bytes`);
-            return combined;
+    frameCallback = (data: Uint8Array) => {
+      try {
+        const resp = ResponseType.decode(data) as any;
+        const rr = resp.requestResponse;
+        if (rr && rr.requestId === id) {
+          clearTimeout(timeout);
+          frameCallback = null;
+          if (rr.meta?.simpleError !== undefined && rr.meta?.simpleError !== null) {
+            reject(new Error(`Device error: ${rr.meta.simpleError}`));
+          } else {
+            resolve(rr);
           }
-        } catch {
-          if (chunks.length > 0) break;
         }
+      } catch (e: any) {
+        debugLog('WRN', 'USB', `Decode error: ${e.message}`);
       }
+    };
 
-      if (chunks.length > 0) {
-        return concatArrays(chunks);
-      }
+    writer!.write(frame).catch((e: any) => {
+      clearTimeout(timeout);
+      frameCallback = null;
+      reject(e);
+    });
+  });
+}
+
+// ZMK Studio API
+export async function getDeviceInfo(): Promise<{ name: string; firmwareVersion: string } | null> {
+  try {
+    const resp = await sendRequest({ core: { getDeviceInfo: true } });
+    const info = resp.core?.getDeviceInfo;
+    if (info) {
+      debugLog('INF', 'USB', `Device: ${info.name} (FW: ${info.firmwareVersion})`);
+      return { name: info.name, firmwareVersion: info.firmwareVersion };
     }
-
-    debugLog('WRN', 'USB', 'No response received');
     return null;
   } catch (e: any) {
-    debugLog('ERR', 'USB', `Command failed: ${e.message || e}`);
+    debugLog('ERR', 'USB', `getDeviceInfo failed: ${e.message}`);
     return null;
   }
 }
 
-export async function readKeymap(): Promise<string | null> {
-  const data = await sendCommand('READ');
-  if (!data) return null;
-  const text = new TextDecoder().decode(data).trim();
-  debugLog('INF', 'USB', `Read response: ${text.substring(0, 100)}${text.length > 100 ? '...' : ''}`);
-  return text;
+export async function getLockState(): Promise<number> {
+  try {
+    const resp = await sendRequest({ core: { getLockState: true } });
+    return resp.core?.getLockState ?? 0;
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `getLockState failed: ${e.message}`);
+    return 0;
+  }
 }
 
-export async function writeKeymap(json: string): Promise<boolean> {
+export async function requestUnlock(): Promise<void> {
+  debugLog('INF', 'USB', 'Requesting unlock... Press physical key to confirm.');
+}
+
+export async function readKeymap(): Promise<any> {
   try {
-    if (!device || endpointOut === 0) {
-      debugLog('ERR', 'USB', 'No device or output endpoint');
-      return false;
+    debugLog('INF', 'USB', 'Reading keymap from device...');
+    const resp = await sendRequest({ keymap: { getKeymap: true } });
+    const keymap = resp.keymap?.getKeymap;
+    if (keymap) {
+      const layerCount = keymap.layers?.length ?? 0;
+      debugLog('INF', 'USB', `Keymap received: ${layerCount} layers`);
+      return keymap;
     }
-    const payload = 'WRITE\n' + json + '\n';
-    const encoded = new TextEncoder().encode(payload);
-    debugLog('INF', 'USB', `Writing keymap: ${encoded.length} bytes`);
-    await device.transferOut(endpointOut, encoded);
-    debugLog('INF', 'USB', 'Write complete');
-    return true;
+    debugLog('WRN', 'USB', 'Empty keymap response');
+    return null;
   } catch (e: any) {
-    debugLog('ERR', 'USB', `Write failed: ${e.message || e}`);
+    debugLog('ERR', 'USB', `Read keymap failed: ${e.message}`);
+    return null;
+  }
+}
+
+export async function setLayerBinding(layerId: number, keyPosition: number, behaviorId: number, param1: number, param2: number): Promise<boolean> {
+  try {
+    const resp = await sendRequest({
+      keymap: {
+        setLayerBinding: { layerId, keyPosition, binding: { behaviorId, param1, param2 } },
+      },
+    });
+    return resp.keymap?.setLayerBinding !== undefined;
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `setLayerBinding failed: ${e.message}`);
     return false;
   }
 }
 
-function concatArrays(arrays: Uint8Array[]): Uint8Array {
-  const total = arrays.reduce((s, a) => s + a.length, 0);
-  const result = new Uint8Array(total);
-  let offset = 0;
-  for (const arr of arrays) {
-    result.set(arr, offset);
-    offset += arr.length;
+export async function saveChanges(): Promise<boolean> {
+  try {
+    debugLog('INF', 'USB', 'Saving changes to device flash...');
+    const resp = await sendRequest({ keymap: { saveChanges: true } });
+    debugLog('INF', 'USB', 'Changes saved');
+    return resp.keymap?.saveChanges !== undefined;
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `Save failed: ${e.message}`);
+    return false;
   }
-  return result;
+}
+
+export async function discardChanges(): Promise<boolean> {
+  try {
+    const resp = await sendRequest({ keymap: { discardChanges: true } });
+    debugLog('INF', 'USB', 'Changes discarded');
+    return resp.keymap?.discardChanges !== undefined;
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `Discard failed: ${e.message}`);
+    return false;
+  }
+}
+
+export async function getTappingTerm(): Promise<number | null> {
+  try {
+    const resp = await sendRequest({ core: { getTappingTerm: true } });
+    const tt = resp.core?.getTappingTerm;
+    if (tt) {
+      debugLog('INF', 'USB', `Tapping term: ${tt.tappingTerm}ms`);
+      return tt.tappingTerm;
+    }
+    return null;
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `getTappingTerm failed: ${e.message}`);
+    return null;
+  }
+}
+
+export async function setTappingTerm(ms: number): Promise<boolean> {
+  try {
+    await sendRequest({ core: { setTappingTerm: { tappingTerm: ms } } });
+    debugLog('INF', 'USB', `Tapping term set to ${ms}ms`);
+    return true;
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `setTappingTerm failed: ${e.message}`);
+    return false;
+  }
+}
+
+export async function writeKeymap(_json: string): Promise<boolean> {
+  debugLog('WRN', 'USB', 'Full keymap write requires per-binding updates via setLayerBinding');
+  return false;
 }

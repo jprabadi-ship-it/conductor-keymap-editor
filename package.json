@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "protobufjs": "^8.6.5",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },
