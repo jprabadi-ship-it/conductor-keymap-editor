@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { KeymapStore } from '../../store/useKeymapStore';
 import { MacroAction } from '../../types';
 
@@ -5,28 +6,111 @@ interface Props {
   store: KeymapStore;
 }
 
-const ACTIONS: { value: MacroAction; label: string }[] = [
-  { value: 'macro_tap', label: 'Tap' },
-  { value: 'macro_press', label: 'Press' },
-  { value: 'macro_release', label: 'Release' },
-  { value: 'macro_wait_time', label: 'Wait' },
+const ACTIONS: { value: MacroAction; label: string; desc: string }[] = [
+  { value: 'macro_tap', label: 'Tap', desc: 'Press & release' },
+  { value: 'macro_press', label: 'Press', desc: 'Hold down' },
+  { value: 'macro_release', label: 'Release', desc: 'Let go' },
+  { value: 'macro_wait_time', label: 'Wait', desc: 'Delay (ms)' },
+];
+
+const MACRO_KEY_CATEGORIES = [
+  { name: 'Letters', keys: 'A B C D E F G H I J K L M N O P Q R S T U V W X Y Z'.split(' ') },
+  { name: 'Numbers', keys: 'N1 N2 N3 N4 N5 N6 N7 N8 N9 N0'.split(' ') },
+  { name: 'Symbols', keys: 'MINUS EQUAL LBKT RBKT BSLH SEMI SQT GRAVE COMMA DOT FSLH EXCL AT HASH DLLR PRCNT CARET AMPS STAR LPAR RPAR PLUS UNDER TILDE PIPE'.split(' ') },
+  { name: 'Modifiers', keys: 'LSHIFT RSHIFT LCTRL RCTRL LALT RALT LGUI RGUI'.split(' ') },
+  { name: 'Navigation', keys: 'ENTER ESC BSPC DEL TAB SPACE CAPS UP DOWN LEFT RIGHT HOME END PG_UP PG_DN'.split(' ') },
+  { name: 'Function', keys: 'F1 F2 F3 F4 F5 F6 F7 F8 F9 F10 F11 F12 F13 F14 F15 F16 F17 F18 F19 F20 F21 F22 F23 F24'.split(' ') },
+  { name: 'Media', keys: 'C_VOL_UP C_VOL_DN C_MUTE C_PLAY_PAUSE C_NEXT C_PREV C_BRI_UP C_BRI_DN'.split(' ') },
+  { name: 'IME', keys: 'LANG1 LANG2 LANG3 INT_RO INT_KANA INT_YEN'.split(' ') },
 ];
 
 export function MacroEditor({ store }: Props) {
   const macro = store.selectedMacro;
   const idx = store.selectedMacroIndex;
+  const [pickerStepIdx, setPickerStepIdx] = useState<number | null>(null);
+  const [pickerSearch, setPickerSearch] = useState('');
+  const [pickerCategory, setPickerCategory] = useState<string | null>(null);
 
   if (macro === null || idx === null) {
     return <div className="right-panel-placeholder">Select a macro to edit</div>;
   }
 
+  const pickKey = (stepIdx: number) => {
+    setPickerStepIdx(stepIdx);
+    setPickerSearch('');
+    setPickerCategory(null);
+  };
+
+  const selectKey = (key: string) => {
+    if (pickerStepIdx !== null) {
+      store.updateMacroStep(idx, pickerStepIdx, { param: key });
+      setPickerStepIdx(null);
+    }
+  };
+
+  // Key picker overlay
+  if (pickerStepIdx !== null) {
+    const q = pickerSearch.toLowerCase();
+    const filtered = MACRO_KEY_CATEGORIES
+      .filter(cat => !pickerCategory || cat.name === pickerCategory)
+      .map(cat => ({
+        ...cat,
+        keys: cat.keys.filter(k => !q || k.toLowerCase().includes(q)),
+      }))
+      .filter(cat => cat.keys.length > 0);
+
+    return (
+      <div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <span style={{ fontWeight: 600, fontSize: 13 }}>Select Key</span>
+          <button className="btn" style={{ fontSize: 12 }} onClick={() => setPickerStepIdx(null)}>✕ Close</button>
+        </div>
+        <input
+          type="text"
+          placeholder="Search keys..."
+          value={pickerSearch}
+          onChange={e => setPickerSearch(e.target.value)}
+          style={{ width: '100%', marginBottom: 8 }}
+          autoFocus
+        />
+        <div className="keycode-categories" style={{ marginBottom: 8 }}>
+          <button
+            className={`category-btn ${!pickerCategory ? 'selected' : ''}`}
+            onClick={() => setPickerCategory(null)}
+          >All</button>
+          {MACRO_KEY_CATEGORIES.map(cat => (
+            <button
+              key={cat.name}
+              className={`category-btn ${pickerCategory === cat.name ? 'selected' : ''}`}
+              onClick={() => setPickerCategory(pickerCategory === cat.name ? null : cat.name)}
+            >{cat.name}</button>
+          ))}
+        </div>
+        <div style={{ maxHeight: 400, overflowY: 'auto' }}>
+          {filtered.map(cat => (
+            <div key={cat.name} style={{ marginBottom: 8 }}>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 4 }}>{cat.name}</div>
+              <div className="keycode-grid">
+                {cat.keys.map(k => (
+                  <button key={k} className="keycode-btn" onClick={() => selectKey(k)}>{k}</button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
+      {/* Header */}
       <div className="key-info-header">
         <span className="key-info-id">&amp;{macro.name}</span>
         <span className="key-info-type">{macro.bindings.length} steps</span>
       </div>
 
+      {/* Name */}
       <div className="config-section">
         <div className="config-label">Name</div>
         <input
@@ -34,9 +118,14 @@ export function MacroEditor({ store }: Props) {
           value={macro.name}
           onChange={e => store.updateMacro(idx, { name: e.target.value.replace(/[^a-z0-9_]/g, '') })}
           style={{ width: '100%' }}
+          placeholder="macro_name"
         />
+        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
+          lowercase, numbers, underscores only
+        </div>
       </div>
 
+      {/* Timing */}
       <div className="config-section">
         <div className="config-label">Timing</div>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -61,14 +150,27 @@ export function MacroEditor({ store }: Props) {
             />
           </label>
         </div>
+        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
+          Wait: ステップ間のデフォルト待ち時間 / Tap: キー押下の持続時間
+        </div>
       </div>
 
+      {/* Steps */}
       <div className="config-section">
-        <div className="config-label">Steps</div>
+        <div className="config-label">Steps ({macro.bindings.length})</div>
+
+        {macro.bindings.length === 0 && (
+          <div style={{ color: 'var(--text-muted)', fontSize: 12, padding: '8px 0', textAlign: 'center' }}>
+            No steps yet. Add a step below.
+          </div>
+        )}
+
         {macro.bindings.map((step, si) => (
           <div key={si} className="macro-step">
             <div className="macro-step-header">
               <span className="macro-step-num">{si + 1}</span>
+
+              {/* Action selector */}
               <select
                 className="macro-step-select"
                 value={step.action}
@@ -86,6 +188,7 @@ export function MacroEditor({ store }: Props) {
                 ))}
               </select>
 
+              {/* Param */}
               {step.action === 'macro_wait_time' ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1 }}>
                   <input
@@ -93,52 +196,72 @@ export function MacroEditor({ store }: Props) {
                     value={step.ms || 100}
                     min={1} max={10000}
                     onChange={e => store.updateMacroStep(idx, si, { ms: parseInt(e.target.value) || 100 })}
-                    style={{ width: 70 }}
+                    style={{ width: 60 }}
                   />
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>ms</span>
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>ms</span>
                 </div>
               ) : (
                 <button
                   className="btn btn-outline"
-                  style={{ fontSize: 11, padding: '3px 8px', flex: 1, textAlign: 'left' }}
-                  onClick={() => {
-                    const key = prompt('Key code:', step.param || 'SPACE');
-                    if (key) store.updateMacroStep(idx, si, { param: key });
-                  }}
+                  style={{ fontSize: 11, padding: '3px 8px', flex: 1, textAlign: 'left', fontFamily: 'monospace' }}
+                  onClick={() => pickKey(si)}
                 >{step.param || '?'}</button>
               )}
 
-              <div style={{ display: 'flex', gap: 2 }}>
+              {/* Controls */}
+              <div style={{ display: 'flex', gap: 1 }}>
                 <button
                   className="btn btn-icon"
-                  style={{ width: 24, height: 24, fontSize: 10 }}
+                  style={{ width: 22, height: 22, fontSize: 9 }}
                   onClick={() => store.moveMacroStep(idx, si, 'up')}
                   disabled={si === 0}
-                >↑</button>
+                  title="Move up"
+                >▲</button>
                 <button
                   className="btn btn-icon"
-                  style={{ width: 24, height: 24, fontSize: 10 }}
+                  style={{ width: 22, height: 22, fontSize: 9 }}
                   onClick={() => store.moveMacroStep(idx, si, 'down')}
                   disabled={si === macro.bindings.length - 1}
-                >↓</button>
+                  title="Move down"
+                >▼</button>
                 <button
                   className="btn btn-icon"
-                  style={{ width: 24, height: 24, fontSize: 10, color: 'var(--danger)' }}
+                  style={{ width: 22, height: 22, fontSize: 9, color: 'var(--danger)' }}
                   onClick={() => store.removeMacroStep(idx, si)}
+                  title="Remove"
                 >✕</button>
               </div>
             </div>
           </div>
         ))}
 
-        <button
-          className="btn btn-outline"
-          style={{ width: '100%', marginTop: 8, fontSize: 12 }}
-          onClick={() => store.addMacroStep(idx, { action: 'macro_tap', behavior: 'kp', param: 'SPACE' })}
-        >+ Add step</button>
+        {/* Add step buttons */}
+        <div style={{ display: 'flex', gap: 4, marginTop: 8 }}>
+          <button
+            className="btn btn-outline"
+            style={{ flex: 1, fontSize: 11 }}
+            onClick={() => store.addMacroStep(idx, { action: 'macro_tap', behavior: 'kp', param: 'SPACE' })}
+          >+ Tap</button>
+          <button
+            className="btn btn-outline"
+            style={{ flex: 1, fontSize: 11 }}
+            onClick={() => store.addMacroStep(idx, { action: 'macro_press', behavior: 'kp', param: 'LSHIFT' })}
+          >+ Press</button>
+          <button
+            className="btn btn-outline"
+            style={{ flex: 1, fontSize: 11 }}
+            onClick={() => store.addMacroStep(idx, { action: 'macro_release', behavior: 'kp', param: 'LSHIFT' })}
+          >+ Release</button>
+          <button
+            className="btn btn-outline"
+            style={{ flex: 1, fontSize: 11 }}
+            onClick={() => store.addMacroStep(idx, { action: 'macro_wait_time', ms: 100 })}
+          >+ Wait</button>
+        </div>
       </div>
 
-      <div className="config-section">
+      {/* Delete */}
+      <div className="config-section" style={{ marginTop: 16 }}>
         <button
           className="btn"
           style={{ width: '100%', color: 'var(--danger)', fontSize: 12, border: '1px solid var(--danger)', padding: '6px' }}
