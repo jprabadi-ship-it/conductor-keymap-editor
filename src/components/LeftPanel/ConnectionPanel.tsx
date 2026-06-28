@@ -1,12 +1,13 @@
-import { useState } from 'react';
-
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const nav = navigator as any;
 
-export function ConnectionPanel() {
-  const [connected, setConnected] = useState(false);
-  const [connectionType, setConnectionType] = useState<'usb' | 'bluetooth' | null>(null);
+interface Props {
+  connected: boolean;
+  connectionType: 'usb' | 'bluetooth' | null;
+  onConnectionChange: (connected: boolean, type: 'usb' | 'bluetooth' | null) => void;
+}
 
+export function ConnectionPanel({ connected, connectionType, onConnectionChange }: Props) {
   const handleUsbConnect = async () => {
     try {
       if (!nav.usb) {
@@ -15,8 +16,7 @@ export function ConnectionPanel() {
       }
       const device = await nav.usb.requestDevice({ filters: [] });
       await device.open();
-      setConnected(true);
-      setConnectionType('usb');
+      onConnectionChange(true, 'usb');
     } catch {
       // user cancelled or error
     }
@@ -33,8 +33,7 @@ export function ConnectionPanel() {
         optionalServices: [],
       });
       if (device) {
-        setConnected(true);
-        setConnectionType('bluetooth');
+        onConnectionChange(true, 'bluetooth');
       }
     } catch {
       // user cancelled or error

@@ -122,6 +122,38 @@ input:focus { border-color: var(--accent); }
 
 .header-spacer { flex: 1; }
 
+/* Header pill badges & action buttons (USB connected state) */
+.header-pill {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 14px; border-radius: 20px;
+  font-size: 13px; font-weight: 500;
+  border: 1px solid var(--border-light);
+  background: var(--bg-secondary);
+}
+.header-pill-live {
+  border-color: var(--success);
+  color: var(--success);
+}
+.header-pill-icon { font-size: 14px; }
+.header-pill-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--text-muted); flex-shrink: 0;
+}
+.header-pill-dot-green { background: var(--success); }
+.header-pill-unsaved { border-color: var(--warning); color: var(--warning); }
+
+.header-action-btn {
+  display: flex; align-items: center; gap: 5px;
+  padding: 5px 14px; border-radius: 20px;
+  font-size: 13px; font-weight: 500;
+  border: 1px solid var(--border-light);
+  background: var(--bg-secondary);
+  transition: all 0.15s;
+}
+.header-action-btn:hover {
+  background: var(--bg-hover); border-color: var(--accent);
+}
+
 .header-group {
   display: flex;
   align-items: center;

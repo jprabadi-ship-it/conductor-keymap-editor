@@ -5,9 +5,14 @@ interface Props {
   store: KeymapStore;
   showConsole: boolean;
   onToggleConsole: () => void;
+  usbConnected: boolean;
+  unsaved: boolean;
+  onWrite: () => void;
+  onRead: () => void;
+  onSave: () => void;
 }
 
-export function Header({ store, showConsole, onToggleConsole }: Props) {
+export function Header({ store, showConsole, onToggleConsole, usbConnected, unsaved, onWrite, onRead, onSave }: Props) {
   const [showExport, setShowExport] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -56,6 +61,32 @@ export function Header({ store, showConsole, onToggleConsole }: Props) {
       </div>
 
       <div className="header-spacer" />
+
+      {/* USB connection status & device actions */}
+      {usbConnected && (
+        <>
+          <button className="header-pill header-pill-live">
+            <span className="header-pill-icon">⚡</span>
+            USB Live
+            <span className="header-pill-dot header-pill-dot-green" />
+          </button>
+
+          <button className={`header-pill ${unsaved ? 'header-pill-unsaved' : ''}`}>
+            <span className="header-pill-dot" style={{ background: unsaved ? 'var(--warning)' : 'var(--success)' }} />
+            {unsaved ? 'Unsaved' : 'Saved'}
+          </button>
+
+          <button className="header-action-btn" onClick={onWrite}>
+            <span>↑</span> Write
+          </button>
+          <button className="header-action-btn" onClick={onRead}>
+            <span>↓</span> Read
+          </button>
+          <button className="header-action-btn" onClick={onSave}>
+            <span>💾</span> Save
+          </button>
+        </>
+      )}
 
       <div className="btn-group">
         <button

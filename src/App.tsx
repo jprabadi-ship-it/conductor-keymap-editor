@@ -22,6 +22,8 @@ function App() {
   const [leftWidth, setLeftWidth] = useState(224);
   const [rightWidth, setRightWidth] = useState(340);
   const [showConsole, setShowConsole] = useState(false);
+  const [usbConnected, setUsbConnected] = useState(false);
+  const [unsaved, setUnsaved] = useState(false);
 
   const onResizeLeft = useCallback((delta: number) => {
     setLeftWidth(prev => Math.max(LEFT_MIN, Math.min(LEFT_MAX, prev + delta)));
@@ -34,6 +36,7 @@ function App() {
   // Auto-save on changes
   useEffect(() => {
     const timer = setTimeout(() => store.autoSave(), 500);
+    if (usbConnected) setUnsaved(true);
     return () => clearTimeout(timer);
   }, [store.layers, store.combos, store.osLayout]);
 
@@ -48,7 +51,16 @@ function App() {
 
   return (
     <>
-      <Header store={store} showConsole={showConsole} onToggleConsole={() => setShowConsole(v => !v)} />
+      <Header
+        store={store}
+        showConsole={showConsole}
+        onToggleConsole={() => setShowConsole(v => !v)}
+        usbConnected={usbConnected}
+        unsaved={unsaved}
+        onWrite={() => { setUnsaved(false); }}
+        onRead={() => {}}
+        onSave={() => { setUnsaved(false); }}
+      />
 
       <div className="app-layout">
         {/* Left Panel */}
@@ -72,7 +84,13 @@ function App() {
             {store.leftPanelTab === 'layers' ? <LayerList store={store} /> : <ComboList store={store} />}
           </div>
 
-          <ConnectionPanel />
+          <ConnectionPanel
+            connected={usbConnected}
+            connectionType={usbConnected ? 'usb' : null}
+            onConnectionChange={(conn, type) => {
+              setUsbConnected(conn && type === 'usb');
+            }}
+          />
         </aside>
 
         <ResizeHandle side="left" onResize={onResizeLeft} />
