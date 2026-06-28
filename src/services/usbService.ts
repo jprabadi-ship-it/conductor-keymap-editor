@@ -361,16 +361,20 @@ export async function readKeymap(): Promise<any> {
 
         if (behName.includes('Bluetooth') || behName === 'bt' || behName.includes('bt')) {
           type = 'basic';
-          const btActions: Record<number, string> = {
-            0: 'BT 0', 1: 'BT 1', 2: 'BT 2', 3: 'BT 3', 4: 'BT 4', 5: 'BT 5',
-          };
-          if (binding.param1 <= 5 && binding.param2 === 0) {
-            label = btActions[binding.param1] || `BT ${binding.param1}`;
-            keyCode = `BT_SEL ${binding.param1}`;
-          } else if (binding.param1 === 0 && binding.param2 === 1) {
+          // param1: 0=CLR, 1=NXT, 2=PRV, 3=SEL, 4=CLR_ALL, 5=DISC
+          if (binding.param1 === 3) {
+            label = `BT ${binding.param2}`;
+            keyCode = `BT_SEL ${binding.param2}`;
+          } else if (binding.param1 === 0) {
             label = 'BT Clr'; keyCode = 'BT_CLR';
-          } else if (binding.param1 === 0 && binding.param2 === 2) {
+          } else if (binding.param1 === 4) {
             label = 'BT All'; keyCode = 'BT_CLR_ALL';
+          } else if (binding.param1 === 1) {
+            label = 'BT Nxt'; keyCode = 'BT_NXT';
+          } else if (binding.param1 === 2) {
+            label = 'BT Prv'; keyCode = 'BT_PRV';
+          } else if (binding.param1 === 5) {
+            label = 'BT Disc'; keyCode = 'BT_DISC';
           } else {
             label = `BT(${binding.param1},${binding.param2})`;
             keyCode = label;
