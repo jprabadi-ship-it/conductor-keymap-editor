@@ -23,7 +23,7 @@ let ResponseType: protobuf.Type;
 function initProto() {
   if (RequestType) return;
   try {
-    const root = protobuf.Root.fromJSON(protoJson as protobuf.INamespace);
+    const root = protobuf.Root.fromJSON({ nested: protoJson } as protobuf.INamespace);
     RequestType = root.lookupType('zmk.studio.Request');
     ResponseType = root.lookupType('zmk.studio.Response');
     debugLog('INF', 'USB', 'Protobuf schema loaded');
