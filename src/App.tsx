@@ -10,6 +10,7 @@ import { TrackballConfig } from './components/RightPanel/TrackballConfig';
 import { TimingConfig } from './components/RightPanel/TimingConfig';
 import { BluetoothConfig } from './components/RightPanel/BluetoothConfig';
 import { ResizeHandle } from './components/ResizeHandle';
+import { DebugConsole } from './components/DebugConsole';
 
 const LEFT_MIN = 160;
 const LEFT_MAX = 400;
@@ -20,6 +21,7 @@ function App() {
   const store = useKeymapStore();
   const [leftWidth, setLeftWidth] = useState(224);
   const [rightWidth, setRightWidth] = useState(280);
+  const [showConsole, setShowConsole] = useState(false);
 
   const onResizeLeft = useCallback((delta: number) => {
     setLeftWidth(prev => Math.max(LEFT_MIN, Math.min(LEFT_MAX, prev + delta)));
@@ -46,7 +48,7 @@ function App() {
 
   return (
     <>
-      <Header store={store} />
+      <Header store={store} showConsole={showConsole} onToggleConsole={() => setShowConsole(v => !v)} />
 
       <div className="app-layout">
         {/* Left Panel */}
@@ -100,6 +102,8 @@ function App() {
           </div>
         </aside>
       </div>
+
+      <DebugConsole visible={showConsole} />
 
       {/* Footer */}
       <footer className="footer">

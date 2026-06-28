@@ -3,9 +3,11 @@ import { KeymapStore } from '../../store/useKeymapStore';
 
 interface Props {
   store: KeymapStore;
+  showConsole: boolean;
+  onToggleConsole: () => void;
 }
 
-export function Header({ store }: Props) {
+export function Header({ store, showConsole, onToggleConsole }: Props) {
   const [showExport, setShowExport] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -89,6 +91,13 @@ export function Header({ store }: Props) {
           </div>
         )}
       </div>
+
+      <button
+        className={`btn btn-icon ${showConsole ? 'btn-active' : ''}`}
+        onClick={onToggleConsole}
+        title="Toggle Debug Console"
+        style={{ fontFamily: 'monospace', fontSize: 14 }}
+      >&gt;_</button>
 
       <input
         ref={fileInputRef}
