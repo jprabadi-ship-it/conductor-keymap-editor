@@ -97,7 +97,7 @@ export function KeyboardView({ store }: Props) {
 
       <div className="keyboard-container">
         {renderHalf(LEFT_KEYS, 'left')}
-        {renderHalf(RIGHT_KEYS, 'right', { row: 2, colStart: 2, colSpan: 2 })}
+        {renderHalf(RIGHT_KEYS, 'right', { row: 3, colStart: 2, colSpan: 2 })}
       </div>
 
       <div className="keyboard-hint">Click a key to configure</div>

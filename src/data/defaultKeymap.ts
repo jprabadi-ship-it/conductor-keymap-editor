@@ -62,8 +62,10 @@ function makeLayer0Keys(): KeyConfig[] {
   set('R12', 'KC_K', 'K');
   set('R13', 'KC_L', 'L');
   set('R14', 'KC_P', 'P');
-  // Right Row 2 (R21/R22 occupied by trackball)
+  // Right Row 2
   set('R20', 'KC_N', 'N');
+  set('R21', 'KC_M', 'M');
+  set('R22', 'KC_COMM', ',');
   set('R23', 'KC_DOT', '.');
   set('R24', 'KC_MINS', '-');
   // Right Row 3 (thumb)

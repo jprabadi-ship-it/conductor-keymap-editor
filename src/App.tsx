@@ -109,7 +109,7 @@ function App() {
       <footer className="footer">
         <span className="footer-item">Conductor Monokey</span>
         <span className="footer-item">{store.layers.length} layers</span>
-        <span className="footer-item">38 keys</span>
+        <span className="footer-item">40 keys</span>
         <span className="footer-item">Cached</span>
         <span className="footer-spacer" />
         <span className="footer-item">Auto-saved to LocalStorage</span>
