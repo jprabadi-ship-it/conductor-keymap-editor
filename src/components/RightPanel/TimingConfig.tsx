@@ -1,4 +1,7 @@
+import { useEffect, useState } from 'react';
 import { KeymapStore } from '../../store/useKeymapStore';
+import { isConnected, getTappingTerm, setTappingTerm, saveChanges } from '../../services/usbService';
+import { debugLog } from '../DebugConsole';
 
 interface Props {
   store: KeymapStore;
@@ -7,6 +10,29 @@ interface Props {
 const PRESETS = [150, 175, 200, 250, 300];
 
 export function TimingConfig({ store }: Props) {
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!isConnected() || loaded) return;
+    (async () => {
+      const tt = await getTappingTerm();
+      if (tt !== null) {
+        store.setTappingTerm(tt);
+        debugLog('INF', 'Timing', `Loaded tapping term: ${tt}ms`);
+      }
+      setLoaded(true);
+    })();
+  }, [loaded]);
+
+  const handleSave = async () => {
+    if (!isConnected()) { debugLog('WRN', 'Timing', 'Not connected'); return; }
+    const ok = await setTappingTerm(store.tappingTerm);
+    if (ok) {
+      await saveChanges();
+      debugLog('INF', 'Timing', `Tapping term saved: ${store.tappingTerm}ms`);
+    }
+  };
+
   return (
     <div>
       <div className="config-section">
@@ -50,8 +76,8 @@ export function TimingConfig({ store }: Props) {
       </div>
 
       <div className="save-actions">
-        <button className="btn btn-primary" style={{ flex: 1 }}>デバイスに保存</button>
-        <button className="btn btn-outline" style={{ flex: 1 }}>リセット</button>
+        <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleSave}>デバイスに保存</button>
+        <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setLoaded(false)}>再読込</button>
       </div>
       <div className="save-note">
         この設定はデバイスのFlashメモリに保存され、再起動後も維持されます。

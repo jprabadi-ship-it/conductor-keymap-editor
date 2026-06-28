@@ -40,8 +40,36 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, unsa
     reader.onload = (ev) => {
       try {
         const data = JSON.parse(ev.target?.result as string);
-        store.importProject(data);
-      } catch { /* ignore invalid files */ }
+        if (data.version === 2 && data.layers && Array.isArray(data.layers)) {
+          // Convert Conductor Studio export format to internal format
+          const project = store.exportProject();
+          project.layers = data.layers.map((dl: any, i: number) => {
+            const existing = project.layers[i] || project.layers[0];
+            const keys = existing.keys.map((k: any) => {
+              const b = dl.bindings?.[k.id];
+              if (!b) return { id: k.id, binding: { type: 'none', keyCode: 'NONE', label: '' } };
+              const binding: any = { type: b.type === 'transparent' ? 'trans' : b.type, keyCode: b.keyCode, label: b.label };
+              if (b.holdAction) {
+                if (b.type === 'layer-tap') binding.layer = parseInt(b.holdAction.replace('Layer ', ''));
+                if (b.type === 'mod-tap') binding.modifiers = [b.holdAction.toLowerCase()];
+                binding.tapLabel = b.tapAction || b.label;
+                binding.tapKeyCode = b.tapAction;
+              }
+              if (b.modifiers) binding.modifiers = b.modifiers.map((m: string) => m.toLowerCase());
+              return { id: k.id, binding };
+            });
+            return { ...existing, name: dl.name || existing.name, index: dl.id ?? i, keys };
+          });
+          if (data.combos) project.combos = data.combos;
+          if (data.macros) project.macros = data.macros;
+          store.importProject(project);
+        } else if (data.layers) {
+          store.importProject(data);
+        }
+      } catch (err) {
+        console.error('Import failed:', err);
+        alert('ファイルの読み込みに失敗しました');
+      }
     };
     reader.readAsText(file);
     e.target.value = '';
