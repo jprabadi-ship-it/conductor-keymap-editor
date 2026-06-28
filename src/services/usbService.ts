@@ -359,7 +359,12 @@ export async function readKeymap(): Promise<any> {
         let keyCode = label;
         const extra: any = {};
 
-        if (behName.includes('Key Press') || behName === 'kp') {
+        if (behName.includes('Mouse Key Press') || behName === 'mkp' || behName.includes('mkp')) {
+          type = 'basic';
+          const mouseMap: Record<number, string> = { 0: 'MB1', 1: 'MB1', 2: 'MB2', 3: 'MB3', 4: 'MB4', 5: 'MB5' };
+          label = mouseMap[binding.param1] || `MB${binding.param1}`;
+          keyCode = `mkp ${label}`;
+        } else if (behName.includes('Key Press') || behName === 'kp') {
           type = 'basic';
         } else if (behName.includes('Mod-Tap') || behName === 'mt') {
           type = 'mod-tap';
