@@ -522,7 +522,13 @@ export async function setLayerBinding(layerId: number, keyPosition: number, beha
         setLayerBinding: { layerId, keyPosition, binding: { behaviorId, param1, param2 } },
       },
     });
-    return resp.keymap?.setLayerBinding !== undefined;
+    const result = resp.keymap?.setLayerBinding;
+    const errNames: Record<number, string> = { 0: 'OK', 1: 'INVALID_LOCATION', 2: 'INVALID_BEHAVIOR', 3: 'INVALID_PARAMETERS' };
+    if (typeof result === 'number' && result !== 0) {
+      debugLog('ERR', 'USB', `setLayerBinding response: ${errNames[result] || result}`);
+      return false;
+    }
+    return true;
   } catch (e: any) {
     debugLog('ERR', 'USB', `setLayerBinding failed: ${e.message}`);
     return false;
@@ -533,8 +539,14 @@ export async function saveChanges(): Promise<boolean> {
   try {
     debugLog('INF', 'USB', 'Saving changes to device flash...');
     const resp = await sendRequest({ keymap: { saveChanges: true } });
-    debugLog('INF', 'USB', 'Changes saved');
-    return resp.keymap?.saveChanges !== undefined;
+    const saveResp = resp.keymap?.saveChanges;
+    if (saveResp?.err !== undefined && saveResp?.err !== null) {
+      const errNames: Record<number, string> = { 0: 'OK', 1: 'GENERIC', 2: 'NOT_SUPPORTED', 3: 'NO_SPACE' };
+      debugLog('ERR', 'USB', `Save error: ${errNames[saveResp.err] || saveResp.err}`);
+      return false;
+    }
+    debugLog('INF', 'USB', `Save response: ok=${saveResp?.ok}`);
+    return saveResp?.ok === true;
   } catch (e: any) {
     debugLog('ERR', 'USB', `Save failed: ${e.message}`);
     return false;
