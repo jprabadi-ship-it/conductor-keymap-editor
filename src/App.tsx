@@ -20,7 +20,7 @@ const RIGHT_MAX = 480;
 function App() {
   const store = useKeymapStore();
   const [leftWidth, setLeftWidth] = useState(224);
-  const [rightWidth, setRightWidth] = useState(280);
+  const [rightWidth, setRightWidth] = useState(340);
   const [showConsole, setShowConsole] = useState(false);
 
   const onResizeLeft = useCallback((delta: number) => {
@@ -91,9 +91,9 @@ function App() {
                 className={`right-panel-tab ${store.rightPanelTab === tab ? 'active' : ''}`}
                 onClick={() => store.setRightPanelTab(tab)}
               >
-                {tab === 'key-config' ? 'Key Config' :
-                 tab === 'trackball' ? 'Trackball' :
-                 tab === 'timing' ? 'Timing' : 'Bluetooth'}
+                {tab === 'key-config' ? '⚙ Key Config' :
+                 tab === 'trackball' ? '🖲 Trackball' :
+                 tab === 'timing' ? '⏱ Timing' : '📡 Bluetooth'}
               </button>
             ))}
           </div>
