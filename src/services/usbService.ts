@@ -282,7 +282,13 @@ function hidToLabel(param: number): string {
   return `0x${param.toString(16)}`;
 }
 
-import { KEYBOARD_LAYOUT } from '../data/layout';
+// Protobuf bindings array order: row-by-row, left then right per row
+const KEY_ORDER = [
+  'L00','L01','L02','L03','L04','R00','R01','R02','R03','R04',
+  'L10','L11','L12','L13','L14','R10','R11','R12','R13','R14',
+  'L20','L21','L22','L23','L24','R20','R21','R22','R23','R24',
+  'L30','L31','L32','L33','L34','L35','R30','R31','R32','R33',
+];
 
 export async function readKeymap(): Promise<any> {
   try {
@@ -308,11 +314,10 @@ export async function readKeymap(): Promise<any> {
     // Convert protobuf keymap to app format
     const layers = keymap.layers.map((layer: any) => {
       const bindings: Record<string, any> = {};
-      const positions = KEYBOARD_LAYOUT;
 
       (layer.bindings || []).forEach((binding: any, idx: number) => {
-        if (idx >= positions.length) return;
-        const pos = positions[idx];
+        if (idx >= KEY_ORDER.length) return;
+        const posId = KEY_ORDER[idx];
         const beh = behaviorCache[binding.behaviorId];
         const behName = beh?.displayName || '';
 
@@ -356,7 +361,7 @@ export async function readKeymap(): Promise<any> {
           keyCode = 'NONE';
         }
 
-        bindings[pos.id] = { type, keyCode, label, ...extra };
+        bindings[posId] = { type, keyCode, label, ...extra };
       });
 
       return {
