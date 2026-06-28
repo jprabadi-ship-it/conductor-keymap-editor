@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useKeymapStore } from './store/useKeymapStore';
-import { readKeymap, writeKeymapToDevice, saveChanges, setLayerProps, getDeviceInfo, requestUnlock, isUnlocked, connectUsb as connectUsbService, disconnectUsb, readMacrosFromDevice } from './services/usbService';
+import { readKeymap, writeKeymapToDevice, saveChanges, setLayerProps, getDeviceInfo, requestUnlock, isUnlocked, connectUsb as connectUsbService, disconnectUsb, readMacrosFromDevice, onDeviceDisconnect } from './services/usbService';
 import { debugLog } from './components/DebugConsole';
 import { Header } from './components/Header/Header';
 import { LayerList } from './components/LeftPanel/LayerList';
@@ -28,6 +28,10 @@ function App() {
   const [showConsole, setShowConsole] = useState(false);
   const [usbConnected, setUsbConnected] = useState(false);
   const [unsaved, setUnsaved] = useState(false);
+
+  useEffect(() => {
+    onDeviceDisconnect(() => setUsbConnected(false));
+  }, []);
 
   const onResizeLeft = useCallback((delta: number) => {
     setLeftWidth(prev => Math.max(LEFT_MIN, Math.min(LEFT_MAX, prev + delta)));

@@ -15,6 +15,11 @@ let reader: any = null;
 let writer: any = null;
 let requestId = 0;
 let frameCallback: ((data: Uint8Array) => void) | null = null;
+let onDisconnectCallback: (() => void) | null = null;
+
+export function onDeviceDisconnect(cb: () => void) {
+  onDisconnectCallback = cb;
+}
 
 // Protobuf types
 let RequestType: protobuf.Type;
@@ -122,6 +127,7 @@ async function startReading() {
       writer = null;
       port = null;
       debugLog('INF', 'USB', 'Connection lost — state reset');
+      onDisconnectCallback?.();
     }
   }
 }
