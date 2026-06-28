@@ -9,6 +9,8 @@ import { KeyConfig } from './components/RightPanel/KeyConfig';
 import { TrackballConfig } from './components/RightPanel/TrackballConfig';
 import { TimingConfig } from './components/RightPanel/TimingConfig';
 import { BluetoothConfig } from './components/RightPanel/BluetoothConfig';
+import { MacroList } from './components/LeftPanel/MacroList';
+import { MacroEditor } from './components/RightPanel/MacroEditor';
 import { ResizeHandle } from './components/ResizeHandle';
 import { DebugConsole } from './components/DebugConsole';
 
@@ -38,13 +40,14 @@ function App() {
     const timer = setTimeout(() => store.autoSave(), 500);
     if (usbConnected) setUnsaved(true);
     return () => clearTimeout(timer);
-  }, [store.layers, store.combos, store.osLayout]);
+  }, [store.layers, store.combos, store.macros, store.osLayout]);
 
   const rightPanelContent = () => {
     switch (store.rightPanelTab) {
       case 'key-config': return <KeyConfig store={store} />;
       case 'trackball': return <TrackballConfig store={store} />;
       case 'timing': return <TimingConfig store={store} />;
+      case 'macro-edit': return <MacroEditor store={store} />;
       case 'bluetooth': return <BluetoothConfig store={store} />;
     }
   };
@@ -78,10 +81,18 @@ function App() {
             >
               ⌨ Combos <span className="badge">{store.combos.length}</span>
             </button>
+            <button
+              className={`panel-tab ${store.leftPanelTab === 'macros' ? 'active' : ''}`}
+              onClick={() => store.setLeftPanelTab('macros')}
+            >
+              ⚡ Macros <span className="badge">{store.macros.length}</span>
+            </button>
           </div>
 
           <div className="panel-content">
-            {store.leftPanelTab === 'layers' ? <LayerList store={store} /> : <ComboList store={store} />}
+            {store.leftPanelTab === 'layers' ? <LayerList store={store} />
+              : store.leftPanelTab === 'combos' ? <ComboList store={store} />
+              : <MacroList store={store} />}
           </div>
 
           <ConnectionPanel

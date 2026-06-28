@@ -51,15 +51,31 @@ export interface BluetoothProfile {
   ledColor: LedColor;
 }
 
+export type MacroAction = 'macro_tap' | 'macro_press' | 'macro_release' | 'macro_wait_time';
+
+export interface MacroStep {
+  action: MacroAction;
+  behavior?: string;
+  param?: string;
+  ms?: number;
+}
+
+export interface Macro {
+  name: string;
+  waitMs: number;
+  tapMs: number;
+  bindings: MacroStep[];
+}
+
 export type OsLayout = 'us' | 'jis';
 
-export type RightPanelTab = 'key-config' | 'trackball' | 'timing' | 'bluetooth';
-export type LeftPanelTab = 'layers' | 'combos';
+export type RightPanelTab = 'key-config' | 'trackball' | 'timing' | 'bluetooth' | 'macro-edit';
+export type LeftPanelTab = 'layers' | 'combos' | 'macros';
 
 export interface KeymapProject {
   layers: Layer[];
   combos: Combo[];
-  macros: unknown[];
+  macros: Macro[];
   osLayout: OsLayout;
   tappingTerm: number;
   gestures: GestureShortcut[];

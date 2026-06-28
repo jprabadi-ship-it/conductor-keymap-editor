@@ -1,9 +1,10 @@
 import { useState, useCallback, useRef } from 'react';
-import type { Layer, KeyBinding, LedColor, Combo, GestureShortcut, BluetoothProfile, OsLayout, RightPanelTab, LeftPanelTab, KeymapProject } from '../types';
+import type { Layer, KeyBinding, LedColor, Combo, Macro, MacroStep, GestureShortcut, BluetoothProfile, OsLayout, RightPanelTab, LeftPanelTab, KeymapProject } from '../types';
 import { createDefaultLayers, createDefaultCombos, createDefaultGestures, createDefaultBluetoothProfiles } from '../data/defaultKeymap';
 
 const STORAGE_KEY_KEYMAP = 'conductor-studio-keymap';
 const STORAGE_KEY_COMBOS = 'conductor-studio-combos';
+const STORAGE_KEY_MACROS = 'conductor-studio-macros';
 const STORAGE_KEY_LAYOUT = 'conductor-os-keyboard-layout';
 
 function loadFromStorage<T>(key: string, fallback: () => T): T {
@@ -28,6 +29,8 @@ export interface UndoEntry {
 export function useKeymapStore() {
   const [layers, setLayers] = useState<Layer[]>(() => loadFromStorage(STORAGE_KEY_KEYMAP, createDefaultLayers));
   const [combos, setCombos] = useState<Combo[]>(() => loadFromStorage(STORAGE_KEY_COMBOS, createDefaultCombos));
+  const [macros, setMacros] = useState<Macro[]>(() => loadFromStorage(STORAGE_KEY_MACROS, () => []));
+  const [selectedMacroIndex, setSelectedMacroIndex] = useState<number | null>(null);
   const [osLayout, setOsLayout] = useState<OsLayout>(() => loadFromStorage(STORAGE_KEY_LAYOUT, () => 'us'));
   const [tappingTerm, setTappingTerm] = useState(200);
   const [gestures, setGestures] = useState<GestureShortcut[]>(createDefaultGestures);
@@ -72,8 +75,9 @@ export function useKeymapStore() {
   const autoSave = useCallback(() => {
     saveToStorage(STORAGE_KEY_KEYMAP, layers);
     saveToStorage(STORAGE_KEY_COMBOS, combos);
+    saveToStorage(STORAGE_KEY_MACROS, macros);
     saveToStorage(STORAGE_KEY_LAYOUT, osLayout);
-  }, [layers, combos, osLayout]);
+  }, [layers, combos, macros, osLayout]);
 
   // Key binding operations
   const updateKeyBinding = useCallback((layerIndex: number, keyId: string, binding: KeyBinding) => {
@@ -138,15 +142,67 @@ export function useKeymapStore() {
     setCombos(prev => prev.filter(c => c.id !== id));
   }, [pushUndo]);
 
+  // Macro operations
+  const addMacro = useCallback(() => {
+    if (macros.length >= 16) return;
+    let name = 'm_new';
+    let suffix = 1;
+    const names = new Set(macros.map(m => m.name));
+    while (names.has(name)) { name = `m_new_${suffix++}`; }
+    setMacros(prev => [...prev, { name, waitMs: 30, tapMs: 30, bindings: [] }]);
+    setSelectedMacroIndex(macros.length);
+  }, [macros]);
+
+  const updateMacro = useCallback((index: number, updates: Partial<Macro>) => {
+    setMacros(prev => prev.map((m, i) => i === index ? { ...m, ...updates } : m));
+  }, []);
+
+  const removeMacro = useCallback((index: number) => {
+    setMacros(prev => prev.filter((_, i) => i !== index));
+    setSelectedMacroIndex(null);
+  }, []);
+
+  const addMacroStep = useCallback((macroIndex: number, step: MacroStep) => {
+    setMacros(prev => prev.map((m, i) =>
+      i === macroIndex ? { ...m, bindings: [...m.bindings, step] } : m
+    ));
+  }, []);
+
+  const updateMacroStep = useCallback((macroIndex: number, stepIndex: number, updates: Partial<MacroStep>) => {
+    setMacros(prev => prev.map((m, i) =>
+      i === macroIndex ? { ...m, bindings: m.bindings.map((s, j) => j === stepIndex ? { ...s, ...updates } : s) } : m
+    ));
+  }, []);
+
+  const removeMacroStep = useCallback((macroIndex: number, stepIndex: number) => {
+    setMacros(prev => prev.map((m, i) =>
+      i === macroIndex ? { ...m, bindings: m.bindings.filter((_, j) => j !== stepIndex) } : m
+    ));
+  }, []);
+
+  const moveMacroStep = useCallback((macroIndex: number, stepIndex: number, direction: 'up' | 'down') => {
+    setMacros(prev => prev.map((m, i) => {
+      if (i !== macroIndex) return m;
+      const newBindings = [...m.bindings];
+      const target = direction === 'up' ? stepIndex - 1 : stepIndex + 1;
+      if (target < 0 || target >= newBindings.length) return m;
+      [newBindings[stepIndex], newBindings[target]] = [newBindings[target], newBindings[stepIndex]];
+      return { ...m, bindings: newBindings };
+    }));
+  }, []);
+
+  const selectedMacro = selectedMacroIndex !== null ? macros[selectedMacroIndex] : null;
+
   // Export/Import
   const exportProject = useCallback((): KeymapProject => ({
-    layers, combos, macros: [], osLayout, tappingTerm, gestures, bluetoothProfiles,
-  }), [layers, combos, osLayout, tappingTerm, gestures, bluetoothProfiles]);
+    layers, combos, macros, osLayout, tappingTerm, gestures, bluetoothProfiles,
+  }), [layers, combos, macros, osLayout, tappingTerm, gestures, bluetoothProfiles]);
 
   const importProject = useCallback((project: KeymapProject) => {
     pushUndo();
     setLayers(project.layers);
     setCombos(project.combos);
+    if (project.macros) setMacros(project.macros);
     setOsLayout(project.osLayout || 'us');
     setTappingTerm(project.tappingTerm || 200);
     if (project.gestures) setGestures(project.gestures);
@@ -157,6 +213,7 @@ export function useKeymapStore() {
     pushUndo();
     setLayers(createDefaultLayers());
     setCombos(createDefaultCombos());
+    setMacros([]);
   }, [pushUndo]);
 
   // Selected layer & key helpers
@@ -169,15 +226,19 @@ export function useKeymapStore() {
   );
 
   return {
-    layers, combos, osLayout, tappingTerm, gestures, bluetoothProfiles,
+    layers, combos, macros, osLayout, tappingTerm, gestures, bluetoothProfiles,
     selectedLayerIndex, selectedKeyId, selectedLayer, selectedKey,
+    selectedMacroIndex, selectedMacro,
     rightPanelTab, leftPanelTab, diffMode, amlExcluded, comboOverlays,
     canUndo, canRedo,
     setSelectedLayerIndex, setSelectedKeyId, setRightPanelTab, setLeftPanelTab,
+    setSelectedMacroIndex,
     setDiffMode, setAmlExcluded, setOsLayout, setTappingTerm,
     setGestures, setBluetoothProfiles,
     updateKeyBinding, setLayerLedColor, addLayer, removeLayer,
     addCombo, updateCombo, removeCombo,
+    addMacro, updateMacro, removeMacro,
+    addMacroStep, updateMacroStep, removeMacroStep, moveMacroStep,
     undo, redo, reset, autoSave, exportProject, importProject,
   };
 }
