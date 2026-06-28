@@ -239,45 +239,78 @@ export async function getBehaviorDetails(behaviorId: number): Promise<{ displayN
 }
 
 // HID Usage Code to key label
-const HID_USAGE_MAP: Record<number, string> = {
+// HID keyboard page (0x07) usage codes
+const KB_USAGE: Record<number, string> = {
   0: 'NONE', 4: 'A', 5: 'B', 6: 'C', 7: 'D', 8: 'E', 9: 'F', 10: 'G', 11: 'H', 12: 'I', 13: 'J',
   14: 'K', 15: 'L', 16: 'M', 17: 'N', 18: 'O', 19: 'P', 20: 'Q', 21: 'R', 22: 'S', 23: 'T',
   24: 'U', 25: 'V', 26: 'W', 27: 'X', 28: 'Y', 29: 'Z',
   30: '1', 31: '2', 32: '3', 33: '4', 34: '5', 35: '6', 36: '7', 37: '8', 38: '9', 39: '0',
   40: 'Enter', 41: 'Esc', 42: 'Bksp', 43: 'Tab', 44: 'Space',
-  45: '-', 46: '=', 47: '[', 48: ']', 49: '\\', 51: ';', 52: "'", 53: '`', 54: ',', 55: '.', 56: '/',
+  45: '-', 46: '=', 47: '[', 48: ']', 49: '\\', 50: '#', 51: ';', 52: "'", 53: '`', 54: ',', 55: '.', 56: '/',
   57: 'Caps', 58: 'F1', 59: 'F2', 60: 'F3', 61: 'F4', 62: 'F5', 63: 'F6',
   64: 'F7', 65: 'F8', 66: 'F9', 67: 'F10', 68: 'F11', 69: 'F12',
   70: 'PrtSc', 71: 'ScrLk', 72: 'Pause', 73: 'Ins', 74: 'Home', 75: 'PgUp',
   76: 'Del', 77: 'End', 78: 'PgDn', 79: 'Right', 80: 'Left', 81: 'Down', 82: 'Up',
+  83: 'Num Lock',
+  84: 'KP /', 85: 'KP *', 86: 'KP -', 87: 'KP +', 88: 'KP Enter',
+  89: 'KP 1', 90: 'KP 2', 91: 'KP 3', 92: 'KP 4', 93: 'KP 5',
+  94: 'KP 6', 95: 'KP 7', 96: 'KP 8', 97: 'KP 9', 98: 'KP 0', 99: 'KP .',
+  100: '\\', 101: 'App',
   104: 'F13', 105: 'F14', 106: 'F15', 107: 'F16', 108: 'F17', 109: 'F18',
   110: 'F19', 111: 'F20', 112: 'F21', 113: 'F22', 114: 'F23', 115: 'F24',
-  // Modifiers
+  144: 'LANG1', 145: 'LANG2',
   224: 'L Ctrl', 225: 'L Shift', 226: 'L Alt', 227: 'L GUI',
   228: 'R Ctrl', 229: 'R Shift', 230: 'R Alt', 231: 'R GUI',
-  // Consumer (page 0x0C, offset by 0x10000 in ZMK)
-  0x100B5: 'Next', 0x100B6: 'Prev', 0x100B7: 'Stop', 0x100CD: 'Play',
-  0x100E2: 'Mute', 0x100E9: 'Vol+', 0x100EA: 'Vol-',
-  0x1006F: 'Bri+', 0x10070: 'Bri-',
-  // IME
-  144: 'LANG1', 145: 'LANG2',
 };
 
-function hidToLabel(param: number): string {
-  const page = (param >> 16) & 0xFFFF;
-  const usage = param & 0xFFFF;
+// Shift+key → symbol label
+const SHIFT_MAP: Record<number, string> = {
+  30: '!', 31: '@', 32: '#', 33: '$', 34: '%', 35: '^', 36: '&', 37: '*', 38: '(', 39: ')',
+  45: '_', 46: '+', 47: '{', 48: '}', 49: '|', 51: ':', 52: '"', 53: '~', 54: '<', 55: '>', 56: '?',
+};
 
-  if (page === 0x07 || page === 0) {
-    return HID_USAGE_MAP[usage] || `HID:${usage.toString(16)}`;
+// Consumer page (0x0C)
+const CONSUMER_USAGE: Record<number, string> = {
+  0x6F: 'Bri+', 0x70: 'Bri-',
+  0xB5: 'Next', 0xB6: 'Prev', 0xB7: 'Stop', 0xCD: 'Play',
+  0xE2: 'Mute', 0xE9: 'Vol+', 0xEA: 'Vol-',
+};
+
+const MOD_BITS: [number, string][] = [
+  [0x01, 'C'], [0x02, 'S'], [0x04, 'A'], [0x08, 'G'],
+  [0x10, 'RC'], [0x20, 'RS'], [0x40, 'RA'], [0x80, 'RG'],
+];
+
+function parseParam(param: number): { mods: number; page: number; usage: number } {
+  return {
+    mods: (param >> 24) & 0xFF,
+    page: (param >> 16) & 0xFF,
+    usage: param & 0xFFFF,
+  };
+}
+
+function modPrefix(mods: number): string {
+  const parts: string[] = [];
+  for (const [bit, name] of MOD_BITS) {
+    if (mods & bit) parts.push(name);
+  }
+  return parts.length > 0 ? parts.join('+') + '+' : '';
+}
+
+function hidToLabel(param: number): string {
+  const { mods, page, usage } = parseParam(param);
+
+  if (page === 0x07 || page === 0x00) {
+    const base = KB_USAGE[usage];
+    if (mods === 0) return base || `HID:${usage.toString(16)}`;
+    if (mods === 0x02 && SHIFT_MAP[usage]) return SHIFT_MAP[usage];
+    const prefix = modPrefix(mods);
+    return prefix + (base || usage.toString(16));
   }
   if (page === 0x0C) {
-    // Consumer page
-    const consumerMap: Record<number, string> = {
-      0xB5: 'Next', 0xB6: 'Prev', 0xB7: 'Stop', 0xCD: 'Play',
-      0xE2: 'Mute', 0xE9: 'Vol+', 0xEA: 'Vol-',
-      0x6F: 'Bri+', 0x70: 'Bri-',
-    };
-    return consumerMap[usage] || `Consumer:${usage.toString(16)}`;
+    const base = CONSUMER_USAGE[usage] || `Con:${usage.toString(16)}`;
+    if (mods === 0) return base;
+    return modPrefix(mods) + base;
   }
   return `0x${param.toString(16)}`;
 }
