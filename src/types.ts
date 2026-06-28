@@ -65,6 +65,7 @@ export interface Macro {
   waitMs: number;
   tapMs: number;
   bindings: MacroStep[];
+  deviceId?: number;
 }
 
 export type OsLayout = 'us' | 'jis';

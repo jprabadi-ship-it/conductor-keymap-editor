@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { KeymapStore } from '../../store/useKeymapStore';
 import { MacroAction } from '../../types';
+import { writeMacroToDevice, isConnected } from '../../services/usbService';
 
 interface Props {
   store: KeymapStore;
@@ -259,6 +260,24 @@ export function MacroEditor({ store }: Props) {
           >+ Wait</button>
         </div>
       </div>
+
+      {/* Write to Device */}
+      {macro.deviceId !== undefined && isConnected() && (
+        <div className="config-section" style={{ marginTop: 16 }}>
+          <button
+            className="btn"
+            style={{ width: '100%', fontSize: 12, border: '1px solid var(--accent)', color: 'var(--accent)', padding: '6px' }}
+            onClick={async () => {
+              const ok = await writeMacroToDevice(macro.deviceId!, macro);
+              if (ok) {
+                alert(`Macro "${macro.name}" written to device. Save Changes to persist.`);
+              } else {
+                alert('Failed to write macro to device.');
+              }
+            }}
+          >Write to Device</button>
+        </div>
+      )}
 
       {/* Delete */}
       <div className="config-section" style={{ marginTop: 16 }}>

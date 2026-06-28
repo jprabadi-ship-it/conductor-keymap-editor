@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useKeymapStore } from './store/useKeymapStore';
-import { readKeymap, writeKeymapToDevice, saveChanges, setLayerProps, getDeviceInfo, requestUnlock, isUnlocked, connectUsb as connectUsbService, disconnectUsb } from './services/usbService';
+import { readKeymap, writeKeymapToDevice, saveChanges, setLayerProps, getDeviceInfo, requestUnlock, isUnlocked, connectUsb as connectUsbService, disconnectUsb, readMacrosFromDevice } from './services/usbService';
 import { debugLog } from './components/DebugConsole';
 import { Header } from './components/Header/Header';
 import { LayerList } from './components/LeftPanel/LayerList';
@@ -102,8 +102,12 @@ function App() {
               const name = dl.name && dl.name.length > 0 ? dl.name : existing.name;
               return { ...existing, name, index: dl.id ?? i, keys };
             });
-            // Load firmware macros
-            if (result.firmwareMacros?.length > 0) {
+            // Load firmware macros via RPC (with step data)
+            const deviceMacros = await readMacrosFromDevice();
+            if (deviceMacros && deviceMacros.length > 0) {
+              project.macros = deviceMacros;
+              debugLog('INF', 'Editor', `Firmware macros loaded with steps: ${deviceMacros.map(m => `${m.name}(${m.bindings.length})`).join(', ')}`);
+            } else if (result.firmwareMacros?.length > 0) {
               const fwMacros = result.firmwareMacros.map((m: any) => ({
                 name: m.name,
                 waitMs: 30,
@@ -111,7 +115,7 @@ function App() {
                 bindings: [],
               }));
               project.macros = fwMacros;
-              debugLog('INF', 'Editor', `Firmware macros loaded: ${fwMacros.map((m: any) => m.name).join(', ')}`);
+              debugLog('INF', 'Editor', `Firmware macros loaded (no step data): ${fwMacros.map((m: any) => m.name).join(', ')}`);
             }
             store.importProject(project);
             store.clearDirtyKeys();

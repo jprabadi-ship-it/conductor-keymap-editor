@@ -727,6 +727,166 @@ export async function setAccel(enabled: boolean, maxMilli: number, threshold: nu
   }
 }
 
+// --- Macro RPC ---
+
+export interface DeviceMacroSummary {
+  id: number;
+  name: string;
+  stepCount: number;
+}
+
+export interface DeviceMacroStep {
+  action: 'keyPress' | 'keyRelease' | 'waitMs';
+  value: number;
+}
+
+export interface DeviceMacroData {
+  id: number;
+  name: string;
+  steps: DeviceMacroStep[];
+}
+
+export async function listAllMacros(): Promise<{ macros: DeviceMacroSummary[]; maxMacros: number } | null> {
+  try {
+    const resp = await sendRequest({ macros: { listAllMacros: true } });
+    const data = resp.macros?.listAllMacros;
+    if (!data) return null;
+    const macros = (data.macros || []).map((m: any) => ({
+      id: m.id ?? 0,
+      name: m.name ?? '',
+      stepCount: m.stepCount ?? 0,
+    }));
+    debugLog('INF', 'USB', `listAllMacros: ${macros.length} macros (max ${data.maxMacros})`);
+    return { macros, maxMacros: data.maxMacros ?? 16 };
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `listAllMacros failed: ${e.message}`);
+    return null;
+  }
+}
+
+export async function getMacroData(macroId: number): Promise<DeviceMacroData | null> {
+  try {
+    const resp = await sendRequest({ macros: { getMacroData: { macroId } } });
+    const data = resp.macros?.getMacroData;
+    if (!data || data.err !== undefined) {
+      debugLog('WRN', 'USB', `getMacroData(${macroId}) error: ${data?.err}`);
+      return null;
+    }
+    const macro = data.macro;
+    if (!macro) return null;
+    const steps: DeviceMacroStep[] = (macro.steps || []).map((s: any) => {
+      if (s.keyPress !== undefined) return { action: 'keyPress' as const, value: s.keyPress };
+      if (s.keyRelease !== undefined) return { action: 'keyRelease' as const, value: s.keyRelease };
+      if (s.waitMs !== undefined) return { action: 'waitMs' as const, value: s.waitMs };
+      return { action: 'keyPress' as const, value: 0 };
+    });
+    debugLog('INF', 'USB', `getMacroData(${macroId}): "${macro.name}", ${steps.length} steps`);
+    return { id: macro.id ?? macroId, name: macro.name ?? '', steps };
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `getMacroData failed: ${e.message}`);
+    return null;
+  }
+}
+
+export async function setMacro(macroId: number, name: string, steps: DeviceMacroStep[]): Promise<boolean> {
+  try {
+    const protoSteps = steps.map(s => {
+      switch (s.action) {
+        case 'keyPress': return { keyPress: s.value };
+        case 'keyRelease': return { keyRelease: s.value };
+        case 'waitMs': return { waitMs: s.value };
+      }
+    });
+    const resp = await sendRequest({
+      macros: { setMacro: { macro: { id: macroId, name, steps: protoSteps } } }
+    });
+    const result = resp.macros?.setMacro;
+    if (result === 0 || result === 'SET_MACRO_RESP_OK') {
+      debugLog('INF', 'USB', `setMacro(${macroId}): OK, ${steps.length} steps saved`);
+      return true;
+    }
+    debugLog('WRN', 'USB', `setMacro(${macroId}) error: ${result}`);
+    return false;
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `setMacro failed: ${e.message}`);
+    return false;
+  }
+}
+
+export async function readMacrosFromDevice(): Promise<import('../types').Macro[] | null> {
+  try {
+    const result = await listAllMacros();
+    if (!result || result.macros.length === 0) return null;
+
+    const macros: import('../types').Macro[] = [];
+    for (const summary of result.macros) {
+      const data = await getMacroData(summary.id);
+      if (!data) {
+        macros.push({ name: summary.name, waitMs: 30, tapMs: 30, bindings: [], deviceId: summary.id });
+        continue;
+      }
+
+      const bindings: import('../types').MacroStep[] = [];
+      for (const step of data.steps) {
+        if (step.action === 'waitMs') {
+          bindings.push({ action: 'macro_wait_time', ms: step.value });
+        } else {
+          const param1 = step.value & 0xFFFF;
+          const encoded = (step.value >>> 16) === 0 ? step.value : param1;
+          const label = hidToLabel(encoded);
+          const action = step.action === 'keyPress' ? 'macro_press' : 'macro_release';
+          bindings.push({ action, behavior: 'kp', param: label });
+        }
+      }
+
+      // Merge consecutive press+release of same key into tap
+      const merged: import('../types').MacroStep[] = [];
+      for (let i = 0; i < bindings.length; i++) {
+        const cur = bindings[i];
+        const next = bindings[i + 1];
+        if (cur.action === 'macro_press' && next?.action === 'macro_release' &&
+            cur.param === next.param) {
+          merged.push({ ...cur, action: 'macro_tap' });
+          i++; // skip the release
+        } else {
+          merged.push(cur);
+        }
+      }
+
+      macros.push({ name: data.name, waitMs: 30, tapMs: 30, bindings: merged, deviceId: summary.id });
+    }
+    debugLog('INF', 'USB', `readMacrosFromDevice: ${macros.length} macros loaded`);
+    return macros;
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `readMacrosFromDevice failed: ${e.message}`);
+    return null;
+  }
+}
+
+export async function writeMacroToDevice(macroId: number, macro: import('../types').Macro): Promise<boolean> {
+  const steps: DeviceMacroStep[] = [];
+  const kpBehaviorId = findBehaviorId('key press') ?? 7;
+
+  for (const step of macro.bindings) {
+    if (step.action === 'macro_wait_time') {
+      steps.push({ action: 'waitMs', value: step.ms ?? 100 });
+    } else {
+      const param = labelToParam(step.param || '', step.param || '');
+      const encoded = ((kpBehaviorId & 0xFFFF) << 16) | (param & 0xFFFF);
+      if (step.action === 'macro_tap') {
+        steps.push({ action: 'keyPress', value: encoded });
+        steps.push({ action: 'keyRelease', value: encoded });
+      } else if (step.action === 'macro_press') {
+        steps.push({ action: 'keyPress', value: encoded });
+      } else if (step.action === 'macro_release') {
+        steps.push({ action: 'keyRelease', value: encoded });
+      }
+    }
+  }
+
+  return setMacro(macroId, macro.name, steps);
+}
+
 function labelToParam(label: string, keyCode: string): number {
   // Check shifted symbols
   if (LABEL_TO_SHIFTED[label] !== undefined) {
