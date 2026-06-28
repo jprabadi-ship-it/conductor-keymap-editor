@@ -775,6 +775,9 @@ export async function writeKeymapToDevice(layers: Layer[], dirtyKeys?: Set<strin
       matchBeh(beh.displayName, Number(idStr));
     }
   }
+  // Log all behaviors for debugging
+  const allBehaviors = Object.entries(behaviorCache).map(([id, b]) => `${id}:${b.displayName}`);
+  debugLog('INF', 'USB', `All behaviors: ${allBehaviors.join(', ')}`);
   debugLog('INF', 'USB', `Behavior IDs: ${JSON.stringify(behByType)}`);
 
   let written = 0;
