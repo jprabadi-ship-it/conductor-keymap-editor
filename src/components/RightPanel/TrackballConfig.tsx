@@ -51,7 +51,8 @@ export function TrackballConfig({ store }: Props) {
       if (sens) {
         setCpi(sens.cpi);
         if (sens.scrollDen > 0) setScrollSensitivity(sens.scrollNum / sens.scrollDen);
-        debugLog('INF', 'Trackball', `Loaded: CPI=${sens.cpi}, scroll=${sens.scrollNum}/${sens.scrollDen}`);
+        setScrollDirection(sens.scrollInverted ? 'inverted' : 'normal');
+        debugLog('INF', 'Trackball', `Loaded: CPI=${sens.cpi}, scroll=${sens.scrollNum}/${sens.scrollDen}, inverted=${sens.scrollInverted}`);
       }
       const aml = await getAutoLayer();
       if (aml) {
@@ -94,12 +95,12 @@ export function TrackballConfig({ store }: Props) {
 
   const handleCpiChange = (val: number) => {
     setCpi(val);
-    sendIfRealtime(() => setSensitivity(val, Math.round(scrollSensitivity * 100), 100));
+    sendIfRealtime(() => setSensitivity(val, Math.round(scrollSensitivity * 100), 100, scrollDirection === 'inverted'));
   };
 
   const handleScrollChange = (val: number) => {
     setScrollSensitivity(val);
-    sendIfRealtime(() => setSensitivity(cpi, Math.round(val * 100), 100));
+    sendIfRealtime(() => setSensitivity(cpi, Math.round(val * 100), 100, scrollDirection === 'inverted'));
   };
 
   const handlePrecisionChange = (val: number) => {
@@ -260,8 +261,8 @@ export function TrackballConfig({ store }: Props) {
       <div className="config-section">
         <div style={{ fontSize: 12, marginBottom: 4 }}>スクロール方向</div>
         <div className="btn-group">
-          <button className={`btn ${scrollDirection === 'normal' ? 'btn-active' : ''}`} onClick={() => setScrollDirection('normal')} style={scrollDirection === 'normal' ? { background: 'var(--success)', color: 'white' } : {}}>↑ 標準</button>
-          <button className={`btn ${scrollDirection === 'inverted' ? 'btn-active' : ''}`} onClick={() => setScrollDirection('inverted')}>↓ 反転</button>
+          <button className={`btn ${scrollDirection === 'normal' ? 'btn-active' : ''}`} onClick={() => { setScrollDirection('normal'); sendIfRealtime(() => setSensitivity(cpi, Math.round(scrollSensitivity * 100), 100, false)); }} style={scrollDirection === 'normal' ? { background: 'var(--success)', color: 'white' } : {}}>↑ 標準</button>
+          <button className={`btn ${scrollDirection === 'inverted' ? 'btn-active' : ''}`} onClick={() => { setScrollDirection('inverted'); sendIfRealtime(() => setSensitivity(cpi, Math.round(scrollSensitivity * 100), 100, true)); }}>↓ 反転</button>
         </div>
       </div>
 
@@ -366,7 +367,7 @@ export function TrackballConfig({ store }: Props) {
             if (!isUnlocked() && !(await requestUnlock())) {
               alert('デバイスがロックされています'); return;
             }
-            await setSensitivity(cpi, Math.round(scrollSensitivity * 100), 100);
+            await setSensitivity(cpi, Math.round(scrollSensitivity * 100), 100, scrollDirection === 'inverted');
             await setPrecisionScale(Math.round(precisionSensitivity * 100), 100);
             await setAccel(accelMode > 0, Math.round(accelMaxRatio * 1000), accelStartSpeed, accelRampWidth);
             await savePointingChanges();

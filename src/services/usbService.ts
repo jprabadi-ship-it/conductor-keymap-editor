@@ -639,12 +639,14 @@ export async function setTappingTerm(ms: number): Promise<boolean> {
 import { Layer } from '../types';
 
 // Pointing (trackball) APIs
-export async function getSensitivity(): Promise<{ cpi: number; cursorNum: number; cursorDen: number; scrollNum: number; scrollDen: number } | null> {
+export async function getSensitivity(): Promise<{ cpi: number; cursorNum: number; cursorDen: number; scrollNum: number; scrollDen: number; scrollInverted: boolean } | null> {
   try {
     const resp = await sendRequest({ pointing: { getSensitivity: {} } });
     const s = resp.pointing?.getSensitivity;
     if (s) {
-      return { cpi: s.cpi, cursorNum: s.cursor?.numerator ?? 1, cursorDen: s.cursor?.denominator ?? 1, scrollNum: s.scroll?.numerator ?? 1, scrollDen: s.scroll?.denominator ?? 1 };
+      const rawScrollNum = s.scroll?.numerator ?? 1;
+      const scrollInverted = rawScrollNum < 0;
+      return { cpi: s.cpi, cursorNum: s.cursor?.numerator ?? 1, cursorDen: s.cursor?.denominator ?? 1, scrollNum: Math.abs(rawScrollNum), scrollDen: s.scroll?.denominator ?? 1, scrollInverted };
     }
     return null;
   } catch (e: any) {
@@ -653,10 +655,11 @@ export async function getSensitivity(): Promise<{ cpi: number; cursorNum: number
   }
 }
 
-export async function setSensitivity(cpi: number, scrollNum: number, scrollDen: number): Promise<boolean> {
+export async function setSensitivity(cpi: number, scrollNum: number, scrollDen: number, scrollInverted: boolean = false): Promise<boolean> {
   try {
-    await sendRequest({ pointing: { setSensitivity: { cpi, cursor: { numerator: 1, denominator: 1 }, scroll: { numerator: scrollNum, denominator: scrollDen } } } });
-    debugLog('INF', 'USB', `Sensitivity set: CPI=${cpi}, scroll=${scrollNum}/${scrollDen}`);
+    const signedScrollNum = scrollInverted ? -scrollNum : scrollNum;
+    await sendRequest({ pointing: { setSensitivity: { cpi, cursor: { numerator: 1, denominator: 1 }, scroll: { numerator: signedScrollNum, denominator: scrollDen } } } });
+    debugLog('INF', 'USB', `Sensitivity set: CPI=${cpi}, scroll=${scrollNum}/${scrollDen}, inverted=${scrollInverted}`);
     return true;
   } catch (e: any) {
     debugLog('ERR', 'USB', `setSensitivity failed: ${e.message}`);
