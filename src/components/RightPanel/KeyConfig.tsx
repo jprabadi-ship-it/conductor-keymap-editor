@@ -126,13 +126,16 @@ export function KeyConfig({ store }: Props) {
             ))}
           </div>
           <div className="keycode-grid">
-            {filteredKeycodes.slice(0, 60).map(kc => (
-              <button
-                key={kc.code}
-                className={`keycode-btn ${binding.keyCode === kc.code ? 'selected' : ''}`}
-                onClick={() => updateBinding({ keyCode: kc.code, label: kc.label })}
-              >{kc.label}</button>
-            ))}
+            {filteredKeycodes.slice(0, 60).map(kc => {
+              const isSelected = binding.keyCode === kc.code || binding.keyCode === kc.label || binding.label === kc.label;
+              return (
+                <button
+                  key={kc.code}
+                  className={`keycode-btn ${isSelected ? 'selected' : ''}`}
+                  onClick={() => updateBinding({ keyCode: kc.code, label: kc.label })}
+                >{kc.label}</button>
+              );
+            })}
           </div>
         </div>
       )}
