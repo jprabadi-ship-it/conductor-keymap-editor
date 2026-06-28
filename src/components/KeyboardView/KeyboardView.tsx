@@ -101,6 +101,21 @@ export function KeyboardView({ store }: Props) {
       </div>
 
       <div className="keyboard-hint">Click a key to configure</div>
+
+      {/* Layer switcher */}
+      <div className="layer-switcher">
+        {store.layers.map(l => (
+          <button
+            key={l.index}
+            className={`layer-dot ${store.selectedLayerIndex === l.index ? 'active' : ''}`}
+            onClick={() => store.setSelectedLayerIndex(l.index)}
+            title={l.name}
+          >
+            <span className="layer-dot-circle" style={{ background: LED_CSS_MAP[l.ledColor] }} />
+            <span className="layer-dot-label">{l.name}</span>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

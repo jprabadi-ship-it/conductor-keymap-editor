@@ -510,6 +510,37 @@ input:focus { border-color: var(--accent); }
 .export-item-desc { font-size: 11px; color: var(--text-muted); }
 
 .keyboard-hint { font-size: 12px; color: var(--text-muted); text-align: center; padding: 4px; }
+
+/* Layer switcher */
+.layer-switcher {
+  display: flex; gap: 2px; justify-content: center; flex-wrap: wrap;
+  padding: 8px 16px; max-width: 700px;
+}
+.layer-dot {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 4px 6px; border-radius: var(--radius-sm);
+  transition: all 0.15s; min-width: 40px; border: 1px solid transparent;
+}
+.layer-dot:hover { background: var(--bg-hover); }
+.layer-dot.active {
+  background: var(--bg-selected); border-color: var(--accent);
+}
+.layer-dot-circle {
+  width: 8px; height: 8px; border-radius: 50%;
+  border: 1px solid var(--border);
+}
+.layer-dot.active .layer-dot-circle {
+  width: 10px; height: 10px; border-color: var(--accent);
+  box-shadow: 0 0 4px rgba(232, 116, 14, 0.4);
+}
+.layer-dot-label {
+  font-size: 9px; color: var(--text-muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 50px;
+}
+.layer-dot.active .layer-dot-label {
+  color: var(--accent); font-weight: 600;
+}
 .right-panel-placeholder {
   display: flex; align-items: center; justify-content: center;
   height: 100%; color: var(--text-muted); font-size: 13px;
