@@ -6,6 +6,16 @@ const STORAGE_KEY_KEYMAP = 'conductor-studio-keymap';
 const STORAGE_KEY_COMBOS = 'conductor-studio-combos';
 const STORAGE_KEY_MACROS = 'conductor-studio-macros';
 const STORAGE_KEY_LAYOUT = 'conductor-os-keyboard-layout';
+const STORAGE_KEY_VERSION = 'conductor-studio-version';
+const CURRENT_VERSION = '2';
+
+// Clear stale cache when version changes
+if (localStorage.getItem(STORAGE_KEY_VERSION) !== CURRENT_VERSION) {
+  localStorage.removeItem(STORAGE_KEY_KEYMAP);
+  localStorage.removeItem(STORAGE_KEY_COMBOS);
+  localStorage.removeItem(STORAGE_KEY_MACROS);
+  localStorage.setItem(STORAGE_KEY_VERSION, CURRENT_VERSION);
+}
 
 function loadFromStorage<T>(key: string, fallback: () => T): T {
   try {

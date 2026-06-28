@@ -26,7 +26,7 @@ type BindingMap = Record<string, KeyConfig['binding']>;
 function buildKeys(bindings: BindingMap): KeyConfig[] {
   return KEYBOARD_LAYOUT.map(pos => ({
     id: pos.id,
-    binding: bindings[pos.id] || trans(),
+    binding: bindings[pos.id] || none(),
   }));
 }
 
