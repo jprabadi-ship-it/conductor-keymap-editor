@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useKeymapStore } from './store/useKeymapStore';
-import { writeToDevice, readFromDevice } from './services/usbService';
+import { readKeymap, writeKeymap } from './services/usbService';
 import { debugLog } from './components/DebugConsole';
 import { Header } from './components/Header/Header';
 import { LayerList } from './components/LeftPanel/LayerList';
@@ -63,29 +63,20 @@ function App() {
         usbConnected={usbConnected}
         unsaved={unsaved}
         onWrite={async () => {
-          const data = store.exportProject();
-          const encoded = new TextEncoder().encode(JSON.stringify(data));
-          const ok = await writeToDevice(encoded);
-          if (ok) {
-            setUnsaved(false);
-            debugLog('INF', 'USB', `Wrote ${encoded.length} bytes to device`);
-          } else {
-            debugLog('ERR', 'USB', 'Failed to write to device');
-          }
+          const json = JSON.stringify(store.exportProject());
+          const ok = await writeKeymap(json);
+          if (ok) setUnsaved(false);
         }}
         onRead={async () => {
-          const data = await readFromDevice(4096);
-          if (data) {
+          const text = await readKeymap();
+          if (text) {
             try {
-              const text = new TextDecoder().decode(data);
               const project = JSON.parse(text);
               store.importProject(project);
-              debugLog('INF', 'USB', `Read ${data.length} bytes from device`);
+              debugLog('INF', 'Editor', 'Keymap loaded from device');
             } catch {
-              debugLog('ERR', 'USB', 'Failed to parse data from device');
+              debugLog('ERR', 'Editor', 'Failed to parse keymap from device');
             }
-          } else {
-            debugLog('ERR', 'USB', 'Failed to read from device');
           }
         }}
         onSave={() => {
