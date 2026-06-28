@@ -22,9 +22,14 @@ let ResponseType: protobuf.Type;
 
 function initProto() {
   if (RequestType) return;
-  const root = protobuf.Root.fromJSON(protoJson as protobuf.INamespace);
-  RequestType = root.lookupType('zmk.studio.Request');
-  ResponseType = root.lookupType('zmk.studio.Response');
+  try {
+    const root = protobuf.Root.fromJSON(protoJson as protobuf.INamespace);
+    RequestType = root.lookupType('zmk.studio.Request');
+    ResponseType = root.lookupType('zmk.studio.Response');
+    debugLog('INF', 'USB', 'Protobuf schema loaded');
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `Protobuf init failed: ${e.message}`);
+  }
 }
 
 // SLIP framing
@@ -72,25 +77,32 @@ const decoder = new FrameDecoder();
 
 // Serial connection
 export async function connectUsb(): Promise<boolean> {
-  initProto();
   if (!('serial' in navigator)) {
     debugLog('ERR', 'USB', 'Web Serial API is not supported. Use Chrome or Edge.');
+    alert('Web Serial API is not supported. Use Chrome or Edge.');
     return false;
   }
   try {
+    debugLog('INF', 'USB', 'Requesting serial port...');
     port = await (navigator as any).serial.requestPort({});
+    debugLog('INF', 'USB', 'Port selected, opening...');
     await port!.open({ baudRate: BAUD_RATE });
     if (port!.readable && port!.writable) {
       reader = port!.readable.getReader();
       writer = port!.writable.getWriter();
       startReading();
+      initProto();
       debugLog('INF', 'USB', `Serial port opened (baud: ${BAUD_RATE})`);
       return true;
     }
     debugLog('ERR', 'USB', 'Port not readable/writable');
     return false;
   } catch (e: any) {
-    debugLog('ERR', 'USB', `Connection failed: ${e.message}`);
+    if (e?.name !== 'NotFoundError') {
+      debugLog('ERR', 'USB', `Connection failed: ${e.message || e}`);
+    } else {
+      debugLog('INF', 'USB', 'User cancelled port selection');
+    }
     port = null;
     return false;
   }
