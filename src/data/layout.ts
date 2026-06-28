@@ -50,12 +50,11 @@ export const KEYBOARD_LAYOUT: KeyPosition[] = [
   { id: 'R22', row: 2, col: 3, half: 'right' },
   { id: 'R23', row: 2, col: 4, half: 'right' },
   { id: 'R24', row: 2, col: 5, half: 'right' },
-  // Right half - Row 3 (thumb cluster, 5 keys - starts at col 0)
+  // Right half - Row 3 (thumb cluster, 4 keys)
   { id: 'R30', row: 3, col: 0, half: 'right' },
   { id: 'R31', row: 3, col: 1, half: 'right' },
   { id: 'R32', row: 3, col: 2, half: 'right' },
   { id: 'R33', row: 3, col: 3, half: 'right' },
-  { id: 'R34', row: 3, col: 4, half: 'right' },
 ];
 
 export const LEFT_KEYS = KEYBOARD_LAYOUT.filter(k => k.half === 'left');
