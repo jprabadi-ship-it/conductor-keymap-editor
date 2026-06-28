@@ -118,6 +118,10 @@ async function startReading() {
   } catch (e: any) {
     if (e?.name !== 'AbortError') {
       debugLog('ERR', 'USB', `Read error: ${e.message}`);
+      reader = null;
+      writer = null;
+      port = null;
+      debugLog('INF', 'USB', 'Connection lost — state reset');
     }
   }
 }
