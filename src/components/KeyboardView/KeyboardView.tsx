@@ -20,20 +20,57 @@ export function KeyboardView({ store }: Props) {
   const comboMap = new Map<string, string>();
   store.comboOverlays.forEach(o => comboMap.set(o.keyId, o.comboName));
 
+  // Macro assignment mode
+  const isMacroMode = store.leftPanelTab === 'macros' && store.selectedMacroIndex !== null;
+  const selectedMacro = store.selectedMacro;
+
+  // Find which keys have macros assigned on this layer
+  const macroAssignments = new Map<string, string>();
+  if (isMacroMode) {
+    layer.keys.forEach(k => {
+      if (k.binding.type === 'basic' && k.binding.keyCode?.startsWith('&')) {
+        macroAssignments.set(k.id, k.binding.keyCode.substring(1));
+      }
+    });
+  }
+
+  const handleKeyClick = (id: string) => {
+    if (isMacroMode && selectedMacro) {
+      const key = layer.keys.find(k => k.id === id);
+      if (!key) return;
+      const currentMacro = key.binding.keyCode?.startsWith('&') ? key.binding.keyCode.substring(1) : null;
+      if (currentMacro === selectedMacro.name) {
+        // Unassign
+        store.updateKeyBinding(store.selectedLayerIndex, id, { type: 'none', keyCode: 'NONE', label: '' });
+      } else {
+        // Assign
+        store.updateKeyBinding(store.selectedLayerIndex, id, {
+          type: 'basic', keyCode: `&${selectedMacro.name}`, label: `&${selectedMacro.name}`,
+        });
+      }
+    } else {
+      store.setSelectedKeyId(id);
+      store.setRightPanelTab('key-config');
+    }
+  };
+
   const renderKey = (id: string) => {
     const keyConfig = layer.keys.find(k => k.id === id);
     if (!keyConfig) return <div key={id} />;
+
+    const assignedMacro = macroAssignments.get(id);
+    const isThisMacro = assignedMacro === selectedMacro?.name;
+    const hasOtherMacro = assignedMacro && !isThisMacro;
+
     return (
       <KeyButton
         key={id}
         keyConfig={keyConfig}
-        selected={store.selectedKeyId === id}
-        onClick={() => {
-          store.setSelectedKeyId(id);
-          store.setRightPanelTab('key-config');
-        }}
+        selected={isMacroMode ? isThisMacro : store.selectedKeyId === id}
+        onClick={() => handleKeyClick(id)}
         comboName={comboMap.get(id)}
         isAmlExcluded={store.amlExcluded.includes(id)}
+        macroHighlight={isMacroMode ? (isThisMacro ? 'assigned' : hasOtherMacro ? 'other' : undefined) : undefined}
       />
     );
   };
@@ -100,7 +137,11 @@ export function KeyboardView({ store }: Props) {
         {renderHalf(RIGHT_KEYS, 'right', { row: 3, colStart: 2, colSpan: 2 })}
       </div>
 
-      <div className="keyboard-hint">Click a key to configure</div>
+      <div className="keyboard-hint">
+        {isMacroMode
+          ? `Click a key to assign/unassign "${selectedMacro?.name}"`
+          : 'Click a key to configure'}
+      </div>
 
       {/* Layer switcher */}
       <div className="layer-switcher">

@@ -6,12 +6,14 @@ interface Props {
   onClick: () => void;
   comboName?: string;
   isAmlExcluded?: boolean;
+  macroHighlight?: 'assigned' | 'other';
 }
 
-export function KeyButton({ keyConfig, selected, onClick, comboName, isAmlExcluded }: Props) {
+export function KeyButton({ keyConfig, selected, onClick, comboName, isAmlExcluded, macroHighlight }: Props) {
   const { binding } = keyConfig;
   const isTrans = binding.type === 'trans';
   const isNone = binding.type === 'none';
+  const isMacro = binding.keyCode?.startsWith('&');
 
   let mainLabel = binding.label;
   let subLabel = '';
@@ -48,14 +50,24 @@ export function KeyButton({ keyConfig, selected, onClick, comboName, isAmlExclud
     topClass = 'layer';
   }
 
+  if (isMacro) {
+    mainLabel = binding.keyCode!.substring(1);
+    topLabel = 'macro';
+    topClass = 'macro';
+  }
+
   if (comboName) {
     topLabel = comboName;
-    topClass = comboName === 'Boot' ? 'boot' : 'combo';
+    topClass = comboName === 'Boot' || comboName === 'boot' ? 'boot' : 'combo';
   }
+
+  let extraClass = '';
+  if (macroHighlight === 'assigned') extraClass = ' macro-assigned';
+  else if (macroHighlight === 'other') extraClass = ' macro-other';
 
   return (
     <button
-      className={`key-btn ${selected ? 'selected' : ''} ${isTrans || isNone ? 'trans' : ''}`}
+      className={`key-btn ${selected ? 'selected' : ''} ${isTrans || isNone ? 'trans' : ''}${extraClass}`}
       onClick={onClick}
     >
       {topLabel && (

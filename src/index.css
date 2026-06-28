@@ -356,6 +356,18 @@ input:focus { border-color: var(--accent); }
 .key-toplabel.layer { background: var(--accent); color: white; }
 .key-toplabel.boot { background: var(--danger); color: white; }
 
+.key-toplabel.macro { background: var(--led-magenta); color: white; }
+
+.key-btn.macro-assigned {
+  border-color: var(--led-magenta);
+  box-shadow: 0 0 0 2px rgba(217, 70, 239, 0.3);
+  background: #f0e0ff;
+}
+.key-btn.macro-other {
+  border-color: var(--border-light);
+  background: #e8e0f0;
+}
+
 .key-aml-badge {
   position: absolute; bottom: 2px; right: 2px;
   font-size: 7px; background: var(--warning); color: #000;
