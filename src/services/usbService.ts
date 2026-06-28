@@ -768,19 +768,23 @@ export async function getMacroData(macroId: number): Promise<DeviceMacroData | n
   try {
     const resp = await sendRequest({ macros: { getMacroData: { macroId } } });
     const data = resp.macros?.getMacroData;
-    if (!data || data.err !== undefined) {
-      debugLog('WRN', 'USB', `getMacroData(${macroId}) error: ${data?.err}`);
+    if (!data) {
+      debugLog('WRN', 'USB', `getMacroData(${macroId}): no response`);
       return null;
     }
+    // oneof: check macro field first (protobufjs may show err=0 as default)
     const macro = data.macro;
-    if (!macro) return null;
+    if (!macro) {
+      debugLog('WRN', 'USB', `getMacroData(${macroId}) error: ${data.err}`);
+      return null;
+    }
     const steps: DeviceMacroStep[] = (macro.steps || []).map((s: any) => {
       if (s.keyPress !== undefined) return { action: 'keyPress' as const, value: s.keyPress };
       if (s.keyRelease !== undefined) return { action: 'keyRelease' as const, value: s.keyRelease };
       if (s.waitMs !== undefined) return { action: 'waitMs' as const, value: s.waitMs };
       return { action: 'keyPress' as const, value: 0 };
     });
-    debugLog('INF', 'USB', `getMacroData(${macroId}): "${macro.name}", ${steps.length} steps`);
+    debugLog('INF', 'USB', `getMacroData(${macroId}): "${macro.name}", ${steps.length} steps: ${steps.map(s => `${s.action}=0x${s.value.toString(16)}`).join(', ')}`);
     return { id: macro.id ?? macroId, name: macro.name ?? '', steps };
   } catch (e: any) {
     debugLog('ERR', 'USB', `getMacroData failed: ${e.message}`);
@@ -831,9 +835,7 @@ export async function readMacrosFromDevice(): Promise<import('../types').Macro[]
         if (step.action === 'waitMs') {
           bindings.push({ action: 'macro_wait_time', ms: step.value });
         } else {
-          const param1 = step.value & 0xFFFF;
-          const encoded = (step.value >>> 16) === 0 ? step.value : param1;
-          const label = hidToLabel(encoded);
+          const label = hidToLabel(step.value);
           const action = step.action === 'keyPress' ? 'macro_press' : 'macro_release';
           bindings.push({ action, behavior: 'kp', param: label });
         }
@@ -865,21 +867,19 @@ export async function readMacrosFromDevice(): Promise<import('../types').Macro[]
 
 export async function writeMacroToDevice(macroId: number, macro: import('../types').Macro): Promise<boolean> {
   const steps: DeviceMacroStep[] = [];
-  const kpBehaviorId = findBehaviorId('key press') ?? 7;
 
   for (const step of macro.bindings) {
     if (step.action === 'macro_wait_time') {
       steps.push({ action: 'waitMs', value: step.ms ?? 100 });
     } else {
       const param = labelToParam(step.param || '', step.param || '');
-      const encoded = ((kpBehaviorId & 0xFFFF) << 16) | (param & 0xFFFF);
       if (step.action === 'macro_tap') {
-        steps.push({ action: 'keyPress', value: encoded });
-        steps.push({ action: 'keyRelease', value: encoded });
+        steps.push({ action: 'keyPress', value: param });
+        steps.push({ action: 'keyRelease', value: param });
       } else if (step.action === 'macro_press') {
-        steps.push({ action: 'keyPress', value: encoded });
+        steps.push({ action: 'keyPress', value: param });
       } else if (step.action === 'macro_release') {
-        steps.push({ action: 'keyRelease', value: encoded });
+        steps.push({ action: 'keyRelease', value: param });
       }
     }
   }
