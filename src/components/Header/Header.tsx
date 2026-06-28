@@ -102,8 +102,18 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, unsa
       <div className="header-group">
         <button className="btn btn-icon" onClick={store.undo} disabled={!store.canUndo} title="Undo">↩</button>
         <button className="btn btn-icon" onClick={store.redo} disabled={!store.canRedo} title="Redo">↪</button>
-        <button className="btn btn-icon" onClick={store.reset} title="Reset">⟳</button>
       </div>
+
+      <button
+        className="btn btn-outline"
+        onClick={() => {
+          if (confirm('キーマップを初期値にリセットしますか？\n現在の設定は失われます。')) {
+            store.reset();
+          }
+        }}
+        title="初期値にリセット"
+        style={{ fontSize: 12 }}
+      >⟳ Reset</button>
 
       <div style={{ position: 'relative' }}>
         <button className="btn btn-primary" onClick={() => setShowExport(!showExport)}>
