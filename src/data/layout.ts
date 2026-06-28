@@ -50,11 +50,12 @@ export const KEYBOARD_LAYOUT: KeyPosition[] = [
   { id: 'R22', row: 2, col: 3, half: 'right' },
   { id: 'R23', row: 2, col: 4, half: 'right' },
   { id: 'R24', row: 2, col: 5, half: 'right' },
-  // Right half - Row 3 (thumb cluster, 4 keys)
+  // Right half - Row 3 (thumb cluster, 4 keys + trackball at col 2)
   { id: 'R30', row: 3, col: 0, half: 'right' },
   { id: 'R31', row: 3, col: 1, half: 'right' },
-  { id: 'R32', row: 3, col: 2, half: 'right' },
-  { id: 'R33', row: 3, col: 3, half: 'right' },
+  // col 2 = trackball (handled in KeyboardView)
+  { id: 'R32', row: 3, col: 3, half: 'right' },
+  { id: 'R33', row: 3, col: 4, half: 'right' },
 ];
 
 export const LEFT_KEYS = KEYBOARD_LAYOUT.filter(k => k.half === 'left');

@@ -20,31 +20,38 @@ export function KeyboardView({ store }: Props) {
   const comboMap = new Map<string, string>();
   store.comboOverlays.forEach(o => comboMap.set(o.keyId, o.comboName));
 
-  const renderHalf = (positions: typeof LEFT_KEYS, className: string) => {
+  const renderKey = (id: string) => {
+    const keyConfig = layer.keys.find(k => k.id === id);
+    if (!keyConfig) return <div key={id} />;
+    return (
+      <KeyButton
+        key={id}
+        keyConfig={keyConfig}
+        selected={store.selectedKeyId === id}
+        onClick={() => {
+          store.setSelectedKeyId(id);
+          store.setRightPanelTab('key-config');
+        }}
+        comboName={comboMap.get(id)}
+        isAmlExcluded={store.amlExcluded.includes(id)}
+      />
+    );
+  };
+
+  const renderHalf = (positions: typeof LEFT_KEYS, className: string, trackballAt?: { row: number; col: number }) => {
     const maxCol = Math.max(...positions.map(p => p.col));
     const maxRow = Math.max(...positions.map(p => p.row));
     const cells: React.ReactNode[] = [];
 
     for (let row = 0; row <= maxRow; row++) {
       for (let col = 0; col <= maxCol; col++) {
+        if (trackballAt && row === trackballAt.row && col === trackballAt.col) {
+          cells.push(<div key="trackball" className="trackball-placeholder" />);
+          continue;
+        }
         const pos = positions.find(p => p.row === row && p.col === col);
         if (pos) {
-          const keyConfig = layer.keys.find(k => k.id === pos.id);
-          if (keyConfig) {
-            cells.push(
-              <KeyButton
-                key={pos.id}
-                keyConfig={keyConfig}
-                selected={store.selectedKeyId === pos.id}
-                onClick={() => {
-                  store.setSelectedKeyId(pos.id);
-                  store.setRightPanelTab('key-config');
-                }}
-                comboName={comboMap.get(pos.id)}
-                isAmlExcluded={store.amlExcluded.includes(pos.id)}
-              />
-            );
-          }
+          cells.push(renderKey(pos.id));
         } else {
           cells.push(<div key={`empty-${row}-${col}`} />);
         }
@@ -85,8 +92,7 @@ export function KeyboardView({ store }: Props) {
 
       <div className="keyboard-container">
         {renderHalf(LEFT_KEYS, 'left')}
-        <div className="trackball-placeholder" />
-        {renderHalf(RIGHT_KEYS, 'right')}
+        {renderHalf(RIGHT_KEYS, 'right', { row: 3, col: 2 })}
       </div>
 
       <div className="keyboard-hint">Click a key to configure</div>

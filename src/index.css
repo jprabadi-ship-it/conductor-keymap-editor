@@ -271,7 +271,7 @@ input:focus { border-color: var(--accent); }
 }
 
 .keyboard-container {
-  display: flex; gap: 40px; align-items: flex-start; padding: 16px;
+  display: flex; gap: 24px; align-items: flex-start; padding: 16px;
 }
 
 .keyboard-half { display: grid; gap: 4px; }
@@ -280,8 +280,10 @@ input:focus { border-color: var(--accent); }
 
 .trackball-placeholder {
   width: 48px; height: 48px; border-radius: 50%;
-  background: var(--bg-tertiary); border: 2px solid var(--border);
-  align-self: center;
+  background: radial-gradient(circle at 35% 35%, #aaa, #666);
+  border: 2px solid var(--border);
+  justify-self: center; align-self: center;
+  box-shadow: inset 0 2px 4px rgba(255,255,255,0.2), 0 2px 4px rgba(0,0,0,0.3);
 }
 
 /* Key button */
