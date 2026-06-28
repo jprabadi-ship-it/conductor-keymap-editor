@@ -7,7 +7,7 @@ const STORAGE_KEY_COMBOS = 'conductor-studio-combos';
 const STORAGE_KEY_MACROS = 'conductor-studio-macros';
 const STORAGE_KEY_LAYOUT = 'conductor-os-keyboard-layout';
 const STORAGE_KEY_VERSION = 'conductor-studio-version';
-const CURRENT_VERSION = '3';
+const CURRENT_VERSION = '4';
 
 // Clear stale cache when version changes
 if (localStorage.getItem(STORAGE_KEY_VERSION) !== CURRENT_VERSION) {
