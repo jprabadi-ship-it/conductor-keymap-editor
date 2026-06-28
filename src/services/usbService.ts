@@ -846,7 +846,7 @@ export async function readMacrosFromDevice(): Promise<import('../types').Macro[]
 
       if (isDynamicSlot(summary.name)) {
         const hasRealSteps = data && data.steps.length > 0 &&
-          !(data.steps.length === 1 && data.steps[0].action === 'keyPress' && data.steps[0].value === 0);
+          data.steps.some(s => s.action !== 'waitMs' && s.value !== 0);
         if (!hasRealSteps) {
           freeDeviceMacroSlots.push(summary.id);
           debugLog('INF', 'USB', `Free macro slot: ${summary.name} (id=${summary.id})`);
