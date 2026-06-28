@@ -752,17 +752,17 @@ export async function writeKeymapToDevice(layers: Layer[], dirtyKeys?: Set<strin
   const behByType: Record<string, number> = {};
   const matchBeh = (name: string, id: number) => {
     const n = name.toLowerCase();
-    if (!behByType['kp'] && (n.includes('key press') || n === 'kp')) behByType['kp'] = id;
-    if (!behByType['mo'] && (n.includes('momentary') || n === 'mo')) behByType['mo'] = id;
-    if (!behByType['lt'] && (n.includes('layer') && n.includes('tap') || n === 'lt')) behByType['lt'] = id;
-    if (!behByType['mt'] && (n.includes('mod') && n.includes('tap') || n === 'mt')) behByType['mt'] = id;
-    if (!behByType['tog'] && (n.includes('toggle') || n === 'tog')) behByType['tog'] = id;
-    if (!behByType['none'] && (n.includes('none') || n === 'none')) behByType['none'] = id;
-    if (!behByType['trans'] && (n.includes('trans') || n === 'trans')) behByType['trans'] = id;
-    if (!behByType['bt'] && (n.includes('bluetooth') || n === 'bt')) behByType['bt'] = id;
-    if (!behByType['boot'] && (n.includes('bootloader') || n === 'bootloader')) behByType['boot'] = id;
-    if (!behByType['mkp'] && (n.includes('mouse') || n === 'mkp')) behByType['mkp'] = id;
-    if (!behByType['macro'] && (n.includes('macro') || n === 'macro')) behByType['macro'] = id;
+    // Exact or specific matches first to avoid collisions
+    if (!behByType['mkp'] && (n === 'mouse key press' || n === 'mkp')) behByType['mkp'] = id;
+    if (!behByType['kp'] && n === 'key press') behByType['kp'] = id;
+    if (!behByType['mo'] && (n === 'momentary layer' || n.includes('momentary'))) behByType['mo'] = id;
+    if (!behByType['lt'] && (n === 'layer-tap' || n === 'lt')) behByType['lt'] = id;
+    if (!behByType['mt'] && (n === 'mod-tap' || n === 'mt')) behByType['mt'] = id;
+    if (!behByType['tog'] && (n === 'toggle layer' || n.includes('toggle layer'))) behByType['tog'] = id;
+    if (!behByType['none'] && n === 'none') behByType['none'] = id;
+    if (!behByType['trans'] && n === 'transparent') behByType['trans'] = id;
+    if (!behByType['bt'] && n === 'bluetooth') behByType['bt'] = id;
+    if (!behByType['boot'] && n === 'bootloader') behByType['boot'] = id;
   };
   // From raw bindings first (most reliable)
   for (const [, raw] of Object.entries(rawBindings)) {
@@ -807,13 +807,15 @@ export async function writeKeymapToDevice(layers: Layer[], dirtyKeys?: Set<strin
       switch (binding.type) {
         case 'basic':
           if (binding.keyCode?.startsWith('&')) {
-            // Macro assignment
-            behaviorId = behByType["macro"] ?? 0;
+            // Macro: look up behavior by name directly from cache
             const macroName = binding.keyCode.substring(1);
-            const macroIdx = layers.flatMap(() => []).length; // placeholder - macro index lookup needed
-            // For macros, param1 is typically the macro index in the device
-            debugLog('INF', 'USB', `  Macro binding: &${macroName} (beh=${behaviorId})`);
-            // TODO: proper macro index resolution from device
+            const macroEntry = Object.entries(behaviorCache).find(([, b]) => b.displayName === macroName);
+            if (macroEntry) {
+              behaviorId = Number(macroEntry[0]);
+              debugLog('INF', 'USB', `  Macro: &${macroName} → beh=${behaviorId}`);
+            } else {
+              debugLog('ERR', 'USB', `  Macro "&${macroName}" not found in firmware behaviors. Available: ${Object.values(behaviorCache).map(b => b.displayName).filter(n => !['Key Press','None','Transparent','Bluetooth','Bootloader','Momentary Layer','Layer-Tap','Mod-Tap','Toggle Layer','Mouse Key Press'].includes(n)).join(', ')}`);
+            }
           } else if (binding.keyCode?.startsWith('BT_SEL')) {
             behaviorId = behByType["bt"] ?? 0;
             param1 = 3;
