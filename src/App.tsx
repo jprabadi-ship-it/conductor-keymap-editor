@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useKeymapStore } from './store/useKeymapStore';
 import { Header } from './components/Header/Header';
 import { LayerList } from './components/LeftPanel/LayerList';
@@ -9,9 +9,25 @@ import { KeyConfig } from './components/RightPanel/KeyConfig';
 import { TrackballConfig } from './components/RightPanel/TrackballConfig';
 import { TimingConfig } from './components/RightPanel/TimingConfig';
 import { BluetoothConfig } from './components/RightPanel/BluetoothConfig';
+import { ResizeHandle } from './components/ResizeHandle';
+
+const LEFT_MIN = 160;
+const LEFT_MAX = 400;
+const RIGHT_MIN = 200;
+const RIGHT_MAX = 480;
 
 function App() {
   const store = useKeymapStore();
+  const [leftWidth, setLeftWidth] = useState(224);
+  const [rightWidth, setRightWidth] = useState(280);
+
+  const onResizeLeft = useCallback((delta: number) => {
+    setLeftWidth(prev => Math.max(LEFT_MIN, Math.min(LEFT_MAX, prev + delta)));
+  }, []);
+
+  const onResizeRight = useCallback((delta: number) => {
+    setRightWidth(prev => Math.max(RIGHT_MIN, Math.min(RIGHT_MAX, prev + delta)));
+  }, []);
 
   // Auto-save on changes
   useEffect(() => {
@@ -34,7 +50,7 @@ function App() {
 
       <div className="app-layout">
         {/* Left Panel */}
-        <aside className="left-panel">
+        <aside className="left-panel" style={{ width: leftWidth }}>
           <div className="panel-tabs">
             <button
               className={`panel-tab ${store.leftPanelTab === 'layers' ? 'active' : ''}`}
@@ -57,11 +73,15 @@ function App() {
           <ConnectionPanel />
         </aside>
 
+        <ResizeHandle side="left" onResize={onResizeLeft} />
+
         {/* Main keyboard view */}
         <KeyboardView store={store} />
 
+        <ResizeHandle side="right" onResize={onResizeRight} />
+
         {/* Right Panel */}
-        <aside className="right-panel">
+        <aside className="right-panel" style={{ width: rightWidth }}>
           <div className="right-panel-tabs">
             {(['key-config', 'trackball', 'timing', 'bluetooth'] as const).map(tab => (
               <button
