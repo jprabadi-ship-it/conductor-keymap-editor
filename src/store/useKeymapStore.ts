@@ -46,6 +46,7 @@ export function useKeymapStore() {
   const [gestures, setGestures] = useState<GestureShortcut[]>(createDefaultGestures);
   const [bluetoothProfiles, setBluetoothProfiles] = useState<BluetoothProfile[]>(createDefaultBluetoothProfiles);
 
+  const [dirtyKeys, setDirtyKeys] = useState<Set<string>>(new Set());
   const [selectedLayerIndex, setSelectedLayerIndex] = useState(0);
   const [selectedKeyId, setSelectedKeyId] = useState<string | null>(null);
   const [rightPanelTab, setRightPanelTab] = useState<RightPanelTab>('key-config');
@@ -92,12 +93,15 @@ export function useKeymapStore() {
   // Key binding operations
   const updateKeyBinding = useCallback((layerIndex: number, keyId: string, binding: KeyBinding) => {
     pushUndo();
+    setDirtyKeys(prev => new Set(prev).add(`${layerIndex}:${keyId}`));
     setLayers(prev => prev.map((layer, i) =>
       i === layerIndex
         ? { ...layer, keys: layer.keys.map(k => k.id === keyId ? { ...k, binding } : k) }
         : layer
     ));
   }, [pushUndo]);
+
+  const clearDirtyKeys = useCallback(() => setDirtyKeys(new Set()), []);
 
   const setLayerName = useCallback((layerIndex: number, name: string) => {
     setLayers(prev => prev.map((layer, i) =>
@@ -251,6 +255,7 @@ export function useKeymapStore() {
     setSelectedMacroIndex,
     setDiffMode, setAmlExcluded, setOsLayout, setTappingTerm,
     setGestures, setBluetoothProfiles,
+    dirtyKeys, clearDirtyKeys,
     updateKeyBinding, setLayerName, setLayerLedColor, addLayer, removeLayer,
     addCombo, updateCombo, removeCombo,
     addMacro, updateMacro, removeMacro,

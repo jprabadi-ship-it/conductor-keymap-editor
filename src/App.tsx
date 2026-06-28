@@ -72,11 +72,12 @@ function App() {
               return;
             }
           }
-          debugLog('INF', 'Editor', 'Writing keymap to device...');
-          const ok = await writeKeymapToDevice(store.layers);
+          debugLog('INF', 'Editor', `Writing keymap to device... (${store.dirtyKeys.size} keys modified)`);
+          const ok = await writeKeymapToDevice(store.layers, store.dirtyKeys);
           if (ok) {
             const saved = await saveChanges();
             if (saved) {
+              store.clearDirtyKeys();
               setUnsaved(false);
               debugLog('INF', 'Editor', 'Keymap written and saved to device flash');
             }
@@ -96,6 +97,7 @@ function App() {
               return { ...existing, name, index: dl.id ?? i, keys };
             });
             store.importProject(project);
+            store.clearDirtyKeys();
             setUnsaved(false);
             debugLog('INF', 'Editor', `Keymap applied: ${result.layers.length} layers`);
           }

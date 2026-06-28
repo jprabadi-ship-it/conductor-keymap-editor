@@ -704,7 +704,7 @@ function labelToParam(label: string, keyCode: string): number {
   return 0;
 }
 
-export async function writeKeymapToDevice(layers: Layer[]): Promise<boolean> {
+export async function writeKeymapToDevice(layers: Layer[], dirtyKeys?: Set<string>): Promise<boolean> {
   if (!writer) {
     debugLog('ERR', 'USB', 'Not connected');
     return false;
@@ -738,8 +738,15 @@ export async function writeKeymapToDevice(layers: Layer[]): Promise<boolean> {
 
       const rawKey = `${layer.index}:${posId}`;
       const raw = rawBindings[rawKey];
-      const binding = key.binding;
+      const isDirty = dirtyKeys ? dirtyKeys.has(rawKey) : true;
 
+      // If key wasn't modified by user, skip it entirely
+      if (!isDirty) {
+        skipped++;
+        continue;
+      }
+
+      const binding = key.binding;
       let behaviorId = 0;
       let param1 = 0;
       let param2 = 0;
@@ -794,11 +801,7 @@ export async function writeKeymapToDevice(layers: Layer[]): Promise<boolean> {
           break;
       }
 
-      // Skip if unchanged from raw
-      if (raw && raw.behaviorId === behaviorId && raw.param1 === param1 && raw.param2 === param2) {
-        skipped++;
-        continue;
-      }
+      debugLog('INF', 'USB', `  Write ${posId}@L${layer.index}: beh=${behaviorId} p1=0x${param1.toString(16)} p2=0x${param2.toString(16)}`);
 
       try {
         await setLayerBinding(layer.index, keyIdx, behaviorId, param1, param2);
