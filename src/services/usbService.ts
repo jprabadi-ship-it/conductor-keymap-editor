@@ -400,6 +400,28 @@ export async function readKeymap(): Promise<any> {
     }
     debugLog('INF', 'USB', `Loaded ${Object.keys(behaviorCache).length} behavior details`);
 
+    // Detect macro behaviors (non-standard behaviors)
+    const STANDARD_BEHAVIORS = new Set([
+      'key press', 'mouse key press', 'mouse_move', 'mouse_scroll',
+      'none', 'transparent', 'caps word', 'external power',
+      'grave/escape', 'key repeat', 'key toggle', 'output selection',
+      'sticky key', 'momentary layer', 'sticky layer', 'studio unlock',
+      'reset', 'to layer', 'bluetooth', 'bootloader',
+      'layer-tap', 'mod-tap', 'toggle layer', 'toggle scroll invert',
+      'enc_key_press',
+    ]);
+    const firmwareMacros: { id: number; name: string }[] = [];
+    for (const [idStr, beh] of Object.entries(behaviorCache)) {
+      if (!STANDARD_BEHAVIORS.has(beh.displayName.toLowerCase()) && !beh.displayName.toLowerCase().startsWith('mt_')) {
+        firmwareMacros.push({ id: Number(idStr), name: beh.displayName });
+      }
+    }
+    if (firmwareMacros.length > 0) {
+      debugLog('INF', 'USB', `Firmware macros: ${firmwareMacros.map(m => `${m.id}:${m.name}`).join(', ')}`);
+    }
+    // Build a set of macro behavior IDs for binding detection
+    const macroBehaviorIds = new Set(firmwareMacros.map(m => m.id));
+
     const resp = await sendRequest({ keymap: { getKeymap: true } });
     const keymap = resp.keymap?.getKeymap;
     if (!keymap) {
@@ -489,6 +511,11 @@ export async function readKeymap(): Promise<any> {
           type = 'trans';
           label = '---';
           keyCode = 'TRANS';
+        } else if (macroBehaviorIds.has(binding.behaviorId)) {
+          type = 'basic';
+          const macroName = behaviorCache[binding.behaviorId]?.displayName || `macro_${binding.behaviorId}`;
+          label = `&${macroName}`;
+          keyCode = `&${macroName}`;
         } else if (binding.behaviorId === 0 && binding.param1 === 0 && binding.param2 === 0) {
           type = 'none';
           label = '';
@@ -511,7 +538,7 @@ export async function readKeymap(): Promise<any> {
       };
     });
 
-    return { layers, raw: keymap };
+    return { layers, firmwareMacros, raw: keymap };
   } catch (e: any) {
     debugLog('ERR', 'USB', `Read keymap failed: ${e.message}`);
     return null;

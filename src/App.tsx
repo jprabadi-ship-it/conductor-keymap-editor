@@ -102,6 +102,17 @@ function App() {
               const name = dl.name && dl.name.length > 0 ? dl.name : existing.name;
               return { ...existing, name, index: dl.id ?? i, keys };
             });
+            // Load firmware macros
+            if (result.firmwareMacros?.length > 0) {
+              const fwMacros = result.firmwareMacros.map((m: any) => ({
+                name: m.name,
+                waitMs: 30,
+                tapMs: 30,
+                bindings: [],
+              }));
+              project.macros = fwMacros;
+              debugLog('INF', 'Editor', `Firmware macros loaded: ${fwMacros.map((m: any) => m.name).join(', ')}`);
+            }
             store.importProject(project);
             store.clearDirtyKeys();
             setUnsaved(false);
