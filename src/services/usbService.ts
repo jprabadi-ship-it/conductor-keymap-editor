@@ -315,6 +315,35 @@ function hidToLabel(param: number): string {
   return `0x${param.toString(16)}`;
 }
 
+// Raw protobuf bindings from last Read, keyed by "layerId:posId"
+const rawBindings: Record<string, { behaviorId: number; param1: number; param2: number }> = {};
+
+// Reverse lookup: behavior displayName -> behaviorId
+function findBehaviorId(name: string): number | null {
+  for (const [id, info] of Object.entries(behaviorCache)) {
+    if (info.displayName.toLowerCase().includes(name.toLowerCase())) return Number(id);
+  }
+  return null;
+}
+
+// Reverse KB_USAGE: label -> usage code
+const LABEL_TO_USAGE: Record<string, number> = {};
+for (const [code, label] of Object.entries(KB_USAGE)) {
+  LABEL_TO_USAGE[label] = Number(code);
+}
+
+// Reverse SHIFT_MAP
+const LABEL_TO_SHIFTED: Record<string, number> = {};
+for (const [code, label] of Object.entries(SHIFT_MAP)) {
+  LABEL_TO_SHIFTED[label] = Number(code);
+}
+
+// Reverse CONSUMER_USAGE
+const LABEL_TO_CONSUMER: Record<string, number> = {};
+for (const [code, label] of Object.entries(CONSUMER_USAGE)) {
+  LABEL_TO_CONSUMER[label] = Number(code);
+}
+
 // Protobuf bindings array order: row-by-row, left then right per row
 const KEY_ORDER = [
   'L00','L01','L02','L03','L04','R00','R01','R02','R03','R04',
@@ -430,6 +459,7 @@ export async function readKeymap(): Promise<any> {
         }
 
         bindings[posId] = { type, keyCode, label, ...extra };
+        rawBindings[`${layer.id}:${posId}`] = { behaviorId: binding.behaviorId, param1: binding.param1, param2: binding.param2 };
       });
 
       const layerName = layer.name && layer.name.length > 0 ? layer.name : `Layer ${layer.id}`;
@@ -511,7 +541,148 @@ export async function setTappingTerm(ms: number): Promise<boolean> {
   }
 }
 
-export async function writeKeymap(_json: string): Promise<boolean> {
-  debugLog('WRN', 'USB', 'Full keymap write requires per-binding updates via setLayerBinding');
-  return false;
+import { Layer } from '../types';
+
+function labelToParam(label: string, keyCode: string): number {
+  // Check shifted symbols
+  if (LABEL_TO_SHIFTED[label] !== undefined) {
+    return (0x02 << 24) | (0x07 << 16) | LABEL_TO_SHIFTED[label];
+  }
+  // Check keyboard usage
+  if (LABEL_TO_USAGE[label] !== undefined) {
+    return (0x07 << 16) | LABEL_TO_USAGE[label];
+  }
+  // Check consumer
+  if (LABEL_TO_CONSUMER[label] !== undefined) {
+    return (0x0C << 16) | LABEL_TO_CONSUMER[label];
+  }
+  // Mod+key pattern like "C+Up"
+  const modMatch = label.match(/^([CSAG+]+)\+(.+)$/);
+  if (modMatch) {
+    let mods = 0;
+    const modStr = modMatch[1];
+    if (modStr.includes('C')) mods |= 0x01;
+    if (modStr.includes('S')) mods |= 0x02;
+    if (modStr.includes('A')) mods |= 0x04;
+    if (modStr.includes('G')) mods |= 0x08;
+    const baseLabel = modMatch[2];
+    const baseUsage = LABEL_TO_USAGE[baseLabel];
+    if (baseUsage !== undefined) {
+      return (mods << 24) | (0x07 << 16) | baseUsage;
+    }
+    const consumerUsage = LABEL_TO_CONSUMER[baseLabel];
+    if (consumerUsage !== undefined) {
+      return (mods << 24) | (0x0C << 16) | consumerUsage;
+    }
+  }
+  return 0;
+}
+
+export async function writeKeymapToDevice(layers: Layer[]): Promise<boolean> {
+  if (!writer) {
+    debugLog('ERR', 'USB', 'Not connected');
+    return false;
+  }
+
+  // Ensure behaviors are loaded
+  if (Object.keys(behaviorCache).length === 0) {
+    const ids = await listBehaviors();
+    for (const bid of ids) await getBehaviorDetails(bid);
+  }
+
+  const kpId = findBehaviorId('Key Press');
+  const moId = findBehaviorId('Momentary');
+  const ltId = findBehaviorId('Layer-Tap') ?? findBehaviorId('lt');
+  const mtId = findBehaviorId('Mod-Tap') ?? findBehaviorId('mt');
+  const togId = findBehaviorId('Toggle') ?? findBehaviorId('tog');
+  const noneId = findBehaviorId('None') ?? findBehaviorId('none');
+  const transId = findBehaviorId('Trans') ?? findBehaviorId('trans');
+  const btId = findBehaviorId('Bluetooth') ?? findBehaviorId('bt');
+  const bootId = findBehaviorId('Bootloader') ?? findBehaviorId('bootloader');
+  const mkpId = findBehaviorId('Mouse') ?? findBehaviorId('mkp');
+
+  let written = 0;
+  let skipped = 0;
+
+  for (const layer of layers) {
+    for (let keyIdx = 0; keyIdx < KEY_ORDER.length; keyIdx++) {
+      const posId = KEY_ORDER[keyIdx];
+      const key = layer.keys.find(k => k.id === posId);
+      if (!key) continue;
+
+      const rawKey = `${layer.index}:${posId}`;
+      const raw = rawBindings[rawKey];
+      const binding = key.binding;
+
+      let behaviorId = 0;
+      let param1 = 0;
+      let param2 = 0;
+
+      switch (binding.type) {
+        case 'basic':
+          if (binding.keyCode?.startsWith('BT_SEL')) {
+            behaviorId = btId ?? 0;
+            param1 = 3;
+            param2 = parseInt(binding.keyCode.split(' ').pop() || '0');
+          } else if (binding.keyCode === 'BT_CLR') {
+            behaviorId = btId ?? 0; param1 = 0;
+          } else if (binding.keyCode === 'BT_CLR_ALL') {
+            behaviorId = btId ?? 0; param1 = 4;
+          } else if (binding.keyCode === 'BOOTLOADER') {
+            behaviorId = bootId ?? 0;
+          } else if (binding.keyCode?.startsWith('mkp')) {
+            behaviorId = mkpId ?? 0;
+            const mbNum = parseInt(binding.label?.replace('MB', '') || '1');
+            param1 = mbNum;
+          } else {
+            behaviorId = kpId ?? 0;
+            param1 = labelToParam(binding.label, binding.keyCode);
+          }
+          break;
+        case 'momentary':
+          behaviorId = moId ?? 0;
+          param1 = binding.layer ?? 0;
+          break;
+        case 'layer-tap':
+          behaviorId = ltId ?? 0;
+          param1 = binding.layer ?? 0;
+          param2 = labelToParam(binding.tapLabel || binding.label, binding.tapKeyCode || '');
+          break;
+        case 'mod-tap':
+          behaviorId = mtId ?? 0;
+          param1 = labelToParam(binding.label, binding.keyCode);
+          if (binding.tapLabel) param2 = labelToParam(binding.tapLabel, binding.tapKeyCode || '');
+          break;
+        case 'toggle':
+          behaviorId = togId ?? 0;
+          param1 = binding.layer ?? 0;
+          break;
+        case 'none':
+          behaviorId = noneId ?? 0;
+          break;
+        case 'trans':
+          behaviorId = transId ?? 0;
+          break;
+        default:
+          if (raw) { behaviorId = raw.behaviorId; param1 = raw.param1; param2 = raw.param2; }
+          break;
+      }
+
+      // Skip if unchanged from raw
+      if (raw && raw.behaviorId === behaviorId && raw.param1 === param1 && raw.param2 === param2) {
+        skipped++;
+        continue;
+      }
+
+      try {
+        await setLayerBinding(layer.index, keyIdx, behaviorId, param1, param2);
+        written++;
+      } catch (e: any) {
+        debugLog('ERR', 'USB', `Failed to write ${posId} on layer ${layer.index}: ${e.message}`);
+      }
+    }
+  }
+
+  debugLog('INF', 'USB', `Write complete: ${written} bindings updated, ${skipped} unchanged`);
+  return true;
 }

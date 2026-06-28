@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useKeymapStore } from './store/useKeymapStore';
-import { readKeymap, saveChanges, getDeviceInfo, connectUsb as connectUsbService, disconnectUsb } from './services/usbService';
+import { readKeymap, writeKeymapToDevice, saveChanges, getDeviceInfo, connectUsb as connectUsbService, disconnectUsb } from './services/usbService';
 import { debugLog } from './components/DebugConsole';
 import { Header } from './components/Header/Header';
 import { LayerList } from './components/LeftPanel/LayerList';
@@ -63,10 +63,14 @@ function App() {
         usbConnected={usbConnected}
         unsaved={unsaved}
         onWrite={async () => {
-          const ok = await saveChanges();
+          debugLog('INF', 'Editor', 'Writing keymap to device...');
+          const ok = await writeKeymapToDevice(store.layers);
           if (ok) {
-            setUnsaved(false);
-            debugLog('INF', 'Editor', 'Keymap written to device flash');
+            const saved = await saveChanges();
+            if (saved) {
+              setUnsaved(false);
+              debugLog('INF', 'Editor', 'Keymap written and saved to device flash');
+            }
           }
         }}
         onRead={async () => {
