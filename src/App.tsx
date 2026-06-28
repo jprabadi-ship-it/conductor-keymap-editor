@@ -16,14 +16,14 @@ import { MacroEditor } from './components/RightPanel/MacroEditor';
 import { ResizeHandle } from './components/ResizeHandle';
 import { DebugConsole } from './components/DebugConsole';
 
-const LEFT_MIN = 160;
-const LEFT_MAX = 400;
+const LEFT_MIN = 200;
+const LEFT_MAX = 500;
 const RIGHT_MIN = 200;
 const RIGHT_MAX = 480;
 
 function App() {
   const store = useKeymapStore();
-  const [leftWidth, setLeftWidth] = useState(224);
+  const [leftWidth, setLeftWidth] = useState(280);
   const [rightWidth, setRightWidth] = useState(340);
   const [showConsole, setShowConsole] = useState(false);
   const [usbConnected, setUsbConnected] = useState(false);

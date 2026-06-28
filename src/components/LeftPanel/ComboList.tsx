@@ -14,8 +14,8 @@ function MiniKeyboard({ selected, onToggle }: { selected: string[]; onToggle: (i
   const maxColR = Math.max(...rightKeys.map(k => k.col));
   const maxRow = Math.max(...KEYBOARD_LAYOUT.map(k => k.row));
 
-  const S = 16;
-  const G = 1;
+  const S = 20;
+  const G = 2;
 
   const renderHalf = (keys: typeof KEYBOARD_LAYOUT, maxCol: number) => {
     const cells: React.ReactNode[] = [];
