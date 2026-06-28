@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { KeymapStore } from '../../store/useKeymapStore';
-import { isConnected, getTappingTerm, setTappingTerm, saveChanges } from '../../services/usbService';
+import { isConnected, isUnlocked, requestUnlock, getTappingTerm, setTappingTerm, saveChanges } from '../../services/usbService';
 import { debugLog } from '../DebugConsole';
 
 interface Props {
@@ -26,6 +26,10 @@ export function TimingConfig({ store }: Props) {
 
   const handleSave = async () => {
     if (!isConnected()) { debugLog('WRN', 'Timing', 'Not connected'); return; }
+    if (!isUnlocked() && !(await requestUnlock())) {
+      alert('デバイスがロックされています');
+      return;
+    }
     const ok = await setTappingTerm(store.tappingTerm);
     if (ok) {
       await saveChanges();

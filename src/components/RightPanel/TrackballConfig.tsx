@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { KeymapStore } from '../../store/useKeymapStore';
-import { isConnected, setSensitivity, setAutoLayer, setPrecisionScale, setAccel, getSensitivity, getAutoLayer, getPrecisionScale, getAccel, saveChanges as savePointingChanges } from '../../services/usbService';
+import { isConnected, isUnlocked, requestUnlock, setSensitivity, setAutoLayer, setPrecisionScale, setAccel, getSensitivity, getAutoLayer, getPrecisionScale, getAccel, saveChanges as savePointingChanges } from '../../services/usbService';
 import { debugLog } from '../DebugConsole';
 
 interface Props {
@@ -75,10 +75,21 @@ export function TrackballConfig({ store }: Props) {
     })();
   }, [loaded]);
 
-  // Realtime send helper
+  // Realtime send helper (with unlock check)
   const sendIfRealtime = useCallback(async (fn: () => Promise<any>) => {
     if (!realtimePreview || !isConnected()) return;
-    await fn();
+    if (!isUnlocked()) {
+      const ok = await requestUnlock();
+      if (!ok) {
+        debugLog('WRN', 'Trackball', 'Device locked. Press studio_unlock combo.');
+        return;
+      }
+    }
+    try {
+      await fn();
+    } catch (e: any) {
+      debugLog('ERR', 'Trackball', `Realtime send failed: ${e.message}`);
+    }
   }, [realtimePreview]);
 
   const handleCpiChange = (val: number) => {
@@ -149,6 +160,9 @@ export function TrackballConfig({ store }: Props) {
 
         <button className="btn btn-outline" style={{ width: '100%', fontSize: 12, marginBottom: 8 }} onClick={async () => {
           if (!isConnected()) return;
+          if (!isUnlocked() && !(await requestUnlock())) {
+            alert('デバイスがロックされています'); return;
+          }
           await setAutoLayer(amlEnabled, amlTimeout, store.amlExcluded.map((_, i) => i), amlMinDistance);
           debugLog('INF', 'Trackball', 'AML settings applied');
         }}>AML設定を適用</button>
@@ -349,6 +363,9 @@ export function TrackballConfig({ store }: Props) {
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn btn-primary" style={{ flex: 1 }} onClick={async () => {
             if (!isConnected()) return;
+            if (!isUnlocked() && !(await requestUnlock())) {
+              alert('デバイスがロックされています'); return;
+            }
             await setSensitivity(cpi, Math.round(scrollSensitivity * 100), 100);
             await setPrecisionScale(Math.round(precisionSensitivity * 100), 100);
             await setAccel(accelMode > 0, Math.round(accelMaxRatio * 1000), accelStartSpeed, accelRampWidth);
