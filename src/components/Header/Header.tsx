@@ -52,8 +52,7 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, unsa
   return (
     <header className="header">
       <div className="header-title">
-        <span>←</span>
-        <a href="/">Conductor Studio 2.0</a>
+        <span>Conductor Studio 2.0</span>
       </div>
       <div className="header-breadcrumb">
         <span className="led-dot" style={{ width: 8, height: 8, borderRadius: '50%', background: `var(--led-${store.selectedLayer?.ledColor || 'white'})`, display: 'inline-block' }} />
