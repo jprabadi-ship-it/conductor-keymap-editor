@@ -1,0 +1,95 @@
+import { KeymapStore } from '../../store/useKeymapStore';
+import { LEFT_KEYS, RIGHT_KEYS } from '../../data/layout';
+import { KeyButton } from './KeyButton';
+import { LedColor } from '../../types';
+
+interface Props {
+  store: KeymapStore;
+}
+
+const LED_CSS_MAP: Record<LedColor, string> = {
+  black: 'var(--led-black)', red: 'var(--led-red)', green: 'var(--led-green)',
+  yellow: 'var(--led-yellow)', blue: 'var(--led-blue)', magenta: 'var(--led-magenta)',
+  cyan: 'var(--led-cyan)', white: 'var(--led-white)',
+};
+
+export function KeyboardView({ store }: Props) {
+  const layer = store.selectedLayer;
+  if (!layer) return null;
+
+  const comboMap = new Map<string, string>();
+  store.comboOverlays.forEach(o => comboMap.set(o.keyId, o.comboName));
+
+  const renderHalf = (positions: typeof LEFT_KEYS, className: string) => {
+    const maxCol = Math.max(...positions.map(p => p.col));
+    const maxRow = Math.max(...positions.map(p => p.row));
+    const cells: React.ReactNode[] = [];
+
+    for (let row = 0; row <= maxRow; row++) {
+      for (let col = 0; col <= maxCol; col++) {
+        const pos = positions.find(p => p.row === row && p.col === col);
+        if (pos) {
+          const keyConfig = layer.keys.find(k => k.id === pos.id);
+          if (keyConfig) {
+            cells.push(
+              <KeyButton
+                key={pos.id}
+                keyConfig={keyConfig}
+                selected={store.selectedKeyId === pos.id}
+                onClick={() => {
+                  store.setSelectedKeyId(pos.id);
+                  store.setRightPanelTab('key-config');
+                }}
+                comboName={comboMap.get(pos.id)}
+                isAmlExcluded={store.amlExcluded.includes(pos.id)}
+              />
+            );
+          }
+        } else {
+          cells.push(<div key={`empty-${row}-${col}`} />);
+        }
+      }
+    }
+    return <div className={`keyboard-half ${className}`}>{cells}</div>;
+  };
+
+  return (
+    <div className="keyboard-area">
+      <div className="keyboard-toolbar">
+        <div className="layer-indicator">
+          <span className="led-dot" style={{ width: 10, height: 10, borderRadius: '50%', background: LED_CSS_MAP[layer.ledColor], display: 'inline-block' }} />
+          <span>{layer.name}</span>
+        </div>
+
+        <button
+          className={`btn btn-outline ${store.diffMode ? 'btn-active' : ''}`}
+          onClick={() => store.setDiffMode(!store.diffMode)}
+          style={{ fontSize: 11 }}
+        >
+          ⇄ Diff
+        </button>
+
+        <button
+          className="btn btn-outline"
+          style={{ fontSize: 11, color: 'var(--warning)' }}
+        >
+          ⊘ AML {store.amlExcluded.length}
+        </button>
+      </div>
+
+      {store.amlExcluded.length > 0 && (
+        <div className="aml-info">
+          ⊘ {store.amlExcluded.length}個のキーがAML excluded-positionsに設定済み（Writeで送信）
+        </div>
+      )}
+
+      <div className="keyboard-container">
+        {renderHalf(LEFT_KEYS, 'left')}
+        <div className="trackball-placeholder" />
+        {renderHalf(RIGHT_KEYS, 'right')}
+      </div>
+
+      <div className="keyboard-hint">Click a key to configure</div>
+    </div>
+  );
+}

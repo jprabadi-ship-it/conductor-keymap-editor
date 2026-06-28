@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__Claude_in_Chrome__navigate",
+      "mcp__Claude_in_Chrome__select_browser",
+      "mcp__Claude_in_Chrome__browser_batch",
+      "mcp__Claude_in_Chrome__javascript_tool",
+      "mcp__visualize__read_me",
+      "mcp__visualize__show_widget",
+      "Bash(npm create *)",
+      "Bash(mv conductor-keymap-editor/* conductor-keymap-editor/.* .)",
+      "Bash(rmdir conductor-keymap-editor *)",
+      "Bash(npm install *)"
+    ]
+  }
+}
