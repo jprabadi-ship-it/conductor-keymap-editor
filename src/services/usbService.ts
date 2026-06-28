@@ -263,8 +263,23 @@ const HID_USAGE_MAP: Record<number, string> = {
   144: 'LANG1', 145: 'LANG2',
 };
 
-function hidToLabel(usage: number): string {
-  return HID_USAGE_MAP[usage] || `0x${usage.toString(16).toUpperCase()}`;
+function hidToLabel(param: number): string {
+  const page = (param >> 16) & 0xFFFF;
+  const usage = param & 0xFFFF;
+
+  if (page === 0x07 || page === 0) {
+    return HID_USAGE_MAP[usage] || `HID:${usage.toString(16)}`;
+  }
+  if (page === 0x0C) {
+    // Consumer page
+    const consumerMap: Record<number, string> = {
+      0xB5: 'Next', 0xB6: 'Prev', 0xB7: 'Stop', 0xCD: 'Play',
+      0xE2: 'Mute', 0xE9: 'Vol+', 0xEA: 'Vol-',
+      0x6F: 'Bri+', 0x70: 'Bri-',
+    };
+    return consumerMap[usage] || `Consumer:${usage.toString(16)}`;
+  }
+  return `0x${param.toString(16)}`;
 }
 
 import { KEYBOARD_LAYOUT } from '../data/layout';
