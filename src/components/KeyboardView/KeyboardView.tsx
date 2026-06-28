@@ -38,15 +38,20 @@ export function KeyboardView({ store }: Props) {
     );
   };
 
-  const renderHalf = (positions: typeof LEFT_KEYS, className: string, trackballAt?: { row: number; col: number }) => {
+  const renderHalf = (positions: typeof LEFT_KEYS, className: string, trackball?: { row: number; colStart: number; colSpan: number }) => {
     const maxCol = Math.max(...positions.map(p => p.col));
     const maxRow = Math.max(...positions.map(p => p.row));
     const cells: React.ReactNode[] = [];
 
     for (let row = 0; row <= maxRow; row++) {
       for (let col = 0; col <= maxCol; col++) {
-        if (trackballAt && row === trackballAt.row && col === trackballAt.col) {
-          cells.push(<div key="trackball" className="trackball-placeholder" />);
+        if (trackball && row === trackball.row && col === trackball.colStart) {
+          cells.push(
+            <div key="trackball" className="trackball-placeholder" style={{ gridColumn: `span ${trackball.colSpan}` }} />
+          );
+          continue;
+        }
+        if (trackball && row === trackball.row && col > trackball.colStart && col < trackball.colStart + trackball.colSpan) {
           continue;
         }
         const pos = positions.find(p => p.row === row && p.col === col);
@@ -92,7 +97,7 @@ export function KeyboardView({ store }: Props) {
 
       <div className="keyboard-container">
         {renderHalf(LEFT_KEYS, 'left')}
-        {renderHalf(RIGHT_KEYS, 'right', { row: 3, col: 2 })}
+        {renderHalf(RIGHT_KEYS, 'right', { row: 2, colStart: 2, colSpan: 2 })}
       </div>
 
       <div className="keyboard-hint">Click a key to configure</div>
