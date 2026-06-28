@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { KeymapStore } from '../../store/useKeymapStore';
 import { MacroAction } from '../../types';
-import { writeMacroToDevice, isConnected, claimFreeMacroSlot, getFreeMacroSlots } from '../../services/usbService';
+import { writeMacroToDevice, isConnected, claimFreeMacroSlot, getFreeMacroSlots, saveChanges } from '../../services/usbService';
 
 interface Props {
   store: KeymapStore;
@@ -280,7 +280,12 @@ export function MacroEditor({ store }: Props) {
               }
               const ok = await writeMacroToDevice(targetId, macro);
               if (ok) {
-                alert(`Macro "${macro.name}" written to device. Save Changes to persist.`);
+                const saved = await saveChanges();
+                if (saved) {
+                  alert(`Macro "${macro.name}" written and saved to device flash.`);
+                } else {
+                  alert(`Macro "${macro.name}" written but flash save failed.`);
+                }
               } else {
                 alert('Failed to write macro to device.');
               }
