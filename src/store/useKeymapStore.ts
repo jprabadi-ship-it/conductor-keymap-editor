@@ -222,7 +222,10 @@ export function useKeymapStore() {
     pushUndo();
     setLayers(project.layers);
     setCombos(project.combos);
-    if (project.macros) setMacros(project.macros);
+    if (project.macros) {
+      setMacros(project.macros);
+      setSelectedMacroIndex(null);
+    }
     setOsLayout(project.osLayout || 'us');
     setTappingTerm(project.tappingTerm || 200);
     if (project.gestures) setGestures(project.gestures);
