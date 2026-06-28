@@ -432,9 +432,11 @@ export async function readKeymap(): Promise<any> {
         bindings[posId] = { type, keyCode, label, ...extra };
       });
 
+      const layerName = layer.name && layer.name.length > 0 ? layer.name : `Layer ${layer.id}`;
+      debugLog('INF', 'USB', `  Layer ${layer.id}: "${layerName}" (${Object.keys(bindings).length} keys)`);
       return {
         id: layer.id,
-        name: layer.name || `Layer ${layer.id}`,
+        name: layerName,
         bindings,
       };
     });

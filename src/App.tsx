@@ -79,7 +79,8 @@ function App() {
                 id: k.id,
                 binding: dl.bindings[k.id] || { type: 'none', keyCode: 'NONE', label: '' },
               }));
-              return { ...existing, name: dl.name || existing.name, index: dl.id ?? i, keys };
+              const name = dl.name && dl.name.length > 0 ? dl.name : existing.name;
+              return { ...existing, name, index: dl.id ?? i, keys };
             });
             store.importProject(project);
             setUnsaved(false);
