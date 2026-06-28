@@ -731,16 +731,25 @@ export async function writeKeymapToDevice(layers: Layer[], dirtyKeys?: Set<strin
     for (const bid of ids) await getBehaviorDetails(bid);
   }
 
-  const kpId = findBehaviorId('Key Press');
-  const moId = findBehaviorId('Momentary');
-  const ltId = findBehaviorId('Layer-Tap') ?? findBehaviorId('lt');
-  const mtId = findBehaviorId('Mod-Tap') ?? findBehaviorId('mt');
-  const togId = findBehaviorId('Toggle') ?? findBehaviorId('tog');
-  const noneId = findBehaviorId('None') ?? findBehaviorId('none');
-  const transId = findBehaviorId('Trans') ?? findBehaviorId('trans');
-  const btId = findBehaviorId('Bluetooth') ?? findBehaviorId('bt');
-  const bootId = findBehaviorId('Bootloader') ?? findBehaviorId('bootloader');
-  const mkpId = findBehaviorId('Mouse') ?? findBehaviorId('mkp');
+  // Build behavior ID map from raw bindings (most reliable source)
+  const behByType: Record<string, number> = {};
+  for (const [key, raw] of Object.entries(rawBindings)) {
+    const beh = behaviorCache[raw.behaviorId];
+    if (beh) {
+      const name = beh.displayName.toLowerCase();
+      if (!behByType['kp'] && (name.includes('key press') || name === 'kp')) behByType['kp'] = raw.behaviorId;
+      if (!behByType['mo'] && (name.includes('momentary') || name === 'mo')) behByType['mo'] = raw.behaviorId;
+      if (!behByType['lt'] && (name.includes('layer') && name.includes('tap') || name === 'lt')) behByType['lt'] = raw.behaviorId;
+      if (!behByType['mt'] && (name.includes('mod') && name.includes('tap') || name === 'mt')) behByType['mt'] = raw.behaviorId;
+      if (!behByType['tog'] && (name.includes('toggle') || name === 'tog')) behByType['tog'] = raw.behaviorId;
+      if (!behByType['none'] && (name.includes('none') || name === 'none')) behByType['none'] = raw.behaviorId;
+      if (!behByType['trans'] && (name.includes('trans') || name === 'trans')) behByType['trans'] = raw.behaviorId;
+      if (!behByType['bt'] && (name.includes('bluetooth') || name === 'bt')) behByType['bt'] = raw.behaviorId;
+      if (!behByType['boot'] && (name.includes('bootloader') || name === 'bootloader')) behByType['boot'] = raw.behaviorId;
+      if (!behByType['mkp'] && (name.includes('mouse') || name === 'mkp')) behByType['mkp'] = raw.behaviorId;
+    }
+  }
+  debugLog('INF', 'USB', `Behavior IDs: ${JSON.stringify(behByType)}`);
 
   let written = 0;
   let skipped = 0;
@@ -769,47 +778,47 @@ export async function writeKeymapToDevice(layers: Layer[], dirtyKeys?: Set<strin
       switch (binding.type) {
         case 'basic':
           if (binding.keyCode?.startsWith('BT_SEL')) {
-            behaviorId = btId ?? 0;
+            behaviorId = behByType["bt"] ?? 0;
             param1 = 3;
             param2 = parseInt(binding.keyCode.split(' ').pop() || '0');
           } else if (binding.keyCode === 'BT_CLR') {
-            behaviorId = btId ?? 0; param1 = 0;
+            behaviorId = behByType["bt"] ?? 0; param1 = 0;
           } else if (binding.keyCode === 'BT_CLR_ALL') {
-            behaviorId = btId ?? 0; param1 = 4;
+            behaviorId = behByType["bt"] ?? 0; param1 = 4;
           } else if (binding.keyCode === 'BOOTLOADER') {
-            behaviorId = bootId ?? 0;
+            behaviorId = behByType["boot"] ?? 0;
           } else if (binding.keyCode?.startsWith('mkp')) {
-            behaviorId = mkpId ?? 0;
+            behaviorId = behByType["mkp"] ?? 0;
             const mbNum = parseInt(binding.label?.replace('MB', '') || '1');
             param1 = mbNum;
           } else {
-            behaviorId = kpId ?? 0;
+            behaviorId = behByType["kp"] ?? 0;
             param1 = labelToParam(binding.label, binding.keyCode);
           }
           break;
         case 'momentary':
-          behaviorId = moId ?? 0;
+          behaviorId = behByType["mo"] ?? 0;
           param1 = binding.layer ?? 0;
           break;
         case 'layer-tap':
-          behaviorId = ltId ?? 0;
+          behaviorId = behByType["lt"] ?? 0;
           param1 = binding.layer ?? 0;
           param2 = labelToParam(binding.tapLabel || binding.label, binding.tapKeyCode || '');
           break;
         case 'mod-tap':
-          behaviorId = mtId ?? 0;
+          behaviorId = behByType["mt"] ?? 0;
           param1 = labelToParam(binding.label, binding.keyCode);
           if (binding.tapLabel) param2 = labelToParam(binding.tapLabel, binding.tapKeyCode || '');
           break;
         case 'toggle':
-          behaviorId = togId ?? 0;
+          behaviorId = behByType["tog"] ?? 0;
           param1 = binding.layer ?? 0;
           break;
         case 'none':
-          behaviorId = noneId ?? 0;
+          behaviorId = behByType["none"] ?? 0;
           break;
         case 'trans':
-          behaviorId = transId ?? 0;
+          behaviorId = behByType["trans"] ?? 0;
           break;
         default:
           if (raw) { behaviorId = raw.behaviorId; param1 = raw.param1; param2 = raw.param2; }
