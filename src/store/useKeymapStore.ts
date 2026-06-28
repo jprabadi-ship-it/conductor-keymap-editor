@@ -99,6 +99,12 @@ export function useKeymapStore() {
     ));
   }, [pushUndo]);
 
+  const setLayerName = useCallback((layerIndex: number, name: string) => {
+    setLayers(prev => prev.map((layer, i) =>
+      i === layerIndex ? { ...layer, name } : layer
+    ));
+  }, []);
+
   const setLayerLedColor = useCallback((layerIndex: number, color: LedColor) => {
     setLayers(prev => prev.map((layer, i) =>
       i === layerIndex ? { ...layer, ledColor: color } : layer
@@ -245,7 +251,7 @@ export function useKeymapStore() {
     setSelectedMacroIndex,
     setDiffMode, setAmlExcluded, setOsLayout, setTappingTerm,
     setGestures, setBluetoothProfiles,
-    updateKeyBinding, setLayerLedColor, addLayer, removeLayer,
+    updateKeyBinding, setLayerName, setLayerLedColor, addLayer, removeLayer,
     addCombo, updateCombo, removeCombo,
     addMacro, updateMacro, removeMacro,
     addMacroStep, updateMacroStep, removeMacroStep, moveMacroStep,

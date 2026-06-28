@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { KeymapStore } from '../../store/useKeymapStore';
 import { LedColor } from '../../types';
 
@@ -15,6 +15,28 @@ const LED_CSS: Record<LedColor, string> = {
 
 export function LayerList({ store }: Props) {
   const [ledPickerLayer, setLedPickerLayer] = useState<number | null>(null);
+  const [editingLayer, setEditingLayer] = useState<number | null>(null);
+  const [editValue, setEditValue] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editingLayer !== null && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [editingLayer]);
+
+  const startEditing = (index: number, name: string) => {
+    setEditingLayer(index);
+    setEditValue(name);
+  };
+
+  const commitEdit = () => {
+    if (editingLayer !== null && editValue.trim().length > 0) {
+      store.setLayerName(editingLayer, editValue.trim());
+    }
+    setEditingLayer(null);
+  };
 
   return (
     <div>
@@ -30,7 +52,34 @@ export function LayerList({ store }: Props) {
           onClick={() => store.setSelectedLayerIndex(layer.index)}
         >
           <span className="led-dot" style={{ background: LED_CSS[layer.ledColor] }} />
-          <span className="layer-name">{layer.name}</span>
+
+          {editingLayer === layer.index ? (
+            <input
+              ref={inputRef}
+              type="text"
+              value={editValue}
+              onChange={e => setEditValue(e.target.value)}
+              onBlur={commitEdit}
+              onKeyDown={e => {
+                if (e.key === 'Enter') commitEdit();
+                if (e.key === 'Escape') setEditingLayer(null);
+              }}
+              onClick={e => e.stopPropagation()}
+              style={{
+                flex: 1, fontSize: 13, padding: '1px 4px',
+                background: 'var(--bg-primary)', border: '1px solid var(--accent)',
+                color: 'var(--text-primary)', borderRadius: 3, outline: 'none',
+                minWidth: 0,
+              }}
+            />
+          ) : (
+            <span
+              className="layer-name"
+              onDoubleClick={(e) => { e.stopPropagation(); startEditing(layer.index, layer.name); }}
+              title="ダブルクリックで名前を編集"
+            >{layer.name}</span>
+          )}
+
           <span className="layer-index">{layer.index}</span>
           <span className="led-label">LED</span>
           <button
