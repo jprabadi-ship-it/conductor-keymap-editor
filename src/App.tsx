@@ -70,9 +70,20 @@ function App() {
           }
         }}
         onRead={async () => {
-          const keymap = await readKeymap();
-          if (keymap) {
-            debugLog('INF', 'Editor', `Received keymap: ${keymap.layers?.length ?? 0} layers`);
+          const result = await readKeymap();
+          if (result?.layers) {
+            const project = store.exportProject();
+            project.layers = result.layers.map((dl: any, i: number) => {
+              const existing = project.layers[i] || project.layers[0];
+              const keys = existing.keys.map((k: any) => ({
+                id: k.id,
+                binding: dl.bindings[k.id] || { type: 'none', keyCode: 'NONE', label: '' },
+              }));
+              return { ...existing, name: dl.name || existing.name, index: dl.id ?? i, keys };
+            });
+            store.importProject(project);
+            setUnsaved(false);
+            debugLog('INF', 'Editor', `Keymap applied: ${result.layers.length} layers`);
           }
         }}
         onSave={() => {

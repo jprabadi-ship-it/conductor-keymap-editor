@@ -208,18 +208,150 @@ export async function requestUnlock(): Promise<void> {
   debugLog('INF', 'USB', 'Requesting unlock... Press physical key to confirm.');
 }
 
+// Behavior cache: behaviorId -> { displayName, ... }
+const behaviorCache: Record<number, { displayName: string }> = {};
+
+export async function listBehaviors(): Promise<number[]> {
+  try {
+    const resp = await sendRequest({ behaviors: { listAllBehaviors: true } });
+    const ids = resp.behaviors?.listAllBehaviors?.behaviors || [];
+    debugLog('INF', 'USB', `Behaviors: ${ids.length} available`);
+    return ids;
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `listBehaviors failed: ${e.message}`);
+    return [];
+  }
+}
+
+export async function getBehaviorDetails(behaviorId: number): Promise<{ displayName: string } | null> {
+  if (behaviorCache[behaviorId]) return behaviorCache[behaviorId];
+  try {
+    const resp = await sendRequest({ behaviors: { getBehaviorDetails: { behaviorId } } });
+    const details = resp.behaviors?.getBehaviorDetails;
+    if (details) {
+      behaviorCache[behaviorId] = { displayName: details.displayName || `b${behaviorId}` };
+      return behaviorCache[behaviorId];
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// HID Usage Code to key label
+const HID_USAGE_MAP: Record<number, string> = {
+  0: 'NONE', 4: 'A', 5: 'B', 6: 'C', 7: 'D', 8: 'E', 9: 'F', 10: 'G', 11: 'H', 12: 'I', 13: 'J',
+  14: 'K', 15: 'L', 16: 'M', 17: 'N', 18: 'O', 19: 'P', 20: 'Q', 21: 'R', 22: 'S', 23: 'T',
+  24: 'U', 25: 'V', 26: 'W', 27: 'X', 28: 'Y', 29: 'Z',
+  30: '1', 31: '2', 32: '3', 33: '4', 34: '5', 35: '6', 36: '7', 37: '8', 38: '9', 39: '0',
+  40: 'Enter', 41: 'Esc', 42: 'Bksp', 43: 'Tab', 44: 'Space',
+  45: '-', 46: '=', 47: '[', 48: ']', 49: '\\', 51: ';', 52: "'", 53: '`', 54: ',', 55: '.', 56: '/',
+  57: 'Caps', 58: 'F1', 59: 'F2', 60: 'F3', 61: 'F4', 62: 'F5', 63: 'F6',
+  64: 'F7', 65: 'F8', 66: 'F9', 67: 'F10', 68: 'F11', 69: 'F12',
+  70: 'PrtSc', 71: 'ScrLk', 72: 'Pause', 73: 'Ins', 74: 'Home', 75: 'PgUp',
+  76: 'Del', 77: 'End', 78: 'PgDn', 79: 'Right', 80: 'Left', 81: 'Down', 82: 'Up',
+  104: 'F13', 105: 'F14', 106: 'F15', 107: 'F16', 108: 'F17', 109: 'F18',
+  110: 'F19', 111: 'F20', 112: 'F21', 113: 'F22', 114: 'F23', 115: 'F24',
+  // Modifiers
+  224: 'L Ctrl', 225: 'L Shift', 226: 'L Alt', 227: 'L GUI',
+  228: 'R Ctrl', 229: 'R Shift', 230: 'R Alt', 231: 'R GUI',
+  // Consumer (page 0x0C, offset by 0x10000 in ZMK)
+  0x100B5: 'Next', 0x100B6: 'Prev', 0x100B7: 'Stop', 0x100CD: 'Play',
+  0x100E2: 'Mute', 0x100E9: 'Vol+', 0x100EA: 'Vol-',
+  0x1006F: 'Bri+', 0x10070: 'Bri-',
+  // IME
+  144: 'LANG1', 145: 'LANG2',
+};
+
+function hidToLabel(usage: number): string {
+  return HID_USAGE_MAP[usage] || `0x${usage.toString(16).toUpperCase()}`;
+}
+
+import { KEYBOARD_LAYOUT } from '../data/layout';
+
 export async function readKeymap(): Promise<any> {
   try {
     debugLog('INF', 'USB', 'Reading keymap from device...');
+
+    // Get behavior list first
+    const behaviorIds = await listBehaviors();
+    for (const bid of behaviorIds) {
+      await getBehaviorDetails(bid);
+    }
+    debugLog('INF', 'USB', `Loaded ${Object.keys(behaviorCache).length} behavior details`);
+
     const resp = await sendRequest({ keymap: { getKeymap: true } });
     const keymap = resp.keymap?.getKeymap;
-    if (keymap) {
-      const layerCount = keymap.layers?.length ?? 0;
-      debugLog('INF', 'USB', `Keymap received: ${layerCount} layers`);
-      return keymap;
+    if (!keymap) {
+      debugLog('WRN', 'USB', 'Empty keymap response');
+      return null;
     }
-    debugLog('WRN', 'USB', 'Empty keymap response');
-    return null;
+
+    const layerCount = keymap.layers?.length ?? 0;
+    debugLog('INF', 'USB', `Keymap received: ${layerCount} layers`);
+
+    // Convert protobuf keymap to app format
+    const layers = keymap.layers.map((layer: any) => {
+      const bindings: Record<string, any> = {};
+      const positions = KEYBOARD_LAYOUT;
+
+      (layer.bindings || []).forEach((binding: any, idx: number) => {
+        if (idx >= positions.length) return;
+        const pos = positions[idx];
+        const beh = behaviorCache[binding.behaviorId];
+        const behName = beh?.displayName || '';
+
+        let type = 'basic';
+        let label = hidToLabel(binding.param1);
+        let keyCode = label;
+        const extra: any = {};
+
+        if (behName.includes('Key Press') || behName === 'kp') {
+          type = 'basic';
+        } else if (behName.includes('Mod-Tap') || behName === 'mt') {
+          type = 'mod-tap';
+          extra.tapLabel = hidToLabel(binding.param2);
+          label = extra.tapLabel;
+        } else if (behName.includes('Layer-Tap') || behName === 'lt') {
+          type = 'layer-tap';
+          extra.layer = binding.param1;
+          extra.tapLabel = hidToLabel(binding.param2);
+          label = extra.tapLabel;
+        } else if (behName.includes('Momentary') || behName === 'mo') {
+          type = 'momentary';
+          extra.layer = binding.param1;
+          label = `L${binding.param1}`;
+          keyCode = `MO(${binding.param1})`;
+        } else if (behName.includes('Toggle') || behName === 'tog') {
+          type = 'toggle';
+          extra.layer = binding.param1;
+          label = `TG${binding.param1}`;
+          keyCode = `TG(${binding.param1})`;
+        } else if (behName.includes('None') || behName === 'none') {
+          type = 'none';
+          label = '';
+          keyCode = 'NONE';
+        } else if (behName.includes('Trans') || behName === 'trans') {
+          type = 'trans';
+          label = '---';
+          keyCode = 'TRANS';
+        } else if (binding.behaviorId === 0 && binding.param1 === 0 && binding.param2 === 0) {
+          type = 'none';
+          label = '';
+          keyCode = 'NONE';
+        }
+
+        bindings[pos.id] = { type, keyCode, label, ...extra };
+      });
+
+      return {
+        id: layer.id,
+        name: layer.name || `Layer ${layer.id}`,
+        bindings,
+      };
+    });
+
+    return { layers, raw: keymap };
   } catch (e: any) {
     debugLog('ERR', 'USB', `Read keymap failed: ${e.message}`);
     return null;
