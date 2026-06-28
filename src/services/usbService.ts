@@ -748,22 +748,31 @@ export async function writeKeymapToDevice(layers: Layer[], dirtyKeys?: Set<strin
     for (const bid of ids) await getBehaviorDetails(bid);
   }
 
-  // Build behavior ID map from raw bindings (most reliable source)
+  // Build behavior ID map from raw bindings + behavior cache
   const behByType: Record<string, number> = {};
-  for (const [key, raw] of Object.entries(rawBindings)) {
+  const matchBeh = (name: string, id: number) => {
+    const n = name.toLowerCase();
+    if (!behByType['kp'] && (n.includes('key press') || n === 'kp')) behByType['kp'] = id;
+    if (!behByType['mo'] && (n.includes('momentary') || n === 'mo')) behByType['mo'] = id;
+    if (!behByType['lt'] && (n.includes('layer') && n.includes('tap') || n === 'lt')) behByType['lt'] = id;
+    if (!behByType['mt'] && (n.includes('mod') && n.includes('tap') || n === 'mt')) behByType['mt'] = id;
+    if (!behByType['tog'] && (n.includes('toggle') || n === 'tog')) behByType['tog'] = id;
+    if (!behByType['none'] && (n.includes('none') || n === 'none')) behByType['none'] = id;
+    if (!behByType['trans'] && (n.includes('trans') || n === 'trans')) behByType['trans'] = id;
+    if (!behByType['bt'] && (n.includes('bluetooth') || n === 'bt')) behByType['bt'] = id;
+    if (!behByType['boot'] && (n.includes('bootloader') || n === 'bootloader')) behByType['boot'] = id;
+    if (!behByType['mkp'] && (n.includes('mouse') || n === 'mkp')) behByType['mkp'] = id;
+    if (!behByType['macro'] && (n.includes('macro') || n === 'macro')) behByType['macro'] = id;
+  };
+  // From raw bindings first (most reliable)
+  for (const [, raw] of Object.entries(rawBindings)) {
     const beh = behaviorCache[raw.behaviorId];
-    if (beh) {
-      const name = beh.displayName.toLowerCase();
-      if (!behByType['kp'] && (name.includes('key press') || name === 'kp')) behByType['kp'] = raw.behaviorId;
-      if (!behByType['mo'] && (name.includes('momentary') || name === 'mo')) behByType['mo'] = raw.behaviorId;
-      if (!behByType['lt'] && (name.includes('layer') && name.includes('tap') || name === 'lt')) behByType['lt'] = raw.behaviorId;
-      if (!behByType['mt'] && (name.includes('mod') && name.includes('tap') || name === 'mt')) behByType['mt'] = raw.behaviorId;
-      if (!behByType['tog'] && (name.includes('toggle') || name === 'tog')) behByType['tog'] = raw.behaviorId;
-      if (!behByType['none'] && (name.includes('none') || name === 'none')) behByType['none'] = raw.behaviorId;
-      if (!behByType['trans'] && (name.includes('trans') || name === 'trans')) behByType['trans'] = raw.behaviorId;
-      if (!behByType['bt'] && (name.includes('bluetooth') || name === 'bt')) behByType['bt'] = raw.behaviorId;
-      if (!behByType['boot'] && (name.includes('bootloader') || name === 'bootloader')) behByType['boot'] = raw.behaviorId;
-      if (!behByType['mkp'] && (name.includes('mouse') || name === 'mkp')) behByType['mkp'] = raw.behaviorId;
+    if (beh) matchBeh(beh.displayName, raw.behaviorId);
+  }
+  // Fallback: scan full behavior cache if rawBindings is empty
+  if (Object.keys(behByType).length === 0) {
+    for (const [idStr, beh] of Object.entries(behaviorCache)) {
+      matchBeh(beh.displayName, Number(idStr));
     }
   }
   debugLog('INF', 'USB', `Behavior IDs: ${JSON.stringify(behByType)}`);
@@ -794,7 +803,15 @@ export async function writeKeymapToDevice(layers: Layer[], dirtyKeys?: Set<strin
 
       switch (binding.type) {
         case 'basic':
-          if (binding.keyCode?.startsWith('BT_SEL')) {
+          if (binding.keyCode?.startsWith('&')) {
+            // Macro assignment
+            behaviorId = behByType["macro"] ?? 0;
+            const macroName = binding.keyCode.substring(1);
+            const macroIdx = layers.flatMap(() => []).length; // placeholder - macro index lookup needed
+            // For macros, param1 is typically the macro index in the device
+            debugLog('INF', 'USB', `  Macro binding: &${macroName} (beh=${behaviorId})`);
+            // TODO: proper macro index resolution from device
+          } else if (binding.keyCode?.startsWith('BT_SEL')) {
             behaviorId = behByType["bt"] ?? 0;
             param1 = 3;
             param2 = parseInt(binding.keyCode.split(' ').pop() || '0');
