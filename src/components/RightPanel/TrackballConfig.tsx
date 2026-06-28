@@ -36,6 +36,9 @@ export function TrackballConfig({ store }: Props) {
   const [accelMode, setAccelMode] = useState(1);
   const [realtimePreview, setRealtimePreview] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [accelMaxRatio, setAccelMaxRatio] = useState(1.2);
+  const [accelStartSpeed, setAccelStartSpeed] = useState(10);
+  const [accelRampWidth, setAccelRampWidth] = useState(28);
 
   return (
     <div>
@@ -212,11 +215,61 @@ export function TrackballConfig({ store }: Props) {
         </div>
       </div>
 
+      {/* Acceleration Curve Graph */}
+      {accelMode > 0 && (
+        <div className="config-section">
+          <svg viewBox="0 0 200 80" style={{ width: '100%', height: 80, background: 'var(--bg-secondary)', borderRadius: 4 }}>
+            <line x1="10" y1="70" x2="190" y2="70" stroke="var(--border)" strokeWidth="0.5" />
+            <line x1="10" y1="10" x2="10" y2="70" stroke="var(--border)" strokeWidth="0.5" />
+            {[1.0, 1.5, 2.0].map((v, i) => (
+              <text key={i} x="6" y={70 - ((v - 1) / (accelMaxRatio - 0.8)) * 55} fill="var(--text-muted)" fontSize="6" textAnchor="end">{v.toFixed(1)}x</text>
+            ))}
+            <text x="190" y="78" fill="var(--text-muted)" fontSize="6" textAnchor="end">速く動かす →</text>
+            <path
+              d={`M 10,70 ${Array.from({ length: 18 }, (_, i) => {
+                const x = 10 + (i + 1) * 10;
+                const speed = (i + 1) / 18;
+                const t = Math.max(0, (speed - accelStartSpeed / 100) / (accelRampWidth / 100));
+                const ratio = 1 + (accelMaxRatio - 1) * Math.min(1, t * t / (1 + t * t));
+                const y = 70 - ((ratio - 1) / (accelMaxRatio - 0.8)) * 55;
+                return `L ${x},${Math.max(10, y)}`;
+              }).join(' ')}`}
+              fill="none" stroke="var(--info)" strokeWidth="1.5"
+            />
+          </svg>
+        </div>
+      )}
+
       {/* Advanced */}
       <div className="config-section">
         <button className="btn btn-outline" style={{ width: '100%', fontSize: 12 }} onClick={() => setShowAdvanced(!showAdvanced)}>
           {showAdvanced ? '▼' : '▶'} 詳細設定
         </button>
+        {showAdvanced && (
+          <div style={{ marginTop: 8 }}>
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
+                <span>最大倍率</span>
+                <span style={{ color: 'var(--accent)', fontWeight: 600 }}>{accelMaxRatio.toFixed(1)}x</span>
+              </div>
+              <input type="range" className="timing-slider" min={1.0} max={3.0} step={0.1} value={accelMaxRatio} onChange={e => setAccelMaxRatio(Number(e.target.value))} />
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
+                <span>効き始める速度</span>
+                <span style={{ color: 'var(--accent)', fontWeight: 600 }}>{accelStartSpeed}</span>
+              </div>
+              <input type="range" className="timing-slider" min={0} max={50} step={1} value={accelStartSpeed} onChange={e => setAccelStartSpeed(Number(e.target.value))} />
+            </div>
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
+                <span>立ち上がりの幅</span>
+                <span style={{ color: 'var(--accent)', fontWeight: 600 }}>{accelRampWidth}</span>
+              </div>
+              <input type="range" className="timing-slider" min={1} max={100} step={1} value={accelRampWidth} onChange={e => setAccelRampWidth(Number(e.target.value))} />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Save / Reset / Default */}
