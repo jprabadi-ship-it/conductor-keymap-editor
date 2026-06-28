@@ -359,7 +359,33 @@ export async function readKeymap(): Promise<any> {
         let keyCode = label;
         const extra: any = {};
 
-        if (behName.includes('Mouse Key Press') || behName === 'mkp' || behName.includes('mkp')) {
+        if (behName.includes('Bluetooth') || behName === 'bt' || behName.includes('bt')) {
+          type = 'basic';
+          const btActions: Record<number, string> = {
+            0: 'BT 0', 1: 'BT 1', 2: 'BT 2', 3: 'BT 3', 4: 'BT 4', 5: 'BT 5',
+          };
+          if (binding.param1 <= 5 && binding.param2 === 0) {
+            label = btActions[binding.param1] || `BT ${binding.param1}`;
+            keyCode = `BT_SEL ${binding.param1}`;
+          } else if (binding.param1 === 0 && binding.param2 === 1) {
+            label = 'BT Clr'; keyCode = 'BT_CLR';
+          } else if (binding.param1 === 0 && binding.param2 === 2) {
+            label = 'BT All'; keyCode = 'BT_CLR_ALL';
+          } else {
+            label = `BT(${binding.param1},${binding.param2})`;
+            keyCode = label;
+          }
+        } else if (behName.includes('Bootloader') || behName === 'bootloader') {
+          type = 'basic'; label = 'Boot'; keyCode = 'BOOTLOADER';
+        } else if (behName.includes('Reset') || behName === 'sys_reset') {
+          type = 'basic'; label = 'Reset'; keyCode = 'RESET';
+        } else if (behName.includes('Output') || behName === 'out') {
+          type = 'basic';
+          label = binding.param1 === 0 ? 'Out USB' : binding.param1 === 1 ? 'Out BT' : `Out(${binding.param1})`;
+          keyCode = label;
+        } else if (behName.includes('Scroll Invert') || behName.includes('scrl_inv') || behName.includes('SCRL_INV')) {
+          type = 'basic'; label = 'Scrl Inv'; keyCode = 'SCRL_INV';
+        } else if (behName.includes('Mouse Key Press') || behName === 'mkp' || behName.includes('mkp')) {
           type = 'basic';
           const mouseMap: Record<number, string> = { 0: 'MB1', 1: 'MB1', 2: 'MB2', 3: 'MB3', 4: 'MB4', 5: 'MB5' };
           label = mouseMap[binding.param1] || `MB${binding.param1}`;
