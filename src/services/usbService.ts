@@ -416,9 +416,8 @@ export async function readKeymap(): Promise<any> {
         firmwareMacros.push({ id: Number(idStr), name: beh.displayName });
       }
     }
-    if (firmwareMacros.length > 0) {
-      debugLog('INF', 'USB', `Firmware macros: ${firmwareMacros.map(m => `${m.id}:${m.name}`).join(', ')}`);
-    }
+    debugLog('INF', 'USB', `Firmware macros found: ${firmwareMacros.length} [${firmwareMacros.map(m => `${m.id}:${m.name}`).join(', ')}]`);
+    debugLog('INF', 'USB', `Non-standard check: cache has ${Object.keys(behaviorCache).length} behaviors, standard set has ${STANDARD_BEHAVIORS.size} entries`);
     // Build a set of macro behavior IDs for binding detection
     const macroBehaviorIds = new Set(firmwareMacros.map(m => m.id));
 
