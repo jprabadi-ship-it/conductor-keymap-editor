@@ -160,7 +160,11 @@ async function sendRequest(payload: Record<string, unknown>): Promise<any> {
           clearTimeout(timeout);
           frameCallback = null;
           if (rr.meta?.simpleError !== undefined && rr.meta?.simpleError !== null) {
-            reject(new Error(`Device error: ${rr.meta.simpleError}`));
+            const errNames: Record<number, string> = { 0: 'GENERIC', 1: 'UNLOCK_REQUIRED', 2: 'RPC_NOT_FOUND', 3: 'MSG_DECODE_FAILED', 4: 'MSG_ENCODE_FAILED' };
+            const errName = errNames[rr.meta.simpleError] || `code ${rr.meta.simpleError}`;
+            debugLog('ERR', 'USB', `Device error: ${errName}`);
+            if (rr.meta.simpleError === 1) unlocked = false;
+            reject(new Error(`Device error: ${errName}`));
           } else {
             resolve(rr);
           }
@@ -204,8 +208,41 @@ export async function getLockState(): Promise<number> {
   }
 }
 
-export async function requestUnlock(): Promise<void> {
-  debugLog('INF', 'USB', 'Requesting unlock... Press physical key to confirm.');
+let unlocked = false;
+
+export function isUnlocked(): boolean {
+  return unlocked;
+}
+
+export async function requestUnlock(): Promise<boolean> {
+  debugLog('INF', 'USB', 'Checking lock state...');
+  try {
+    const state = await getLockState();
+    debugLog('INF', 'USB', `Lock state: ${state} (0=locked, 1=unlocked)`);
+    if (state === 1) {
+      unlocked = true;
+      debugLog('INF', 'USB', 'Device is unlocked');
+      return true;
+    }
+  } catch (e: any) {
+    debugLog('WRN', 'USB', `getLockState failed: ${e.message}`);
+  }
+
+  // Probe behaviors as fallback
+  try {
+    const behaviors = await listBehaviors();
+    if (behaviors.length > 0) {
+      unlocked = true;
+      debugLog('INF', 'USB', `Device accessible (${behaviors.length} behaviors). Treating as unlocked.`);
+      return true;
+    }
+  } catch (e: any) {
+    debugLog('WRN', 'USB', `Behavior probe failed: ${e.message}`);
+  }
+
+  unlocked = false;
+  debugLog('WRN', 'USB', 'Device is LOCKED. Press the studio_unlock combo on your keyboard to unlock.');
+  return false;
 }
 
 // Behavior cache: behaviorId -> { displayName, ... }

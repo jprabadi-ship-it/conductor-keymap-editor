@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useKeymapStore } from './store/useKeymapStore';
-import { readKeymap, writeKeymapToDevice, saveChanges, getDeviceInfo, connectUsb as connectUsbService, disconnectUsb } from './services/usbService';
+import { readKeymap, writeKeymapToDevice, saveChanges, getDeviceInfo, requestUnlock, isUnlocked, connectUsb as connectUsbService, disconnectUsb } from './services/usbService';
 import { debugLog } from './components/DebugConsole';
 import { Header } from './components/Header/Header';
 import { LayerList } from './components/LeftPanel/LayerList';
@@ -63,6 +63,15 @@ function App() {
         usbConnected={usbConnected}
         unsaved={unsaved}
         onWrite={async () => {
+          if (!isUnlocked()) {
+            debugLog('WRN', 'Editor', 'Device is locked. Attempting unlock...');
+            const unlocked = await requestUnlock();
+            if (!unlocked) {
+              debugLog('ERR', 'Editor', 'Cannot write: device is locked. Press studio_unlock combo on keyboard.');
+              alert('デバイスがロックされています。キーボードのstudio_unlockコンボを押してからもう一度試してください。');
+              return;
+            }
+          }
           debugLog('INF', 'Editor', 'Writing keymap to device...');
           const ok = await writeKeymapToDevice(store.layers);
           if (ok) {
@@ -138,6 +147,10 @@ function App() {
                 const info = await getDeviceInfo();
                 if (info) {
                   debugLog('INF', 'USB', `Device: ${info.name} (FW: ${info.firmwareVersion})`);
+                }
+                const ok = await requestUnlock();
+                if (!ok) {
+                  debugLog('WRN', 'USB', 'Device is locked. Write operations will fail. Press studio_unlock combo on keyboard.');
                 }
               }
             }}
