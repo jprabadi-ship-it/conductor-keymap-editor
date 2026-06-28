@@ -130,6 +130,12 @@ function App() {
             connectionType={usbConnected ? 'usb' : null}
             onConnectionChange={(conn, type) => {
               setUsbConnected(conn && type === 'usb');
+              if (conn) {
+                debugLog('INF', 'USB', `Connected via ${type?.toUpperCase()}`);
+                setShowConsole(true);
+              } else {
+                debugLog('INF', 'USB', 'Disconnected');
+              }
             }}
           />
         </aside>
