@@ -615,8 +615,9 @@ export async function getTappingTerm(): Promise<number | null> {
     const resp = await sendRequest({ core: { getTappingTerm: true } });
     const tt = resp.core?.getTappingTerm;
     if (tt) {
-      debugLog('INF', 'USB', `Tapping term: ${tt.tappingTerm}ms`);
-      return tt.tappingTerm;
+      const ms = tt.tappingTermMs ?? tt.tappingTerm ?? null;
+      debugLog('INF', 'USB', `Tapping term: ${ms}ms (default: ${tt.defaultTappingTermMs}ms)`);
+      return ms;
     }
     return null;
   } catch (e: any) {
@@ -627,7 +628,7 @@ export async function getTappingTerm(): Promise<number | null> {
 
 export async function setTappingTerm(ms: number): Promise<boolean> {
   try {
-    await sendRequest({ core: { setTappingTerm: { tappingTerm: ms } } });
+    await sendRequest({ core: { setTappingTerm: { tappingTermMs: ms } } });
     debugLog('INF', 'USB', `Tapping term set to ${ms}ms`);
     return true;
   } catch (e: any) {
