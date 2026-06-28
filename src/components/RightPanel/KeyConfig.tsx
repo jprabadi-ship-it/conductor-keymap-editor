@@ -78,15 +78,18 @@ export function KeyConfig({ store }: Props) {
       {(binding.type === 'basic' || binding.type === 'mod-tap' || binding.type === 'layer-tap') && (
         <div className="config-section">
           <div className="config-label">Modifiers</div>
-          <div className="mod-grid">
-            <button className="btn btn-outline" style={{ fontSize: 10, padding: '2px 6px' }}>Presets</button>
-            {LEFT_MODS.map(m => (
-              <button
-                key={m.mod}
-                className={`mod-btn ${binding.modifiers?.includes(m.mod) ? 'selected' : ''}`}
-                onClick={() => toggleModifier(m.mod)}
-              >{m.label}</button>
-            ))}
+          <button className="btn btn-outline" style={{ fontSize: 10, padding: '2px 6px', marginBottom: 6 }}>Presets</button>
+          <div className="right-mod-section">
+            <div className="right-mod-label">Left-side modifiers</div>
+            <div className="mod-grid">
+              {LEFT_MODS.map(m => (
+                <button
+                  key={m.mod}
+                  className={`mod-btn ${binding.modifiers?.includes(m.mod) ? 'selected' : ''}`}
+                  onClick={() => toggleModifier(m.mod)}
+                >{m.label}</button>
+              ))}
+            </div>
           </div>
           <div className="right-mod-section">
             <div className="right-mod-label">Right-side modifiers</div>
