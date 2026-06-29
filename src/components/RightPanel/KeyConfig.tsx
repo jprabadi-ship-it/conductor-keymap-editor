@@ -132,7 +132,7 @@ export function KeyConfig({ store }: Props) {
                 <button
                   key={kc.code}
                   className={`keycode-btn ${isSelected ? 'selected' : ''}`}
-                  onClick={() => updateBinding({ keyCode: kc.code, label: kc.label })}
+                  onClick={() => updateBinding({ type: 'basic', keyCode: kc.code, label: kc.label })}
                 >{kc.label}</button>
               );
             })}
