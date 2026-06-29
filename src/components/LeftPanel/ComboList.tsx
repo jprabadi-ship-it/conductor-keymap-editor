@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { KeymapStore } from '../../store/useKeymapStore';
 import { Combo } from '../../types';
 import { KEYBOARD_LAYOUT } from '../../data/layout';
@@ -79,6 +79,12 @@ export function ComboList({ store }: Props) {
   const [amlIdleMs, setAmlIdleMs] = useState(300);
   const [amlDuration, setAmlDuration] = useState(500);
   const [amlMotion, setAmlMotion] = useState(0);
+
+  useEffect(() => {
+    const handler = () => { setAmlExpanded(true); setAmlEditing(true); setExpandedId(null); };
+    window.addEventListener('open-aml-edit', handler);
+    return () => window.removeEventListener('open-aml-edit', handler);
+  }, []);
 
   const startEdit = (combo: Combo) => {
     setEditingId(combo.id);

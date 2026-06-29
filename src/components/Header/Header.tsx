@@ -98,6 +98,7 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, unsa
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {[
+                { v: '0.12.4', changes: ['AML詳細設定ボタンからコンボタブのAML編集を直接展開'] },
                 { v: '0.12.3', changes: ['ライトモードを初期テーマに変更'] },
                 { v: '0.12.2', changes: ['導線ボタンをアクセントカラーに統一'] },
                 { v: '0.12.1', changes: ['AML詳細設定をコンボタブに移動', 'トラボAMLタブはクイックON/OFFのみに'] },
