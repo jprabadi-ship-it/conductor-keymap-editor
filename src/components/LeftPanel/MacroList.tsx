@@ -1,4 +1,5 @@
 import { KeymapStore } from '../../store/useKeymapStore';
+import { isConnected, setMacro, saveChanges } from '../../services/usbService';
 
 interface Props {
   store: KeymapStore;
@@ -44,7 +45,14 @@ export function MacroList({ store }: Props) {
           <button
             className="btn"
             style={{ fontSize: 10, padding: '2px 4px', color: 'var(--danger)' }}
-            onClick={(e) => { e.stopPropagation(); store.removeMacro(i); }}
+            onClick={async (e) => {
+              e.stopPropagation();
+              if (macro.deviceId !== undefined && isConnected()) {
+                await setMacro(macro.deviceId, '', []);
+                await saveChanges();
+              }
+              store.removeMacro(i);
+            }}
           >✕</button>
         </div>
       ))}

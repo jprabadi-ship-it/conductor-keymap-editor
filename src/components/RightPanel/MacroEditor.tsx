@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { KeymapStore } from '../../store/useKeymapStore';
 import { MacroAction } from '../../types';
-import { writeMacroToDevice, isConnected, claimFreeMacroSlot, getFreeMacroSlots, saveChanges, registerMacroDeviceId } from '../../services/usbService';
+import { writeMacroToDevice, isConnected, claimFreeMacroSlot, getFreeMacroSlots, saveChanges, registerMacroDeviceId, setMacro } from '../../services/usbService';
 
 interface Props {
   store: KeymapStore;
@@ -300,7 +300,14 @@ export function MacroEditor({ store }: Props) {
         <button
           className="btn"
           style={{ width: '100%', color: 'var(--danger)', fontSize: 12, border: '1px solid var(--danger)', padding: '6px' }}
-          onClick={() => { if (confirm(`Delete macro "${macro.name}"?`)) store.removeMacro(idx); }}
+          onClick={async () => {
+            if (!confirm(`Delete macro "${macro.name}"?`)) return;
+            if (macro.deviceId !== undefined && isConnected()) {
+              await setMacro(macro.deviceId, '', []);
+              await saveChanges();
+            }
+            store.removeMacro(idx);
+          }}
         >Delete macro</button>
       </div>
     </div>
