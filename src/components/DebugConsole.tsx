@@ -127,6 +127,15 @@ export function DebugConsole({ visible }: Props) {
         <button
           className="btn btn-icon"
           style={{ fontSize: 10, width: 24, height: 24 }}
+          onClick={() => {
+            const text = filteredLogs.map(l => `${l.time} ${l.level} [${l.source}] ${l.message}`).join('\n');
+            navigator.clipboard.writeText(text);
+          }}
+          title="Copy logs"
+        >📋</button>
+        <button
+          className="btn btn-icon"
+          style={{ fontSize: 10, width: 24, height: 24 }}
           onClick={() => setLogs([])}
           title="Clear"
         >🗑</button>
