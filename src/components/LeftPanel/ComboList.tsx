@@ -161,7 +161,7 @@ export function ComboList({ store }: Props) {
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-              <button className="btn btn-outline" style={{ fontSize: 11 }} onClick={() => setAmlEditing(true)}>✏ Edit</button>
+              <button className="btn" style={{ fontSize: 11, color: 'var(--accent)', border: '1px solid var(--accent)', background: 'transparent' }} onClick={() => setAmlEditing(true)}>✏ Edit</button>
             </div>
           </div>
         )}
@@ -288,7 +288,7 @@ export function ComboList({ store }: Props) {
                 </div>
               )}
               <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                <button className="btn btn-outline" style={{ fontSize: 11 }} onClick={() => startEdit(combo)}>✏ Edit</button>
+                <button className="btn" style={{ fontSize: 11, color: 'var(--accent)', border: '1px solid var(--accent)', background: 'transparent' }} onClick={() => startEdit(combo)}>✏ Edit</button>
                 <button className="btn" style={{ fontSize: 11, color: 'var(--danger)' }} onClick={() => store.removeCombo(combo.id)}>🗑 Delete</button>
               </div>
             </div>

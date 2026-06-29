@@ -235,9 +235,11 @@ export function TrackballConfig({ store }: Props) {
           <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>除外キー</span><span>{store.amlExcluded.length}個</span></div>
         </div>
 
-        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 8, textAlign: 'center' }}>
-          詳細設定は Combos タブの AML から編集できます
-        </div>
+        <button
+          className="btn"
+          style={{ width: '100%', fontSize: 11, marginTop: 8, padding: '6px', color: 'var(--accent)', border: '1px solid var(--accent)', background: 'transparent' }}
+          onClick={() => { store.setLeftPanelTab('combos'); }}
+        >⚙ Combos タブで詳細設定を開く →</button>
       </div>
 
       </>)}
