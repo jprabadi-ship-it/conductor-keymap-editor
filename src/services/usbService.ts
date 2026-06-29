@@ -772,7 +772,7 @@ export async function setSensitivity(cpi: number, scrollNum: number, scrollDen: 
   }
 }
 
-export async function getAutoLayer(): Promise<{ enabled: boolean; requirePriorIdleMs: number; excludedPositions: number[]; motionThreshold: number } | null> {
+export async function getAutoLayer(): Promise<{ enabled: boolean; requirePriorIdleMs: number; excludedPositions: number[]; motionThreshold: number; durationMs: number } | null> {
   try {
     const resp = await sendRequest({ pointing: { getAutoLayer: {} } });
     return resp.pointing?.getAutoLayer || null;
@@ -782,9 +782,9 @@ export async function getAutoLayer(): Promise<{ enabled: boolean; requirePriorId
   }
 }
 
-export async function setAutoLayer(enabled: boolean, requirePriorIdleMs: number, excludedPositions: number[], motionThreshold: number): Promise<boolean> {
+export async function setAutoLayer(enabled: boolean, requirePriorIdleMs: number, excludedPositions: number[], motionThreshold: number, durationMs?: number): Promise<boolean> {
   try {
-    await sendRequest({ pointing: { setAutoLayer: { enabled, requirePriorIdleMs, excludedPositions, motionThreshold } } });
+    await sendRequest({ pointing: { setAutoLayer: { enabled, requirePriorIdleMs, excludedPositions, motionThreshold, durationMs: durationMs || 0 } } });
     debugLog('INF', 'USB', `AML set: enabled=${enabled}, idle=${requirePriorIdleMs}ms`);
     return true;
   } catch (e: any) {
