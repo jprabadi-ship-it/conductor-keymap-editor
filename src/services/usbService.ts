@@ -1225,11 +1225,21 @@ export async function writeKeymapToDevice(layers: Layer[], dirtyKeys?: Set<strin
           param1 = binding.layer ?? 0;
           param2 = labelToParam(binding.tapLabel || binding.label, binding.tapKeyCode || '');
           break;
-        case 'mod-tap':
+        case 'mod-tap': {
           behaviorId = behByType["mt"] ?? 0;
-          param1 = labelToParam(binding.label, binding.keyCode);
-          if (binding.tapLabel) param2 = labelToParam(binding.tapLabel, binding.tapKeyCode || '');
+          const mtModUsage: Record<string, number> = {
+            lctrl: 0x700E0, lshift: 0x700E1, lalt: 0x700E2, lgui: 0x700E3,
+            rctrl: 0x700E4, rshift: 0x700E5, ralt: 0x700E6, rgui: 0x700E7,
+          };
+          if (binding.modifiers?.length) {
+            param1 = mtModUsage[binding.modifiers[0]] || 0x700E1;
+          } else {
+            param1 = labelToParam(binding.label, binding.keyCode);
+          }
+          const tapKey = binding.tapLabel || binding.label;
+          param2 = labelToParam(tapKey, binding.tapKeyCode || tapKey);
           break;
+        }
         case 'toggle':
           behaviorId = behByType["tog"] ?? 0;
           param1 = binding.layer ?? 0;
