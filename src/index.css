@@ -691,7 +691,7 @@ input:focus { border-color: var(--accent); }
 /* Debug Console */
 .debug-console {
   border-top: 1px solid var(--border);
-  background: #1c1c1e;
+  background: var(--bg-primary);
   display: flex; flex-direction: column;
   overflow: hidden; flex-shrink: 0;
 }
