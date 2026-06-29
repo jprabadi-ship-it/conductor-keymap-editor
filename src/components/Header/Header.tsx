@@ -98,6 +98,7 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, unsa
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {[
+                { v: '0.11.1', changes: ['コンボタブのAML重複を削除（トラックボールAMLタブに一本化）'] },
                 { v: '0.11.0', changes: ['トラックボール設定を AML / ジェスチャ / カーソル の3タブに分割'] },
                 { v: '0.10.2', changes: ['保存ボタンの対象範囲をグループヘッダーで明示'] },
                 { v: '0.10.1', changes: ['トラックボール設定に機能キャプション追加', 'セクション間隔の調整'] },
