@@ -84,7 +84,7 @@ export function KeyboardView({ store }: Props) {
       for (let col = 0; col <= maxCol; col++) {
         if (trackball && row === trackball.row && col === trackball.colStart) {
           cells.push(
-            <div key="trackball" className="trackball-placeholder" style={{ gridColumn: `span ${trackball.colSpan}` }} />
+            <div key="trackball" className="trackball-placeholder" style={{ gridColumn: `span ${trackball.colSpan}`, cursor: 'pointer' }} onClick={() => store.setRightPanelTab('trackball')} />
           );
           continue;
         }
