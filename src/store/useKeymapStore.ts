@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import type { Layer, KeyBinding, LedColor, Combo, Macro, MacroStep, GestureShortcut, BluetoothProfile, OsLayout, RightPanelTab, LeftPanelTab, KeymapProject } from '../types';
 import { createDefaultLayers, createDefaultCombos, createDefaultGestures, createDefaultBluetoothProfiles } from '../data/defaultKeymap';
+import { relabelBindings } from '../services/usbService';
 
 const STORAGE_KEY_KEYMAP = 'conductor-studio-keymap';
 const STORAGE_KEY_COMBOS = 'conductor-studio-combos';
@@ -263,6 +264,9 @@ export function useKeymapStore() {
     addCombo, updateCombo, removeCombo,
     addMacro, updateMacro, removeMacro,
     addMacroStep, updateMacroStep, removeMacroStep, moveMacroStep,
+    relabelLayers: useCallback(() => {
+      setLayers(prev => relabelBindings(prev));
+    }, []),
     undo, redo, reset, autoSave, exportProject, importProject,
   };
 }

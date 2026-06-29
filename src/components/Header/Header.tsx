@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { version } from '../../../package.json';
 import { KeymapStore } from '../../store/useKeymapStore';
-import { setKeyboardLayout } from '../../services/usbService';
+import { setKeyboardLayout, relabelBindings } from '../../services/usbService';
 
 interface Props {
   store: KeymapStore;
@@ -120,11 +120,11 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, unsa
       <div className="btn-group">
         <button
           className={`btn ${store.osLayout === 'us' ? 'btn-active' : ''}`}
-          onClick={() => { store.setOsLayout('us'); setKeyboardLayout('us'); }}
+          onClick={() => { store.setOsLayout('us'); setKeyboardLayout('us'); store.relabelLayers(); }}
         >US</button>
         <button
           className={`btn ${store.osLayout === 'jis' ? 'btn-active' : ''}`}
-          onClick={() => { store.setOsLayout('jis'); setKeyboardLayout('jis'); }}
+          onClick={() => { store.setOsLayout('jis'); setKeyboardLayout('jis'); store.relabelLayers(); }}
         >JIS</button>
       </div>
 

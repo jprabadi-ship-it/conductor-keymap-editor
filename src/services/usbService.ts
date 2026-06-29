@@ -339,6 +339,32 @@ export function getKeyboardLayout(): 'us' | 'jis' {
   return currentLayout;
 }
 
+export function relabelBindings(layers: import('../types').Layer[]): import('../types').Layer[] {
+  return layers.map((layer, layerIdx) => ({
+    ...layer,
+    keys: layer.keys.map(k => {
+      const raw = rawBindings[`${layer.index}:${k.id}`];
+      if (!raw) return k;
+      const beh = behaviorCache[raw.behaviorId];
+      const behName = beh?.displayName || '';
+      if (behName.includes('Key Press') || behName === 'kp') {
+        const label = hidToLabel(raw.param1);
+        return { ...k, binding: { ...k.binding, label, keyCode: label } };
+      }
+      if (behName.includes('Mod-Tap') || behName === 'mt') {
+        const tapLabel = hidToLabel(raw.param2);
+        const label = hidToLabel(raw.param1);
+        return { ...k, binding: { ...k.binding, label: tapLabel, tapLabel, keyCode: label } };
+      }
+      if (behName.includes('Layer-Tap') || behName === 'lt') {
+        const tapLabel = hidToLabel(raw.param2);
+        return { ...k, binding: { ...k.binding, tapLabel } };
+      }
+      return k;
+    }),
+  }));
+}
+
 function getKbUsage(): Record<number, string> {
   if (currentLayout === 'jis') {
     return { ...KB_USAGE_US, ...KB_USAGE_JIS_OVERRIDE };
