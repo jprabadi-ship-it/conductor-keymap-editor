@@ -187,30 +187,42 @@ function App() {
 
         <ResizeHandle side="left" onResize={onResizeLeft} />
 
-        {/* Main keyboard view */}
-        <KeyboardView store={store} />
-
-        <ResizeHandle side="right" onResize={onResizeRight} />
-
-        {/* Right Panel */}
-        <aside className="right-panel" style={{ width: rightWidth }}>
-          <div className="right-panel-tabs">
-            {(['key-config', 'trackball', 'timing', 'bluetooth'] as const).map(tab => (
-              <button
-                key={tab}
-                className={`right-panel-tab ${store.rightPanelTab === tab ? 'active' : ''}`}
-                onClick={() => store.setRightPanelTab(tab)}
-              >
-                {tab === 'key-config' ? '⚙ Key Config' :
-                 tab === 'trackball' ? '🖲 Trackball' :
-                 tab === 'timing' ? '⏱ Timing' : '📡 Bluetooth'}
-              </button>
-            ))}
-          </div>
-          <div className="right-panel-content">
-            {rightPanelContent()}
-          </div>
-        </aside>
+        {store.leftPanelTab === 'macros' ? (
+          <>
+            {/* Macro mode: editor in center, keyboard on right */}
+            <div className="macro-center-panel" style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
+              <MacroEditor store={store} />
+            </div>
+            <ResizeHandle side="right" onResize={onResizeRight} />
+            <aside className="right-panel" style={{ width: rightWidth }}>
+              <KeyboardView store={store} />
+            </aside>
+          </>
+        ) : (
+          <>
+            {/* Normal mode: keyboard in center, config on right */}
+            <KeyboardView store={store} />
+            <ResizeHandle side="right" onResize={onResizeRight} />
+            <aside className="right-panel" style={{ width: rightWidth }}>
+              <div className="right-panel-tabs">
+                {(['key-config', 'trackball', 'timing', 'bluetooth'] as const).map(tab => (
+                  <button
+                    key={tab}
+                    className={`right-panel-tab ${store.rightPanelTab === tab ? 'active' : ''}`}
+                    onClick={() => store.setRightPanelTab(tab)}
+                  >
+                    {tab === 'key-config' ? '⚙ Key Config' :
+                     tab === 'trackball' ? '🖲 Trackball' :
+                     tab === 'timing' ? '⏱ Timing' : '📡 Bluetooth'}
+                  </button>
+                ))}
+              </div>
+              <div className="right-panel-content">
+                {rightPanelContent()}
+              </div>
+            </aside>
+          </>
+        )}
       </div>
 
       <DebugConsole visible={showConsole} />
