@@ -59,8 +59,10 @@ export function useKeymapStore() {
   const undoStack = useRef<UndoEntry[]>([]);
   const redoStack = useRef<UndoEntry[]>([]);
 
+  const MAX_UNDO = 50;
   const pushUndo = useCallback(() => {
     undoStack.current.push({ layers: JSON.parse(JSON.stringify(layers)), combos: JSON.parse(JSON.stringify(combos)) });
+    if (undoStack.current.length > MAX_UNDO) undoStack.current.shift();
     redoStack.current = [];
   }, [layers, combos]);
 

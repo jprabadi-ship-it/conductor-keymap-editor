@@ -28,6 +28,12 @@ function App() {
   const [showConsole, setShowConsole] = useState(false);
   const [usbConnected, setUsbConnected] = useState(false);
   const [unsaved, setUnsaved] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  }, []);
 
   useEffect(() => {
     onDeviceDisconnect(() => setUsbConnected(false));
@@ -91,10 +97,14 @@ function App() {
               store.clearDirtyKeys();
               setUnsaved(false);
               debugLog('INF', 'Editor', 'Keymap written and saved to device flash');
+              showToast('Keymap saved to device');
             }
           }
         }}
         onRead={async () => {
+          if (store.dirtyKeys.size > 0) {
+            if (!confirm('未保存の変更があります。デバイスから読み込むと上書きされます。続けますか？')) return;
+          }
           const result = await readKeymap();
           if (result?.layers) {
             const project = store.exportProject();
@@ -104,7 +114,8 @@ function App() {
                 id: k.id,
                 binding: dl.bindings[k.id] || { type: 'none', keyCode: 'NONE', label: '' },
               }));
-              const name = dl.name && dl.name.length > 0 ? dl.name : existing.name;
+              const isGenericName = !dl.name || dl.name.length === 0 || /^Layer \d+$/.test(dl.name);
+              const name = isGenericName && existing.name ? existing.name : (dl.name || existing.name);
               return { ...existing, name, index: dl.id ?? i, keys };
             });
             // Load firmware macros via RPC (with step data)
@@ -140,6 +151,7 @@ function App() {
             store.clearDirtyKeys();
             setUnsaved(false);
             debugLog('INF', 'Editor', `Keymap applied: ${result.layers.length} layers`);
+            showToast(`${result.layers.length} layers loaded from device`);
           }
         }}
         onSave={() => {
@@ -256,6 +268,18 @@ function App() {
         <span className="footer-spacer" />
         <span className="footer-item">Auto-saved to LocalStorage</span>
       </footer>
+
+      {toast && (
+        <div style={{
+          position: 'fixed', bottom: 40, left: '50%', transform: 'translateX(-50%)',
+          background: toast.type === 'success' ? 'var(--success)' : 'var(--danger)',
+          color: 'white', padding: '8px 20px', borderRadius: 6, fontSize: 13, fontWeight: 600,
+          zIndex: 2000, boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+          animation: 'fadeIn 0.2s ease',
+        }}>
+          {toast.type === 'success' ? '✓' : '✗'} {toast.message}
+        </div>
+      )}
     </>
   );
 }
