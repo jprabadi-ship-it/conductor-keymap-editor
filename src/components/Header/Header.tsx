@@ -219,7 +219,7 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, unsa
 
       <div style={{ position: 'relative' }}>
         <button className="btn btn-primary" onClick={() => setShowExport(!showExport)}>
-          ↓ Export
+          📁 File
         </button>
         {showExport && (
           <div className="export-dropdown">
