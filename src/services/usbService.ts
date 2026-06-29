@@ -419,7 +419,12 @@ function hidToLabel(param: number): string {
   if (page === 0x07 || page === 0x00) {
     const base = kbUsage[usage];
     if (mods === 0) return base || `HID:${usage.toString(16)}`;
-    if (mods === 0x02 && shiftMap[usage]) return shiftMap[usage];
+    const hasShift = (mods & 0x22) !== 0;
+    if (hasShift && shiftMap[usage]) {
+      const remainingMods = mods & ~0x22;
+      if (remainingMods === 0) return shiftMap[usage];
+      return modPrefix(remainingMods) + shiftMap[usage];
+    }
     const prefix = modPrefix(mods);
     return prefix + (base || usage.toString(16));
   }
