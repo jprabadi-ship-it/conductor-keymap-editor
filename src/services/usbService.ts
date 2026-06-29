@@ -564,8 +564,8 @@ export async function readKeymap(): Promise<any> {
           type = 'basic'; label = 'Scrl Inv'; keyCode = 'SCRL_INV';
         } else if (behName.includes('Mouse Key Press') || behName === 'mkp' || behName.includes('mkp')) {
           type = 'basic';
-          const mouseLabel: Record<number, string> = { 0: 'Click', 1: 'Click', 2: 'R Click', 3: 'M Click', 4: 'MB4', 5: 'MB5' };
-          const mouseCode: Record<number, string> = { 0: 'KC_BTN1', 1: 'KC_BTN1', 2: 'KC_BTN2', 3: 'KC_BTN3', 4: 'KC_BTN4', 5: 'KC_BTN5' };
+          const mouseLabel: Record<number, string> = { 1: 'Click', 2: 'R Click', 4: 'M Click', 8: 'MB4', 16: 'MB5' };
+          const mouseCode: Record<number, string> = { 1: 'KC_BTN1', 2: 'KC_BTN2', 4: 'KC_BTN3', 8: 'KC_BTN4', 16: 'KC_BTN5' };
           label = mouseLabel[binding.param1] || `MB${binding.param1}`;
           keyCode = mouseCode[binding.param1] || `mkp MB${binding.param1}`;
         } else if (behName.includes('Key Press') || behName === 'kp') {
@@ -1201,9 +1201,9 @@ export async function writeKeymapToDevice(layers: Layer[], dirtyKeys?: Set<strin
                      binding.label?.startsWith('MB') || binding.label === 'Click' || binding.label === 'R Click' || binding.label === 'M Click') {
             behaviorId = behByType["mkp"] ?? 0;
             const btnMap: Record<string, number> = {
-              'KC_BTN1': 1, 'KC_BTN2': 2, 'KC_BTN3': 3, 'KC_BTN4': 4, 'KC_BTN5': 5,
-              'Click': 1, 'R Click': 2, 'M Click': 3,
-              'MB1': 1, 'MB2': 2, 'MB3': 3, 'MB4': 4, 'MB5': 5,
+              'KC_BTN1': 1, 'KC_BTN2': 2, 'KC_BTN3': 4, 'KC_BTN4': 8, 'KC_BTN5': 16,
+              'Click': 1, 'R Click': 2, 'M Click': 4,
+              'MB1': 1, 'MB2': 2, 'MB3': 4, 'MB4': 8, 'MB5': 16,
             };
             param1 = btnMap[binding.keyCode || ''] || btnMap[binding.label || ''] || 1;
           } else {
