@@ -19,10 +19,10 @@ const BINDING_TYPES: { type: BindingType; label: string }[] = [
 ];
 
 const LEFT_MODS: { mod: Modifier; label: string }[] = [
-  { mod: 'lshift', label: '⇧' },
-  { mod: 'lctrl', label: '⌃' },
-  { mod: 'lalt', label: '⌥' },
-  { mod: 'lgui', label: '⌘' },
+  { mod: 'lshift', label: 'L⇧' },
+  { mod: 'lctrl', label: 'L⌃' },
+  { mod: 'lalt', label: 'L⌥' },
+  { mod: 'lgui', label: 'L⌘' },
 ];
 
 const RIGHT_MODS: { mod: Modifier; label: string }[] = [

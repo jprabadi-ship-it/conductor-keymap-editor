@@ -24,12 +24,12 @@ export function KeyButton({ keyConfig, selected, onClick, comboName, isAmlExclud
 
   if (binding.type === 'mod-tap') {
     const modSymbols: Record<string, string> = {
-      lshift: '⇧', rshift: 'R⇧', lgui: '⌘', rgui: 'R⌘',
-      lctrl: '⌃', rctrl: 'R⌃', lalt: '⌥', ralt: 'R⌥',
+      lshift: 'L⇧', rshift: 'R⇧', lgui: 'L⌘', rgui: 'R⌘',
+      lctrl: 'L⌃', rctrl: 'R⌃', lalt: 'L⌥', ralt: 'R⌥',
     };
     const labelSymbols: Record<string, string> = {
-      'L Shift': '⇧', 'R Shift': 'R⇧', 'L GUI': '⌘', 'R GUI': 'R⌘',
-      'L Ctrl': '⌃', 'R Ctrl': 'R⌃', 'L Alt': '⌥', 'R Alt': 'R⌥',
+      'L Shift': 'L⇧', 'R Shift': 'R⇧', 'L GUI': 'L⌘', 'R GUI': 'R⌘',
+      'L Ctrl': 'L⌃', 'R Ctrl': 'R⌃', 'L Alt': 'L⌥', 'R Alt': 'R⌥',
     };
     if (binding.modifiers?.length) {
       holdLabel = binding.modifiers.map(m => modSymbols[m] || m).join('');
