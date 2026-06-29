@@ -20,27 +20,19 @@ export function KeyButton({ keyConfig, selected, onClick, comboName, isAmlExclud
   let topLabel = '';
   let topClass = '';
 
+  let holdLabel = '';
+
   if (binding.type === 'mod-tap') {
-    const modStr = binding.modifiers?.map(m => {
-      switch (m) {
-        case 'lshift': return 'LSHIFT';
-        case 'rshift': return 'RSHIFT';
-        case 'lgui': return 'LGUI';
-        case 'rgui': return 'RGUI';
-        case 'lctrl': return 'LCTRL';
-        case 'rctrl': return 'RCTRL';
-        case 'lalt': return 'LALT';
-        case 'ralt': return 'RALT';
-        default: return m;
-      }
-    }).join('+') || '';
-    subLabel = modStr;
+    const modSymbols: Record<string, string> = {
+      lshift: '⇧', rshift: 'R⇧', lgui: '⌘', rgui: 'R⌘',
+      lctrl: '⌃', rctrl: 'R⌃', lalt: '⌥', ralt: 'R⌥',
+    };
+    holdLabel = binding.modifiers?.map(m => modSymbols[m] || m).join('') || '';
     mainLabel = binding.tapLabel || binding.label;
   }
 
   if (binding.type === 'layer-tap' && binding.layer !== undefined) {
-    topLabel = `L${binding.layer}`;
-    topClass = 'layer';
+    holdLabel = `L${binding.layer}`;
     mainLabel = binding.tapLabel || binding.label;
   }
 
@@ -74,7 +66,7 @@ export function KeyButton({ keyConfig, selected, onClick, comboName, isAmlExclud
         <span className={`key-toplabel ${topClass}`}>{topLabel}</span>
       )}
       <span className="key-label">{isTrans ? '' : isNone ? '∅' : mainLabel}</span>
-      {subLabel && <span className="key-sublabel">{subLabel}</span>}
+      {holdLabel && <span className="key-holdlabel">{holdLabel}</span>}
       {isAmlExcluded && <span className="key-aml-badge">AML</span>}
     </button>
   );
