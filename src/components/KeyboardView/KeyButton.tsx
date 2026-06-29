@@ -80,7 +80,7 @@ export function KeyButton({ keyConfig, selected, onClick, comboName, isAmlExclud
         <span className={`key-toplabel ${topClass}`}>{topLabel}</span>
       )}
       <span className="key-label">{isTrans ? '' : isNone ? '∅' : mainLabel}</span>
-      {holdLabel && <span className="key-holdlabel">{holdLabel}</span>}
+      {holdLabel && <span className={`key-holdlabel ${binding.type === 'basic' ? 'basic-mod' : ''}`}>{holdLabel}</span>}
       {isAmlExcluded && <span className="key-aml-badge">AML</span>}
     </button>
   );
