@@ -335,6 +335,10 @@ export function setKeyboardLayout(layout: 'us' | 'jis') {
   rebuildLabelTables();
 }
 
+export function getBehaviorDisplayName(behaviorId: number): string | undefined {
+  return behaviorCache[behaviorId]?.displayName;
+}
+
 export function getKeyboardLayout(): 'us' | 'jis' {
   return currentLayout;
 }
@@ -589,7 +593,8 @@ export async function readKeymap(): Promise<any> {
           keyCode = 'TRANS';
         } else if (macroBehaviorIds.has(binding.behaviorId)) {
           type = 'basic';
-          const macroName = behaviorCache[binding.behaviorId]?.displayName || `macro_${binding.behaviorId}`;
+          const editorName = Object.entries(macroNameToDeviceId).find(([, id]) => id === binding.behaviorId)?.[0];
+          const macroName = editorName || behaviorCache[binding.behaviorId]?.displayName || `macro_${binding.behaviorId}`;
           label = `&${macroName}`;
           keyCode = `&${macroName}`;
         } else if (binding.behaviorId === 0 && binding.param1 === 0 && binding.param2 === 0) {

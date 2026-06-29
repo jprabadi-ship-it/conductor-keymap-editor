@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useKeymapStore } from './store/useKeymapStore';
-import { readKeymap, writeKeymapToDevice, saveChanges, setLayerProps, getDeviceInfo, requestUnlock, isUnlocked, connectUsb as connectUsbService, disconnectUsb, readMacrosFromDevice, onDeviceDisconnect, setKeyboardLayout } from './services/usbService';
+import { readKeymap, writeKeymapToDevice, saveChanges, setLayerProps, getDeviceInfo, requestUnlock, isUnlocked, connectUsb as connectUsbService, disconnectUsb, readMacrosFromDevice, onDeviceDisconnect, setKeyboardLayout, getBehaviorDisplayName } from './services/usbService';
 import { debugLog } from './components/DebugConsole';
 import { Header } from './components/Header/Header';
 import { LayerList } from './components/LeftPanel/LayerList';
@@ -111,6 +111,20 @@ function App() {
             const deviceMacros = await readMacrosFromDevice();
             if (deviceMacros && deviceMacros.length > 0) {
               project.macros = deviceMacros;
+              // Re-map macro key labels: DT name → editor name
+              for (const layer of project.layers) {
+                for (const key of layer.keys) {
+                  if (key.binding.keyCode?.startsWith('&') && key.binding.keyCode.length > 1) {
+                    const dtName = key.binding.keyCode.substring(1);
+                    const macro = deviceMacros.find(m => m.deviceId !== undefined &&
+                      getBehaviorDisplayName(m.deviceId) === dtName);
+                    if (macro && macro.name !== dtName) {
+                      key.binding.label = `&${macro.name}`;
+                      key.binding.keyCode = `&${macro.name}`;
+                    }
+                  }
+                }
+              }
               debugLog('INF', 'Editor', `Firmware macros loaded with steps: ${deviceMacros.map(m => `${m.name}(${m.bindings.length})`).join(', ')}`);
             } else if (result.firmwareMacros?.length > 0) {
               const fwMacros = result.firmwareMacros.map((m: any) => ({
