@@ -212,10 +212,41 @@ export function TrackballConfig({ store }: Props) {
           const filteredKeycodes = gestureSearch
             ? searchKeyCodes(gestureSearch)
             : KEYCODES.filter(kc => kc.category === (gestureCategory || 'Navigation'));
+          const currentLabel = g?.label || '';
+          const modMatch = currentLabel.match(/^([CSAG+]+)\+(.+)$/);
+          const currentMods = modMatch ? modMatch[1].split('+').filter(Boolean) : [];
+          const currentBase = modMatch ? modMatch[2] : currentLabel;
+
+          const toggleMod = (mod: string) => {
+            const newMods = currentMods.includes(mod)
+              ? currentMods.filter(m => m !== mod)
+              : [...currentMods, mod];
+            const newLabel = newMods.length > 0 ? newMods.join('+') + '+' + currentBase : currentBase;
+            const updated = store.gestures.map(ge =>
+              ge.direction === editingGesture ? { ...ge, keyCode: newLabel, label: newLabel } : ge
+            );
+            store.setGestures(updated);
+          };
+
+          const MOD_BUTTONS: { key: string; label: string }[] = [
+            { key: 'C', label: '⌃' }, { key: 'S', label: '⇧' },
+            { key: 'A', label: '⌥' }, { key: 'G', label: '⌘' },
+          ];
+
           return (
             <div style={{ marginTop: 8 }}>
               <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>
                 {dl.icon} {dl.label}ジェスチャを編集
+              </div>
+              <div style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
+                {MOD_BUTTONS.map(m => (
+                  <button key={m.key}
+                    className={`btn btn-outline ${currentMods.includes(m.key) ? 'btn-active' : ''}`}
+                    style={{ fontSize: 12, padding: '4px 8px', minWidth: 32 }}
+                    onClick={() => toggleMod(m.key)}>
+                    {m.label}
+                  </button>
+                ))}
               </div>
               <input
                 value={gestureSearch}
@@ -237,8 +268,9 @@ export function TrackballConfig({ store }: Props) {
                   <button key={kc.code} className={`keycode-btn ${g?.label === kc.label ? 'selected' : ''}`}
                     style={{ fontSize: 10, padding: '4px 2px' }}
                     onClick={() => {
+                      const newLabel = currentMods.length > 0 ? currentMods.join('+') + '+' + kc.label : kc.label;
                       const updated = store.gestures.map(ge =>
-                        ge.direction === editingGesture ? { ...ge, keyCode: kc.code, label: kc.label } : ge
+                        ge.direction === editingGesture ? { ...ge, keyCode: newLabel, label: newLabel } : ge
                       );
                       store.setGestures(updated);
                       setEditingGesture(null);
