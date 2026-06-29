@@ -21,12 +21,16 @@ export function KeyButton({ keyConfig, selected, onClick, comboName, isAmlExclud
   let topClass = '';
 
   let holdLabel = '';
+  const modSymbols: Record<string, string> = {
+    lshift: 'L⇧', rshift: 'R⇧', lgui: 'L⌘', rgui: 'R⌘',
+    lctrl: 'L⌃', rctrl: 'R⌃', lalt: 'L⌥', ralt: 'R⌥',
+  };
+
+  if (binding.type === 'basic' && binding.modifiers?.length) {
+    holdLabel = binding.modifiers.map(m => modSymbols[m] || m).join('');
+  }
 
   if (binding.type === 'mod-tap') {
-    const modSymbols: Record<string, string> = {
-      lshift: 'L⇧', rshift: 'R⇧', lgui: 'L⌘', rgui: 'R⌘',
-      lctrl: 'L⌃', rctrl: 'R⌃', lalt: 'L⌥', ralt: 'R⌥',
-    };
     const labelSymbols: Record<string, string> = {
       'L Shift': 'L⇧', 'R Shift': 'R⇧', 'L GUI': 'L⌘', 'R GUI': 'R⌘',
       'L Ctrl': 'L⌃', 'R Ctrl': 'R⌃', 'L Alt': 'L⌥', 'R Alt': 'R⌥',

@@ -1182,6 +1182,17 @@ export async function writeKeymapToDevice(layers: Layer[], dirtyKeys?: Set<strin
           } else {
             behaviorId = behByType["kp"] ?? 0;
             param1 = labelToParam(binding.label, binding.keyCode);
+            if (binding.modifiers?.length) {
+              const modBits: Record<string, number> = {
+                lctrl: 0x01, lshift: 0x02, lalt: 0x04, lgui: 0x08,
+                rctrl: 0x10, rshift: 0x20, ralt: 0x40, rgui: 0x80,
+              };
+              let mods = (param1 >>> 24) & 0xFF;
+              for (const m of binding.modifiers) {
+                mods |= modBits[m] || 0;
+              }
+              param1 = (mods << 24) | (param1 & 0x00FFFFFF);
+            }
           }
           break;
         case 'momentary':
