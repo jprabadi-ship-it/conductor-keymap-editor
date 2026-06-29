@@ -34,6 +34,7 @@ export function TrackballConfig({ store }: Props) {
   const [gestureCategory, setGestureCategory] = useState<string | null>(null);
   const [amlEnabled, setAmlEnabled] = useState(true);
   const [amlTimeout, setAmlTimeout] = useState(300);
+  const [amlDuration, setAmlDuration] = useState(500);
   const [amlMinDistance, setAmlMinDistance] = useState(0);
   const [cpi, setCpi] = useState(800);
   const [scrollSensitivity, setScrollSensitivity] = useState(1.0);
@@ -154,6 +155,17 @@ export function TrackballConfig({ store }: Props) {
 
         <div style={{ marginBottom: 12 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
+            <span>AML 持続時間</span>
+            <span style={{ color: 'var(--accent)', fontWeight: 600 }}>{amlDuration}ms</span>
+          </div>
+          <input type="range" className="timing-slider" min={100} max={5000} step={50} value={amlDuration} onChange={e => setAmlDuration(Number(e.target.value))} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)' }}>
+            <span>100ms</span><span>5000ms</span>
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
             <span>AML 最低移動距離</span>
             <span style={{ color: 'var(--accent)', fontWeight: 600 }}>{amlMinDistance}</span>
           </div>
@@ -163,7 +175,7 @@ export function TrackballConfig({ store }: Props) {
           </div>
         </div>
 
-        <button className="btn btn-outline" style={{ width: '100%', fontSize: 12, marginBottom: 8 }} onClick={async () => {
+        <button className="btn" style={{ width: '100%', fontSize: 12, padding: '8px', marginBottom: 8, background: 'var(--accent)', color: '#fff', border: '1px solid var(--accent)', fontWeight: 600 }} onClick={async () => {
           if (!isConnected()) return;
           if (!isUnlocked() && !(await requestUnlock())) {
             alert('デバイスがロックされています'); return;
