@@ -1133,7 +1133,8 @@ export async function writeKeymapToDevice(layers: Layer[], dirtyKeys?: Set<strin
 
       const rawKey = `${layer.index}:${posId}`;
       const raw = rawBindings[rawKey];
-      const isDirty = dirtyKeys ? dirtyKeys.has(rawKey) : true;
+      const layerArrayIdx = layers.indexOf(layer);
+      const isDirty = dirtyKeys ? (dirtyKeys.has(rawKey) || dirtyKeys.has(`${layerArrayIdx}:${posId}`)) : true;
 
       // If key wasn't modified by user, skip it entirely
       if (!isDirty) {
