@@ -27,7 +27,17 @@ export function KeyButton({ keyConfig, selected, onClick, comboName, isAmlExclud
       lshift: '⇧', rshift: 'R⇧', lgui: '⌘', rgui: 'R⌘',
       lctrl: '⌃', rctrl: 'R⌃', lalt: '⌥', ralt: 'R⌥',
     };
-    holdLabel = binding.modifiers?.map(m => modSymbols[m] || m).join('') || '';
+    const labelSymbols: Record<string, string> = {
+      'L Shift': '⇧', 'R Shift': 'R⇧', 'L GUI': '⌘', 'R GUI': 'R⌘',
+      'L Ctrl': '⌃', 'R Ctrl': 'R⌃', 'L Alt': '⌥', 'R Alt': 'R⌥',
+    };
+    if (binding.modifiers?.length) {
+      holdLabel = binding.modifiers.map(m => modSymbols[m] || m).join('');
+    } else if (binding.keyCode && labelSymbols[binding.keyCode]) {
+      holdLabel = labelSymbols[binding.keyCode];
+    } else if (binding.keyCode && binding.keyCode !== binding.tapLabel) {
+      holdLabel = binding.keyCode;
+    }
     mainLabel = binding.tapLabel || binding.label;
   }
 
