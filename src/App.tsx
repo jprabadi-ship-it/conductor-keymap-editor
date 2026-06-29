@@ -19,7 +19,7 @@ import { DebugConsole } from './components/DebugConsole';
 const LEFT_MIN = 200;
 const LEFT_MAX = 500;
 const RIGHT_MIN = 200;
-const RIGHT_MAX = 480;
+const RIGHT_MAX = 800;
 
 function App() {
   const store = useKeymapStore();
