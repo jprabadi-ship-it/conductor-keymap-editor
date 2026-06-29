@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useKeymapStore } from './store/useKeymapStore';
-import { readKeymap, writeKeymapToDevice, saveChanges, setLayerProps, getDeviceInfo, requestUnlock, isUnlocked, connectUsb as connectUsbService, disconnectUsb, readMacrosFromDevice, onDeviceDisconnect } from './services/usbService';
+import { readKeymap, writeKeymapToDevice, saveChanges, setLayerProps, getDeviceInfo, requestUnlock, isUnlocked, connectUsb as connectUsbService, disconnectUsb, readMacrosFromDevice, onDeviceDisconnect, setKeyboardLayout } from './services/usbService';
 import { debugLog } from './components/DebugConsole';
 import { Header } from './components/Header/Header';
 import { LayerList } from './components/LeftPanel/LayerList';
@@ -31,6 +31,7 @@ function App() {
 
   useEffect(() => {
     onDeviceDisconnect(() => setUsbConnected(false));
+    setKeyboardLayout(store.osLayout);
   }, []);
 
   const onResizeLeft = useCallback((delta: number) => {

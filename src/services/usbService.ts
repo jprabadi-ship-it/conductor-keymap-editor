@@ -287,7 +287,7 @@ export async function getBehaviorDetails(behaviorId: number): Promise<{ displayN
 
 // HID Usage Code to key label
 // HID keyboard page (0x07) usage codes
-const KB_USAGE: Record<number, string> = {
+const KB_USAGE_US: Record<number, string> = {
   0: 'NONE', 4: 'A', 5: 'B', 6: 'C', 7: 'D', 8: 'E', 9: 'F', 10: 'G', 11: 'H', 12: 'I', 13: 'J',
   14: 'K', 15: 'L', 16: 'M', 17: 'N', 18: 'O', 19: 'P', 20: 'Q', 21: 'R', 22: 'S', 23: 'T',
   24: 'U', 25: 'V', 26: 'W', 27: 'X', 28: 'Y', 29: 'Z',
@@ -305,16 +305,53 @@ const KB_USAGE: Record<number, string> = {
   100: '\\', 101: 'App',
   104: 'F13', 105: 'F14', 106: 'F15', 107: 'F16', 108: 'F17', 109: 'F18',
   110: 'F19', 111: 'F20', 112: 'F21', 113: 'F22', 114: 'F23', 115: 'F24',
+  135: 'INT_RO', 136: 'INT_KANA', 137: 'INT_YEN',
   144: 'LANG1', 145: 'LANG2',
   224: 'L Ctrl', 225: 'L Shift', 226: 'L Alt', 227: 'L GUI',
   228: 'R Ctrl', 229: 'R Shift', 230: 'R Alt', 231: 'R GUI',
 };
 
-// Shift+key → symbol label
-const SHIFT_MAP: Record<number, string> = {
+const SHIFT_MAP_US: Record<number, string> = {
   30: '!', 31: '@', 32: '#', 33: '$', 34: '%', 35: '^', 36: '&', 37: '*', 38: '(', 39: ')',
   45: '_', 46: '+', 47: '{', 48: '}', 49: '|', 51: ':', 52: '"', 53: '~', 54: '<', 55: '>', 56: '?',
 };
+
+// JIS overrides (same HID codes, different printed characters)
+const KB_USAGE_JIS_OVERRIDE: Record<number, string> = {
+  46: '^', 47: '@', 48: '[', 49: ']', 51: ';', 52: ':', 53: '半/全',
+  135: '\\', 136: 'カナ', 137: '¥',
+};
+
+const SHIFT_MAP_JIS: Record<number, string> = {
+  30: '!', 31: '"', 32: '#', 33: '$', 34: '%', 35: '&', 36: "'", 37: '(', 38: ')', 39: '~',
+  45: '=', 46: '~', 47: '`', 48: '{', 49: '}', 51: '+', 52: '*', 53: '半/全', 54: '<', 55: '>', 56: '?',
+};
+
+let currentLayout: 'us' | 'jis' = 'us';
+
+export function setKeyboardLayout(layout: 'us' | 'jis') {
+  currentLayout = layout;
+  // Rebuild reverse lookup tables
+  rebuildLabelTables();
+}
+
+export function getKeyboardLayout(): 'us' | 'jis' {
+  return currentLayout;
+}
+
+function getKbUsage(): Record<number, string> {
+  if (currentLayout === 'jis') {
+    return { ...KB_USAGE_US, ...KB_USAGE_JIS_OVERRIDE };
+  }
+  return KB_USAGE_US;
+}
+
+function getShiftMap(): Record<number, string> {
+  return currentLayout === 'jis' ? SHIFT_MAP_JIS : SHIFT_MAP_US;
+}
+
+// Aliases for backward compat within this file
+const KB_USAGE = KB_USAGE_US;
 
 // Consumer page (0x0C)
 const CONSUMER_USAGE: Record<number, string> = {
@@ -346,11 +383,13 @@ function modPrefix(mods: number): string {
 
 function hidToLabel(param: number): string {
   const { mods, page, usage } = parseParam(param);
+  const kbUsage = getKbUsage();
+  const shiftMap = getShiftMap();
 
   if (page === 0x07 || page === 0x00) {
-    const base = KB_USAGE[usage];
+    const base = kbUsage[usage];
     if (mods === 0) return base || `HID:${usage.toString(16)}`;
-    if (mods === 0x02 && SHIFT_MAP[usage]) return SHIFT_MAP[usage];
+    if (mods === 0x02 && shiftMap[usage]) return shiftMap[usage];
     const prefix = modPrefix(mods);
     return prefix + (base || usage.toString(16));
   }
@@ -373,23 +412,25 @@ function findBehaviorId(name: string): number | null {
   return null;
 }
 
-// Reverse KB_USAGE: label -> usage code
-const LABEL_TO_USAGE: Record<string, number> = {};
-for (const [code, label] of Object.entries(KB_USAGE)) {
-  LABEL_TO_USAGE[label] = Number(code);
-}
-
-// Reverse SHIFT_MAP
-const LABEL_TO_SHIFTED: Record<string, number> = {};
-for (const [code, label] of Object.entries(SHIFT_MAP)) {
-  LABEL_TO_SHIFTED[label] = Number(code);
-}
-
-// Reverse CONSUMER_USAGE
+// Reverse lookup tables (rebuilt on layout change)
+let LABEL_TO_USAGE: Record<string, number> = {};
+let LABEL_TO_SHIFTED: Record<string, number> = {};
 const LABEL_TO_CONSUMER: Record<string, number> = {};
 for (const [code, label] of Object.entries(CONSUMER_USAGE)) {
   LABEL_TO_CONSUMER[label] = Number(code);
 }
+
+function rebuildLabelTables() {
+  LABEL_TO_USAGE = {};
+  for (const [code, label] of Object.entries(getKbUsage())) {
+    LABEL_TO_USAGE[label] = Number(code);
+  }
+  LABEL_TO_SHIFTED = {};
+  for (const [code, label] of Object.entries(getShiftMap())) {
+    LABEL_TO_SHIFTED[label] = Number(code);
+  }
+}
+rebuildLabelTables();
 
 // Protobuf bindings array order: row-by-row, left then right per row
 const KEY_ORDER = [
