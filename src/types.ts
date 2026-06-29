@@ -81,4 +81,5 @@ export interface KeymapProject {
   tappingTerm: number;
   gestures: GestureShortcut[];
   bluetoothProfiles: BluetoothProfile[];
+  amlExcluded?: string[];
 }

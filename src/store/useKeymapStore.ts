@@ -216,8 +216,8 @@ export function useKeymapStore() {
 
   // Export/Import
   const exportProject = useCallback((): KeymapProject => ({
-    layers, combos, macros, osLayout, tappingTerm, gestures, bluetoothProfiles,
-  }), [layers, combos, macros, osLayout, tappingTerm, gestures, bluetoothProfiles]);
+    layers, combos, macros, osLayout, tappingTerm, gestures, bluetoothProfiles, amlExcluded,
+  }), [layers, combos, macros, osLayout, tappingTerm, gestures, bluetoothProfiles, amlExcluded]);
 
   const importProject = useCallback((project: KeymapProject) => {
     pushUndo();
@@ -231,6 +231,7 @@ export function useKeymapStore() {
     setTappingTerm(project.tappingTerm || 200);
     if (project.gestures) setGestures(project.gestures);
     if (project.bluetoothProfiles) setBluetoothProfiles(project.bluetoothProfiles);
+    if (project.amlExcluded) setAmlExcluded(project.amlExcluded);
   }, [pushUndo]);
 
   const reset = useCallback(() => {

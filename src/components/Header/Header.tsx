@@ -65,8 +65,10 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, unsa
           if (data.combos) project.combos = data.combos;
           if (data.macros) project.macros = data.macros;
           store.importProject(project);
+          setKeyboardLayout(project.osLayout || 'us');
         } else if (data.layers) {
           store.importProject(data);
+          if (data.osLayout) setKeyboardLayout(data.osLayout);
         }
       } catch (err) {
         console.error('Import failed:', err);
