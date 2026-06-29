@@ -137,11 +137,11 @@ export function KeyboardView({ store }: Props) {
         {renderHalf(RIGHT_KEYS, 'right', { row: 3, colStart: 2, colSpan: 2 })}
       </div>
 
-      <div className="keyboard-hint">
-        {isMacroMode
-          ? `Click a key to assign/unassign "${selectedMacro?.name}"`
-          : 'Click a key to configure'}
-      </div>
+      {isMacroMode && selectedMacro && (
+        <div className="keyboard-hint">
+          Click a key to assign/unassign &quot;{selectedMacro.name}&quot;
+        </div>
+      )}
 
       {/* Layer switcher */}
       <div className="layer-switcher">

@@ -562,7 +562,7 @@ input:focus { border-color: var(--accent); }
 /* Layer switcher */
 .layer-switcher {
   display: flex; gap: 2px; justify-content: center; flex-wrap: wrap;
-  padding: 8px 16px; max-width: 700px;
+  padding: 12px 16px 8px; max-width: 700px;
 }
 .layer-dot {
   display: flex; flex-direction: column; align-items: center; gap: 3px;
