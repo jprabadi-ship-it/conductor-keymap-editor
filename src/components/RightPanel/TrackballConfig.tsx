@@ -47,6 +47,7 @@ export function TrackballConfig({ store }: Props) {
   const [accelStartSpeed, setAccelStartSpeed] = useState(10);
   const [accelRampWidth, setAccelRampWidth] = useState(28);
   const [loaded, setLoaded] = useState(false);
+  const [trackballTab, setTrackballTab] = useState<'aml' | 'gesture' | 'cursor'>('aml');
 
   // Load settings from device on mount if connected
   useEffect(() => {
@@ -127,6 +128,33 @@ export function TrackballConfig({ store }: Props) {
 
   return (
     <div>
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: 0, marginBottom: 12, borderBottom: '1px solid var(--border)' }}>
+        {([
+          { key: 'aml', label: 'AML' },
+          { key: 'gesture', label: 'ジェスチャ' },
+          { key: 'cursor', label: 'カーソル' },
+        ] as const).map(tab => (
+          <button
+            key={tab.key}
+            className="btn"
+            onClick={() => setTrackballTab(tab.key)}
+            style={{
+              flex: 1,
+              fontSize: 11,
+              padding: '6px 4px',
+              borderRadius: '4px 4px 0 0',
+              borderBottom: trackballTab === tab.key ? '2px solid var(--accent)' : '2px solid transparent',
+              color: trackballTab === tab.key ? 'var(--accent)' : 'var(--text-secondary)',
+              fontWeight: trackballTab === tab.key ? 600 : 400,
+              background: 'transparent',
+            }}
+          >{tab.label}</button>
+        ))}
+      </div>
+
+      {/* AML */}
+      {trackballTab === 'aml' && (<>
       {/* AML */}
       <div className="config-section">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
@@ -200,7 +228,10 @@ export function TrackballConfig({ store }: Props) {
         </div>
       </div>
 
+      </>)}
+
       {/* Gesture Shortcuts */}
+      {trackballTab === 'gesture' && (<>
       <div className="config-section">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
           <span style={{ fontSize: 13, fontWeight: 600 }}>ジェスチャショートカット</span>
@@ -301,6 +332,10 @@ export function TrackballConfig({ store }: Props) {
         })()}
       </div>
 
+      </>)}
+
+      {/* Cursor & Scroll Tab */}
+      {trackballTab === 'cursor' && (<>
       {/* Realtime Preview */}
       <div className="config-section">
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
@@ -322,11 +357,6 @@ export function TrackballConfig({ store }: Props) {
         </div>
         <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>ONにするとスライダー操作が即座にデバイスに反映されます</div>
       </div>
-
-      {/* Cursor & Scroll group header */}
-      <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0 8px' }} />
-      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>カーソル・スクロール設定</div>
-      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 8 }}>下部の「💾 保存」でまとめてデバイスに書き込みます</div>
 
       {/* CPI */}
       <div className="config-section">
@@ -492,6 +522,7 @@ export function TrackballConfig({ store }: Props) {
       <div className="save-note">
         スライダーを動かすとリアルタイムで反映されます。「保存」でFlashに永続化してください。
       </div>
+      </>)}
     </div>
   );
 }
