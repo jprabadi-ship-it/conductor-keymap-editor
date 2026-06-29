@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { KeymapStore } from '../../store/useKeymapStore';
 import { isConnected, isUnlocked, requestUnlock, setSensitivity, setAutoLayer, setPrecisionScale, setAccel, getSensitivity, getAutoLayer, getPrecisionScale, getAccel, saveChanges as savePointingChanges } from '../../services/usbService';
+import { KEY_CATEGORIES, KEYCODES, searchKeyCodes } from '../../data/keycodes';
 import { debugLog } from '../DebugConsole';
 
 interface Props {
@@ -28,6 +29,9 @@ const DIRECTION_LABELS: Record<string, { icon: string; label: string }> = {
 };
 
 export function TrackballConfig({ store }: Props) {
+  const [editingGesture, setEditingGesture] = useState<'up' | 'down' | 'left' | 'right' | null>(null);
+  const [gestureSearch, setGestureSearch] = useState('');
+  const [gestureCategory, setGestureCategory] = useState<string | null>(null);
   const [amlEnabled, setAmlEnabled] = useState(true);
   const [amlTimeout, setAmlTimeout] = useState(300);
   const [amlMinDistance, setAmlMinDistance] = useState(0);
@@ -193,13 +197,59 @@ export function TrackballConfig({ store }: Props) {
             const g = store.gestures.find(ge => ge.direction === dir);
             const dl = DIRECTION_LABELS[dir];
             return (
-              <button key={dir} className="btn btn-outline" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', padding: '8px', fontSize: 11, gap: 2 }}>
+              <button key={dir} className={`btn btn-outline ${editingGesture === dir ? 'btn-active' : ''}`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', padding: '8px', fontSize: 11, gap: 2 }}
+                onClick={() => { setEditingGesture(editingGesture === dir ? null : dir); setGestureSearch(''); setGestureCategory(null); }}>
                 <span style={{ color: 'var(--text-muted)' }}>{dl.icon} {dl.label}</span>
                 <span style={{ fontWeight: 600 }}>{g?.label || '---'}</span>
               </button>
             );
           })}
         </div>
+
+        {editingGesture && (() => {
+          const dl = DIRECTION_LABELS[editingGesture];
+          const g = store.gestures.find(ge => ge.direction === editingGesture);
+          const filteredKeycodes = gestureSearch
+            ? searchKeyCodes(gestureSearch)
+            : KEYCODES.filter(kc => kc.category === (gestureCategory || 'Navigation'));
+          return (
+            <div style={{ marginTop: 8 }}>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>
+                {dl.icon} {dl.label}ジェスチャを編集
+              </div>
+              <input
+                value={gestureSearch}
+                onChange={e => setGestureSearch(e.target.value)}
+                placeholder="Search..."
+                style={{ width: '100%', padding: '4px 8px', fontSize: 11, marginBottom: 4, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text-primary)' }}
+              />
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2, marginBottom: 4 }}>
+                {KEY_CATEGORIES.filter(c => ['Letters', 'Numbers', 'Navigation', 'Symbols', 'Media', 'Function', 'Modifiers'].includes(c)).map(cat => (
+                  <button key={cat} className={`btn btn-outline ${gestureCategory === cat ? 'btn-active' : ''}`}
+                    style={{ fontSize: 9, padding: '2px 4px' }}
+                    onClick={() => { setGestureCategory(cat); setGestureSearch(''); }}>
+                    {cat}
+                  </button>
+                ))}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 2, maxHeight: 120, overflowY: 'auto' }}>
+                {filteredKeycodes.slice(0, 40).map(kc => (
+                  <button key={kc.code} className={`keycode-btn ${g?.label === kc.label ? 'selected' : ''}`}
+                    style={{ fontSize: 10, padding: '4px 2px' }}
+                    onClick={() => {
+                      const updated = store.gestures.map(ge =>
+                        ge.direction === editingGesture ? { ...ge, keyCode: kc.code, label: kc.label } : ge
+                      );
+                      store.setGestures(updated);
+                      setEditingGesture(null);
+                    }}>
+                    {kc.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Realtime Preview */}
