@@ -10,7 +10,14 @@
       "Bash(npm create *)",
       "Bash(mv conductor-keymap-editor/* conductor-keymap-editor/.* .)",
       "Bash(rmdir conductor-keymap-editor *)",
-      "Bash(npm install *)"
+      "Bash(npm install *)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(git -C /Users/miyashitakazuya/conductor_keymap_editor log --oneline)",
+      "Bash(git -C /Users/miyashitakazuya/conductor_keymap_editor log --oneline -10)",
+      "Bash(gh api *)",
+      "Bash(git fetch *)",
+      "Bash(git stash *)",
+      "Bash(git pull *)"
     ]
   }
 }

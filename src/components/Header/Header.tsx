@@ -98,6 +98,13 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, unsa
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {[
+                { v: '0.9.0', changes: ['マクロレコーディングモード（キー入力キャプチャ）'] },
+                { v: '0.8.2', changes: ['Export ボタンを File にリネーム'] },
+                { v: '0.8.1', changes: ['デバッグコンソール背景をテーマ変数に統一'] },
+                { v: '0.8.0', changes: ['トースト通知', 'Read 時の未保存確認ダイアログ', 'レイヤー名の保持', 'Undo スタック上限 50'] },
+                { v: '0.7.4', changes: ['レイヤースイッチャーの折り返し防止'] },
+                { v: '0.7.3', changes: ['「Click a key to configure」ヒント削除'] },
+                { v: '0.7.2', changes: ['バージョン履歴にパッチバージョンを含める'] },
                 { v: '0.7.1', changes: ['バージョン履歴ダイアログ'] },
                 { v: '0.7.0', changes: ['ダーク/ライトモード切替'] },
                 { v: '0.6.15', changes: ['マウスボタンのビットフラグ修正（MB3=4）'] },

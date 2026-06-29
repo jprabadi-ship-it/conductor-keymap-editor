@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { KeymapStore } from '../../store/useKeymapStore';
 import { MacroAction } from '../../types';
 import { writeMacroToDevice, isConnected, claimFreeMacroSlot, getFreeMacroSlots, saveChanges, registerMacroDeviceId, setMacro } from '../../services/usbService';
@@ -13,6 +13,25 @@ const ACTIONS: { value: MacroAction; label: string; desc: string }[] = [
   { value: 'macro_release', label: 'Release', desc: 'Let go' },
   { value: 'macro_wait_time', label: 'Wait', desc: 'Delay (ms)' },
 ];
+
+const KEY_EVENT_TO_MACRO: Record<string, string> = {
+  KeyA: 'A', KeyB: 'B', KeyC: 'C', KeyD: 'D', KeyE: 'E', KeyF: 'F', KeyG: 'G', KeyH: 'H',
+  KeyI: 'I', KeyJ: 'J', KeyK: 'K', KeyL: 'L', KeyM: 'M', KeyN: 'N', KeyO: 'O', KeyP: 'P',
+  KeyQ: 'Q', KeyR: 'R', KeyS: 'S', KeyT: 'T', KeyU: 'U', KeyV: 'V', KeyW: 'W', KeyX: 'X',
+  KeyY: 'Y', KeyZ: 'Z',
+  Digit1: 'N1', Digit2: 'N2', Digit3: 'N3', Digit4: 'N4', Digit5: 'N5',
+  Digit6: 'N6', Digit7: 'N7', Digit8: 'N8', Digit9: 'N9', Digit0: 'N0',
+  Minus: 'MINUS', Equal: 'EQUAL', BracketLeft: 'LBKT', BracketRight: 'RBKT',
+  Backslash: 'BSLH', Semicolon: 'SEMI', Quote: 'SQT', Backquote: 'GRAVE',
+  Comma: 'COMMA', Period: 'DOT', Slash: 'FSLH',
+  Enter: 'ENTER', Escape: 'ESC', Backspace: 'BSPC', Delete: 'DEL', Tab: 'TAB', Space: 'SPACE',
+  CapsLock: 'CAPS', ArrowUp: 'UP', ArrowDown: 'DOWN', ArrowLeft: 'LEFT', ArrowRight: 'RIGHT',
+  Home: 'HOME', End: 'END', PageUp: 'PG_UP', PageDown: 'PG_DN',
+  F1: 'F1', F2: 'F2', F3: 'F3', F4: 'F4', F5: 'F5', F6: 'F6',
+  F7: 'F7', F8: 'F8', F9: 'F9', F10: 'F10', F11: 'F11', F12: 'F12',
+  ShiftLeft: 'LSHIFT', ShiftRight: 'RSHIFT', ControlLeft: 'LCTRL', ControlRight: 'RCTRL',
+  AltLeft: 'LALT', AltRight: 'RALT', MetaLeft: 'LGUI', MetaRight: 'RGUI',
+};
 
 const MACRO_KEY_CATEGORIES = [
   { name: 'Letters', keys: 'A B C D E F G H I J K L M N O P Q R S T U V W X Y Z'.split(' ') },
@@ -31,6 +50,28 @@ export function MacroEditor({ store }: Props) {
   const [pickerStepIdx, setPickerStepIdx] = useState<number | null>(null);
   const [pickerSearch, setPickerSearch] = useState('');
   const [pickerCategory, setPickerCategory] = useState<string | null>(null);
+  const [recording, setRecording] = useState(false);
+
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (idx === null) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const macroKey = KEY_EVENT_TO_MACRO[e.code];
+    if (macroKey) {
+      store.addMacroStep(idx, { action: 'macro_tap', behavior: 'kp', param: macroKey });
+    }
+  }, [idx, store]);
+
+  useEffect(() => {
+    if (recording) {
+      window.addEventListener('keydown', handleKeyDown, true);
+      return () => window.removeEventListener('keydown', handleKeyDown, true);
+    }
+  }, [recording, handleKeyDown]);
+
+  useEffect(() => {
+    setRecording(false);
+  }, [idx]);
 
   if (macro === null || idx === null) {
     return <div className="right-panel-placeholder">Select a macro to edit</div>;
@@ -158,7 +199,27 @@ export function MacroEditor({ store }: Props) {
 
       {/* Steps */}
       <div className="config-section">
-        <div className="config-label">Steps ({macro.bindings.length})</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+          <div className="config-label" style={{ marginBottom: 0 }}>Steps ({macro.bindings.length})</div>
+          <button
+            className="btn"
+            onClick={() => setRecording(r => !r)}
+            style={{
+              fontSize: 11,
+              padding: '3px 10px',
+              background: recording ? 'var(--danger)' : undefined,
+              color: recording ? '#fff' : undefined,
+              border: recording ? '1px solid var(--danger)' : undefined,
+            }}
+          >
+            {recording ? '⏺ Recording...' : '⏺ Record'}
+          </button>
+        </div>
+        {recording && (
+          <div style={{ fontSize: 11, color: 'var(--danger)', marginBottom: 6 }}>
+            Type keys to add steps. Click "Recording..." to stop.
+          </div>
+        )}
 
         {macro.bindings.length === 0 && (
           <div style={{ color: 'var(--text-muted)', fontSize: 12, padding: '8px 0', textAlign: 'center' }}>
