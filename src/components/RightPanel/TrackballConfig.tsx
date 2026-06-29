@@ -323,6 +323,11 @@ export function TrackballConfig({ store }: Props) {
         <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>ONにするとスライダー操作が即座にデバイスに反映されます</div>
       </div>
 
+      {/* Cursor & Scroll group header */}
+      <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0 8px' }} />
+      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>カーソル・スクロール設定</div>
+      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 8 }}>下部の「💾 保存」でまとめてデバイスに書き込みます</div>
+
       {/* CPI */}
       <div className="config-section">
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
