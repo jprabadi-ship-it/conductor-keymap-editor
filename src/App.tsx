@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useKeymapStore } from './store/useKeymapStore';
-import { readKeymap, writeKeymapToDevice, saveChanges, setLayerProps, getDeviceInfo, requestUnlock, isUnlocked, connectUsb as connectUsbService, disconnectUsb, readMacrosFromDevice, onDeviceDisconnect, setKeyboardLayout, getBehaviorDisplayName } from './services/usbService';
+import { readKeymap, writeKeymapToDevice, saveChanges, setLayerProps, getDeviceInfo, requestUnlock, isUnlocked, readMacrosFromDevice, onDeviceDisconnect, setKeyboardLayout, getBehaviorDisplayName } from './services/usbService';
 import { debugLog } from './components/DebugConsole';
 import { Header } from './components/Header/Header';
 import { LayerList } from './components/LeftPanel/LayerList';
@@ -102,7 +102,7 @@ function App() {
           }
         }}
         onRead={async () => {
-          if (store.dirtyKeys.size > 0) {
+          if (unsaved) {
             if (!confirm('未保存の変更があります。デバイスから読み込むと上書きされます。続けますか？')) return;
           }
           const result = await readKeymap();

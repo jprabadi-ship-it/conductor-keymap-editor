@@ -1,32 +1,56 @@
-# React + TypeScript + Vite
+# ConductorD Studio
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+ConductorD Studio is a browser-based keymap editor for Conductor Monokey firmware.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Edit 14 layers and 40 physical keys.
+- Read and write keymaps over USB with the Web Serial API.
+- Save only modified key bindings with dirty-key tracking.
+- Edit layer names and persist them with ZMK Studio RPC.
+- Configure trackball CPI, scroll sensitivity, precision mode, acceleration, and AML settings.
+- Read and write tapping term settings.
+- Manage combos, firmware macros, US/JIS labels, and project JSON export/import.
+- Use the built-in debug console for USB/RPC troubleshooting.
 
-## React Compiler
+## Requirements
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- Chrome or Edge for Web Serial API support.
+- A ConductorD/Conductor Monokey firmware build with the matching Studio RPC extensions.
+- USB connection to the keyboard or dongle.
 
-## Expanding the Oxlint configuration
+## Development
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```sh
+npm install
+npm run dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+The Vite dev server serves the app at:
+
+```text
+http://127.0.0.1:5173/conductor-keymap-editor/
+```
+
+## Build
+
+```sh
+npm run build
+npm run preview
+```
+
+## Deployment
+
+The app is configured for GitHub Pages with:
+
+```ts
+base: '/conductor-keymap-editor/'
+```
+
+Current deployed URL:
+
+https://jprabadi-ship-it.github.io/conductor-keymap-editor/
+
+## Notes
+
+USB write operations require the device to be unlocked with the firmware's `studio_unlock` combo. BLE Studio is not used for the dongle route; the supported path is USB.

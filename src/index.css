@@ -28,6 +28,12 @@
   --led-blue: #3b82f6;
   --led-magenta: #d946ef;
   --led-cyan: #06b6d4;
+  --led-white: #e5e5e5;
+  --panel-width: 224px;
+  --header-height: 48px;
+  --footer-height: 32px;
+  --radius: 8px;
+  --radius-sm: 4px;
 }
 
 [data-theme="light"] {

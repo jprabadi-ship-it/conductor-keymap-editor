@@ -14,8 +14,24 @@ let reader: any = null;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let writer: any = null;
 let requestId = 0;
-let frameCallback: ((data: Uint8Array) => void) | null = null;
 let onDisconnectCallback: (() => void) | null = null;
+
+type PendingRequest = {
+  resolve: (value: any) => void;
+  reject: (reason?: any) => void;
+  timeout: number;
+};
+
+const pendingRequests = new Map<number, PendingRequest>();
+
+function resetConnectionState() {
+  for (const pending of pendingRequests.values()) {
+    clearTimeout(pending.timeout);
+    pending.reject(new Error('Connection closed'));
+  }
+  pendingRequests.clear();
+  unlocked = false;
+}
 
 export function onDeviceDisconnect(cb: () => void) {
   onDisconnectCallback = cb;
@@ -66,8 +82,8 @@ class FrameDecoder {
       if (byte === ESC) { this.escaped = true; continue; }
       if (byte === EOF && this.inFrame) {
         this.inFrame = false;
-        if (this.buffer.length > 0 && frameCallback) {
-          frameCallback(new Uint8Array(this.buffer));
+        if (this.buffer.length > 0) {
+          handleFrame(new Uint8Array(this.buffer));
         }
         this.buffer = [];
         continue;
@@ -126,6 +142,7 @@ async function startReading() {
       reader = null;
       writer = null;
       port = null;
+      resetConnectionState();
       debugLog('INF', 'USB', 'Connection lost — state reset');
       onDisconnectCallback?.();
     }
@@ -141,9 +158,40 @@ export async function disconnectUsb(): Promise<void> {
     if (reader) { await reader.cancel().catch(() => {}); reader.releaseLock(); reader = null; }
     if (writer) { await writer.close().catch(() => {}); writer.releaseLock(); writer = null; }
     if (port) { await port.close().catch(() => {}); port = null; }
+    resetConnectionState();
     debugLog('INF', 'USB', 'Disconnected');
   } catch (e: any) {
     debugLog('WRN', 'USB', `Disconnect error: ${e.message}`);
+  }
+}
+
+function handleFrame(data: Uint8Array) {
+  try {
+    const resp = ResponseType.decode(data) as any;
+    const rr = resp.requestResponse;
+    if (!rr) return;
+
+    const pending = pendingRequests.get(rr.requestId);
+    if (!pending) {
+      debugLog('WRN', 'USB', `Unexpected response id: ${rr.requestId}`);
+      return;
+    }
+
+    clearTimeout(pending.timeout);
+    pendingRequests.delete(rr.requestId);
+
+    if (rr.meta?.simpleError !== undefined && rr.meta?.simpleError !== null) {
+      const errNames: Record<number, string> = { 0: 'GENERIC', 1: 'UNLOCK_REQUIRED', 2: 'RPC_NOT_FOUND', 3: 'MSG_DECODE_FAILED', 4: 'MSG_ENCODE_FAILED' };
+      const errName = errNames[rr.meta.simpleError] || `code ${rr.meta.simpleError}`;
+      debugLog('ERR', 'USB', `Device error: ${errName}`);
+      if (rr.meta.simpleError === 1) unlocked = false;
+      pending.reject(new Error(`Device error: ${errName}`));
+      return;
+    }
+
+    pending.resolve(rr);
+  } catch (e: any) {
+    debugLog('WRN', 'USB', `Decode error: ${e.message}`);
   }
 }
 
@@ -158,35 +206,15 @@ async function sendRequest(payload: Record<string, unknown>): Promise<any> {
 
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
-      frameCallback = null;
+      pendingRequests.delete(id);
       reject(new Error('Response timeout'));
     }, 5000);
 
-    frameCallback = (data: Uint8Array) => {
-      try {
-        const resp = ResponseType.decode(data) as any;
-        const rr = resp.requestResponse;
-        if (rr && rr.requestId === id) {
-          clearTimeout(timeout);
-          frameCallback = null;
-          if (rr.meta?.simpleError !== undefined && rr.meta?.simpleError !== null) {
-            const errNames: Record<number, string> = { 0: 'GENERIC', 1: 'UNLOCK_REQUIRED', 2: 'RPC_NOT_FOUND', 3: 'MSG_DECODE_FAILED', 4: 'MSG_ENCODE_FAILED' };
-            const errName = errNames[rr.meta.simpleError] || `code ${rr.meta.simpleError}`;
-            debugLog('ERR', 'USB', `Device error: ${errName}`);
-            if (rr.meta.simpleError === 1) unlocked = false;
-            reject(new Error(`Device error: ${errName}`));
-          } else {
-            resolve(rr);
-          }
-        }
-      } catch (e: any) {
-        debugLog('WRN', 'USB', `Decode error: ${e.message}`);
-      }
-    };
+    pendingRequests.set(id, { resolve, reject, timeout });
 
     writer!.write(frame).catch((e: any) => {
       clearTimeout(timeout);
-      frameCallback = null;
+      pendingRequests.delete(id);
       reject(e);
     });
   });
