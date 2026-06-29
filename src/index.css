@@ -335,8 +335,9 @@ input:focus { border-color: var(--accent); }
 .key-btn.selected {
   border-color: var(--key-selected);
   box-shadow: 0 0 0 3px rgba(232, 116, 14, 0.4), 0 0 12px rgba(232, 116, 14, 0.2);
-  background: rgba(232, 116, 14, 0.12);
+  background: rgba(232, 116, 14, 0.35);
   transform: translateY(-1px);
+  color: #fff;
 }
 .key-btn.trans {
   background: var(--bg-tertiary); color: var(--text-muted);
