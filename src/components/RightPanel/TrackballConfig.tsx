@@ -3,6 +3,7 @@ import { KeymapStore } from '../../store/useKeymapStore';
 import { isConnected, isUnlocked, requestUnlock, setSensitivity, setAutoLayer, setPrecisionScale, setAccel, getSensitivity, getAutoLayer, getPrecisionScale, getAccel, saveChanges as savePointingChanges } from '../../services/usbService';
 import { KEY_CATEGORIES, KEYCODES, searchKeyCodes } from '../../data/keycodes';
 import { debugLog } from '../DebugConsole';
+import { KEYBOARD_LAYOUT } from '../../data/layout';
 
 interface Props {
   store: KeymapStore;
@@ -27,6 +28,52 @@ const DIRECTION_LABELS: Record<string, { icon: string; label: string }> = {
   right: { icon: '→', label: '右' },
   down: { icon: '↓', label: '下' },
 };
+
+function AmlMiniKeyboard({ selected, onToggle }: { selected: string[]; onToggle: (id: string) => void }) {
+  const leftKeys = KEYBOARD_LAYOUT.filter(k => k.half === 'left');
+  const rightKeys = KEYBOARD_LAYOUT.filter(k => k.half === 'right');
+  const maxColL = Math.max(...leftKeys.map(k => k.col));
+  const maxColR = Math.max(...rightKeys.map(k => k.col));
+  const maxRow = Math.max(...KEYBOARD_LAYOUT.map(k => k.row));
+  const S = 18;
+  const G = 1;
+
+  const renderHalf = (keys: typeof KEYBOARD_LAYOUT, maxCol: number) => {
+    const cells: React.ReactNode[] = [];
+    for (let row = 0; row <= maxRow; row++) {
+      for (let col = 0; col <= maxCol; col++) {
+        const pos = keys.find(p => p.row === row && p.col === col);
+        if (pos) {
+          const isSelected = selected.includes(pos.id);
+          cells.push(
+            <button key={pos.id} onClick={() => onToggle(pos.id)} style={{
+              width: S, height: S, borderRadius: 2, border: '1px solid',
+              borderColor: isSelected ? 'var(--accent)' : 'var(--border)',
+              background: isSelected ? 'var(--accent)' : 'var(--bg-tertiary)',
+              color: isSelected ? 'white' : 'var(--text-muted)',
+              fontSize: 5, cursor: 'pointer', padding: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }} title={pos.id}>{pos.id.substring(1)}</button>
+          );
+        } else {
+          cells.push(<div key={`e-${row}-${col}`} style={{ width: S, height: S }} />);
+        }
+      }
+    }
+    return (
+      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${maxCol + 1}, ${S}px)`, gap: G }}>
+        {cells}
+      </div>
+    );
+  };
+
+  return (
+    <div style={{ display: 'flex', gap: 3, justifyContent: 'center', padding: '4px 0' }}>
+      {renderHalf(leftKeys, maxColL)}
+      {renderHalf(rightKeys, maxColR)}
+    </div>
+  );
+}
 
 export function TrackballConfig({ store }: Props) {
   const [editingGesture, setEditingGesture] = useState<'up' | 'down' | 'left' | 'right' | null>(null);
@@ -214,17 +261,17 @@ export function TrackballConfig({ store }: Props) {
         }}>AML設定を適用</button>
 
         <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
-            <span>除外キーポジション</span>
-            <button className="btn" style={{ fontSize: 10, padding: '0 6px', color: 'var(--accent)' }}>更新</button>
-          </div>
-          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>これらのキーを押している間はAMLが発動しません</div>
-          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-            {store.amlExcluded.map((pos, i) => {
-              const posIndex = store.selectedLayer?.keys.findIndex(k => k.id === pos) ?? -1;
-              return <span key={i} className="preset-btn" style={{ fontSize: 11, padding: '2px 8px' }}>{posIndex >= 0 ? posIndex : pos}</span>;
-            })}
-          </div>
+          <div style={{ fontSize: 12, marginBottom: 4 }}>除外キーポジション</div>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 6 }}>これらのキーを押している間はAMLが発動しません。クリックで切替。</div>
+          <AmlMiniKeyboard
+            selected={store.amlExcluded}
+            onToggle={(id) => {
+              const excluded = store.amlExcluded.includes(id)
+                ? store.amlExcluded.filter(p => p !== id)
+                : [...store.amlExcluded, id];
+              store.setAmlExcluded(excluded);
+            }}
+          />
         </div>
       </div>
 
