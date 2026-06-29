@@ -141,6 +141,12 @@ export function ComboList({ store }: Props) {
                 <span className="combo-detail-label">TIMEOUT:</span>
                 <span>{combo.timeoutMs}ms</span>
               </div>
+              {combo.suppressAml && (
+                <div className="combo-detail-row">
+                  <span className="combo-detail-label">AML:</span>
+                  <span style={{ color: 'var(--accent)' }}>抑制</span>
+                </div>
+              )}
               <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                 <button className="btn btn-outline" style={{ fontSize: 11 }} onClick={() => startEdit(combo)}>✏ Edit</button>
                 <button className="btn" style={{ fontSize: 11, color: 'var(--danger)' }} onClick={() => store.removeCombo(combo.id)}>🗑 Delete</button>
@@ -162,6 +168,7 @@ export function ComboList({ store }: Props) {
               {/* Name */}
               <div className="combo-edit-field">
                 <label className="combo-edit-label">NAME (OPTIONAL)</label>
+                <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 3 }}>管理用の名前（デバイスには送信されません）</div>
                 <input
                   type="text"
                   value={editDraft.name || ''}
@@ -173,6 +180,7 @@ export function ComboList({ store }: Props) {
               {/* Trigger Keys - Mini Keyboard */}
               <div className="combo-edit-field">
                 <label className="combo-edit-label">TRIGGER KEYS ({editDraft.keyPositions?.length || 0} SELECTED, MIN 2)</label>
+                <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 3 }}>同時押しでコンボが発火するキーを選択</div>
                 <MiniKeyboard
                   selected={editDraft.keyPositions || []}
                   onToggle={(id) => {
@@ -186,6 +194,7 @@ export function ComboList({ store }: Props) {
               {/* Binding Type */}
               <div className="combo-edit-field">
                 <label className="combo-edit-label">BINDING TYPE</label>
+                <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 3 }}>コンボ発火時に実行するアクションの種類</div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 3 }}>
                   {BINDING_TYPES.map(bt => (
                     <button
@@ -204,6 +213,7 @@ export function ComboList({ store }: Props) {
               {/* Output Key */}
               <div className="combo-edit-field">
                 <label className="combo-edit-label">OUTPUT KEY</label>
+                <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 3 }}>発火時に出力されるキーコードまたはアクション</div>
                 <input
                   type="text"
                   value={editDraft.binding?.keyCode || ''}
@@ -235,6 +245,7 @@ export function ComboList({ store }: Props) {
               {/* Timeout */}
               <div className="combo-edit-field">
                 <label className="combo-edit-label">TIMEOUT (MS)</label>
+                <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 3 }}>この時間内に全キーを押すとコンボ発火（短いほど厳密）</div>
                 <input
                   type="number"
                   value={editDraft.timeoutMs || 50}
@@ -244,9 +255,35 @@ export function ComboList({ store }: Props) {
                 />
               </div>
 
+              {/* Suppress AML */}
+              <div className="combo-edit-field">
+                <label className="combo-edit-label">AML 抑制</label>
+                <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 3 }}>ONにするとこのコンボのキーを押している間AMLが発動しません</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <button
+                    onClick={() => setEditDraft({ ...editDraft, suppressAml: !editDraft.suppressAml })}
+                    style={{
+                      width: 36, height: 20, borderRadius: 10, border: 'none', cursor: 'pointer',
+                      background: editDraft.suppressAml ? 'var(--accent)' : 'var(--bg-hover)',
+                      position: 'relative', transition: 'background 0.2s',
+                    }}
+                  >
+                    <span style={{
+                      position: 'absolute', top: 2, left: editDraft.suppressAml ? 18 : 2,
+                      width: 16, height: 16, borderRadius: '50%', background: 'white',
+                      transition: 'left 0.2s',
+                    }} />
+                  </button>
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                    {editDraft.suppressAml ? 'このコンボ発火中はAMLを無効化' : 'AML通常動作'}
+                  </span>
+                </div>
+              </div>
+
               {/* Active Layers */}
               <div className="combo-edit-field">
                 <label className="combo-edit-label">ACTIVE LAYERS (EMPTY = ALL)</label>
+                <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 3 }}>選択したレイヤーでのみコンボが有効（未選択＝全レイヤー）</div>
                 <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
                   {store.layers.map(l => (
                     <button

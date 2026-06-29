@@ -34,6 +34,7 @@ export interface Combo {
   binding: KeyBinding;
   timeoutMs: number;
   layers: number[];
+  suppressAml?: boolean;
 }
 
 export interface GestureShortcut {
