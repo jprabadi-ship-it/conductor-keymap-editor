@@ -127,55 +127,56 @@ export function TrackballConfig({ store }: Props) {
 
   return (
     <div>
-      {/* Trackball Settings */}
-      <div className="config-section">
-        <div className="config-label">トラックボール設定</div>
-      </div>
-
       {/* AML */}
       <div className="config-section">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-          <span style={{ fontSize: 13 }}>Auto Mouse Layer (AML)</span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+          <span style={{ fontSize: 13, fontWeight: 600 }}>Auto Mouse Layer (AML)</span>
           <div className="btn-group">
             <button className={`btn ${!amlEnabled ? 'btn-active' : ''}`} onClick={() => setAmlEnabled(false)}>OFF</button>
             <button className={`btn ${amlEnabled ? 'btn-active' : ''}`} onClick={() => setAmlEnabled(true)} style={amlEnabled ? { background: 'var(--success)', color: 'white' } : {}}>ON</button>
           </div>
         </div>
+        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 12 }}>
+          トラックボールを動かすと自動でマウスレイヤーに切り替わります
+        </div>
 
-        <div style={{ marginBottom: 12 }}>
+        <div style={{ marginBottom: 10 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
-            <span>AML 発動待機時間</span>
+            <span>発動待機時間</span>
             <span style={{ color: 'var(--accent)', fontWeight: 600 }}>{amlTimeout}ms</span>
           </div>
           <input type="range" className="timing-slider" min={0} max={1000} step={10} value={amlTimeout} onChange={e => setAmlTimeout(Number(e.target.value))} />
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)' }}>
             <span>0ms</span><span>1000ms</span>
           </div>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>キー操作後、この時間が経過してからトラックボールを動かすとAMLが発動</div>
         </div>
 
-        <div style={{ marginBottom: 12 }}>
+        <div style={{ marginBottom: 10 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
-            <span>AML 持続時間</span>
+            <span>持続時間</span>
             <span style={{ color: 'var(--accent)', fontWeight: 600 }}>{amlDuration}ms</span>
           </div>
           <input type="range" className="timing-slider" min={100} max={5000} step={50} value={amlDuration} onChange={e => setAmlDuration(Number(e.target.value))} />
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)' }}>
             <span>100ms</span><span>5000ms</span>
           </div>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>トラックボールを止めてからマウスレイヤーを維持する時間</div>
         </div>
 
-        <div style={{ marginBottom: 12 }}>
+        <div style={{ marginBottom: 10 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
-            <span>AML 最低移動距離</span>
+            <span>最低移動距離</span>
             <span style={{ color: 'var(--accent)', fontWeight: 600 }}>{amlMinDistance}</span>
           </div>
           <input type="range" className="timing-slider" min={0} max={200} step={1} value={amlMinDistance} onChange={e => setAmlMinDistance(Number(e.target.value))} />
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)' }}>
             <span>0</span><span>200</span>
           </div>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>この距離以上動かさないとAMLが発動しない（誤発動防止）</div>
         </div>
 
-        <button className="btn" style={{ width: '100%', fontSize: 12, padding: '8px', marginBottom: 8, background: 'var(--accent)', color: '#fff', border: '1px solid var(--accent)', fontWeight: 600 }} onClick={async () => {
+        <button className="btn" style={{ width: '100%', fontSize: 12, padding: '8px', marginBottom: 10, background: 'var(--accent)', color: '#fff', border: '1px solid var(--accent)', fontWeight: 600 }} onClick={async () => {
           if (!isConnected()) return;
           if (!isUnlocked() && !(await requestUnlock())) {
             alert('デバイスがロックされています'); return;
@@ -184,11 +185,12 @@ export function TrackballConfig({ store }: Props) {
           debugLog('INF', 'Trackball', 'AML settings applied');
         }}>AML設定を適用</button>
 
-        <div style={{ marginBottom: 8 }}>
+        <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
-            <span>Excluded Positions</span>
+            <span>除外キーポジション</span>
             <button className="btn" style={{ fontSize: 10, padding: '0 6px', color: 'var(--accent)' }}>更新</button>
           </div>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>これらのキーを押している間はAMLが発動しません</div>
           <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
             {store.amlExcluded.map((pos, i) => {
               const posIndex = store.selectedLayer?.keys.findIndex(k => k.id === pos) ?? -1;
@@ -200,9 +202,12 @@ export function TrackballConfig({ store }: Props) {
 
       {/* Gesture Shortcuts */}
       <div className="config-section">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-          <span className="config-label" style={{ margin: 0 }}>ジェスチャショートカット</span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+          <span style={{ fontSize: 13, fontWeight: 600 }}>ジェスチャショートカット</span>
           <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Layer {store.gestures[0]?.layer ?? 13}</span>
+        </div>
+        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 8 }}>
+          トラックボールを素早くフリックしてキー操作を実行します
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
           {(['up', 'left', 'right', 'down'] as const).map(dir => {
@@ -298,7 +303,7 @@ export function TrackballConfig({ store }: Props) {
 
       {/* Realtime Preview */}
       <div className="config-section">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
           <button
             onClick={() => setRealtimePreview(!realtimePreview)}
             style={{
@@ -315,6 +320,7 @@ export function TrackballConfig({ store }: Props) {
           </button>
           <span style={{ fontSize: 12 }}>リアルタイムプレビュー</span>
         </div>
+        <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>ONにするとスライダー操作が即座にデバイスに反映されます</div>
       </div>
 
       {/* CPI */}
@@ -323,6 +329,7 @@ export function TrackballConfig({ store }: Props) {
           <span>カーソル感度 (CPI)</span>
           <span style={{ color: 'var(--accent)', fontWeight: 700, fontSize: 16 }}>{cpi}</span>
         </div>
+        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>値が大きいほどカーソルが速く動きます</div>
         <input type="range" className="timing-slider" min={200} max={3200} step={100} value={cpi} onChange={e => handleCpiChange(Number(e.target.value))} />
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)' }}>
           <span>200</span><span>3200</span>
@@ -340,6 +347,7 @@ export function TrackballConfig({ store }: Props) {
           <span>スクロール感度</span>
           <span style={{ color: 'var(--accent)', fontWeight: 700, fontSize: 16 }}>{scrollSensitivity.toFixed(2)}x</span>
         </div>
+        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>スクロールレイヤー時のスクロール速度倍率</div>
         <input type="range" className="timing-slider" min={0.25} max={4} step={0.25} value={scrollSensitivity} onChange={e => handleScrollChange(Number(e.target.value))} />
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)' }}>
           <span>0.25x</span><span>4x</span>
@@ -354,6 +362,7 @@ export function TrackballConfig({ store }: Props) {
       {/* Scroll Direction */}
       <div className="config-section">
         <div style={{ fontSize: 12, marginBottom: 4 }}>スクロール方向</div>
+        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>macOS のナチュラルスクロールに合わせるには「反転」を選択</div>
         <div className="btn-group">
           <button className={`btn ${scrollDirection === 'normal' ? 'btn-active' : ''}`} onClick={() => { setScrollDirection('normal'); sendIfRealtime(() => setSensitivity(cpi, Math.round(scrollSensitivity * 100), 100, false)); }} style={scrollDirection === 'normal' ? { background: 'var(--success)', color: 'white' } : {}}>↑ 標準</button>
           <button className={`btn ${scrollDirection === 'inverted' ? 'btn-active' : ''}`} onClick={() => { setScrollDirection('inverted'); sendIfRealtime(() => setSensitivity(cpi, Math.round(scrollSensitivity * 100), 100, true)); }}>↓ 反転</button>

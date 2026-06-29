@@ -98,6 +98,7 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, unsa
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {[
+                { v: '0.10.1', changes: ['トラックボール設定に機能キャプション追加', 'セクション間隔の調整'] },
                 { v: '0.10.0', changes: ['AML 持続時間スライダー追加', 'AML設定適用ボタンのデザイン改善'] },
                 { v: '0.9.1', changes: ['Record ボタンを目立つ位置に移動'] },
                 { v: '0.9.0', changes: ['マクロレコーディングモード（キー入力キャプチャ）'] },
