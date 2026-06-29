@@ -569,6 +569,22 @@ export async function readKeymap(): Promise<any> {
           keyCode = `mkp ${label}`;
         } else if (behName.includes('Key Press') || behName === 'kp') {
           type = 'basic';
+          const { mods: kpMods } = parseParam(binding.param1);
+          if (kpMods) {
+            const modMap: [number, string][] = [
+              [0x01, 'lctrl'], [0x02, 'lshift'], [0x04, 'lalt'], [0x08, 'lgui'],
+              [0x10, 'rctrl'], [0x20, 'rshift'], [0x40, 'ralt'], [0x80, 'rgui'],
+            ];
+            const mods: string[] = [];
+            for (const [bit, name] of modMap) {
+              if (kpMods & bit) mods.push(name);
+            }
+            extra.modifiers = mods;
+            const baseParam = binding.param1 & 0x00FFFFFF;
+            const baseLabel = hidToLabel(baseParam);
+            label = baseLabel;
+            keyCode = baseLabel;
+          }
         } else if (behName.includes('Mod-Tap') || behName === 'mt') {
           type = 'mod-tap';
           extra.tapLabel = hidToLabel(binding.param2);
