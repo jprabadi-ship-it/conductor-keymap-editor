@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { KeymapStore } from '../../store/useKeymapStore';
 import { Combo } from '../../types';
 import { KEYBOARD_LAYOUT } from '../../data/layout';
+import { isConnected, isUnlocked, requestUnlock, setAutoLayer } from '../../services/usbService';
+import { debugLog } from '../DebugConsole';
 
 interface Props {
   store: KeymapStore;
@@ -71,6 +73,12 @@ export function ComboList({ store }: Props) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<Partial<Combo>>({});
+  const [amlExpanded, setAmlExpanded] = useState(false);
+  const [amlEditing, setAmlEditing] = useState(false);
+  const [amlEnabled, setAmlEnabled] = useState(true);
+  const [amlIdleMs, setAmlIdleMs] = useState(300);
+  const [amlDuration, setAmlDuration] = useState(500);
+  const [amlMotion, setAmlMotion] = useState(0);
 
   const startEdit = (combo: Combo) => {
     setEditingId(combo.id);
@@ -102,6 +110,138 @@ export function ComboList({ store }: Props) {
         <div style={{ display: 'flex', gap: 4 }}>
           <button className="btn" style={{ fontSize: 12 }} onClick={store.addCombo}>+ Add</button>
         </div>
+      </div>
+
+      {/* AML as combo-like entry */}
+      <div style={{ marginBottom: 4 }}>
+        <button
+          className="combo-item"
+          style={{ width: '100%', cursor: 'pointer' }}
+          onClick={() => { setAmlExpanded(!amlExpanded); setAmlEditing(false); setExpandedId(null); }}
+        >
+          <span className="combo-name">🖲 AML</span>
+          <span className="combo-arrow">→</span>
+          <span className="combo-binding">mouse (L4)</span>
+          <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{amlExpanded ? '∧' : '∨'}</span>
+        </button>
+
+        {/* AML detail view */}
+        {amlExpanded && !amlEditing && (
+          <div className="combo-detail">
+            <div className="combo-detail-row">
+              <span className="combo-detail-label">TRIGGER:</span>
+              <span>トラックボール操作</span>
+            </div>
+            <div className="combo-detail-row">
+              <span className="combo-detail-label">OUTPUT:</span>
+              <span>Layer 4 (mouse) 一時切替</span>
+            </div>
+            <div className="combo-detail-row">
+              <span className="combo-detail-label">STATUS:</span>
+              <span style={{ color: amlEnabled ? 'var(--success)' : 'var(--text-muted)' }}>{amlEnabled ? 'ON' : 'OFF'}</span>
+            </div>
+            <div className="combo-detail-row">
+              <span className="combo-detail-label">IDLE:</span>
+              <span>{amlIdleMs}ms</span>
+            </div>
+            <div className="combo-detail-row">
+              <span className="combo-detail-label">DURATION:</span>
+              <span>{amlDuration}ms</span>
+            </div>
+            <div className="combo-detail-row">
+              <span className="combo-detail-label">MOTION:</span>
+              <span>{amlMotion}</span>
+            </div>
+            <div className="combo-detail-row">
+              <span className="combo-detail-label">EXCLUDED:</span>
+              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                {store.amlExcluded.map(pos => (
+                  <span key={pos} className="combo-key-badge">{pos}</span>
+                ))}
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+              <button className="btn btn-outline" style={{ fontSize: 11 }} onClick={() => setAmlEditing(true)}>✏ Edit</button>
+            </div>
+          </div>
+        )}
+
+        {/* AML edit mode */}
+        {amlExpanded && amlEditing && (
+          <div className="combo-edit-panel">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <span style={{ fontWeight: 600, fontSize: 12 }}>Edit AML</span>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button className="btn" style={{ fontSize: 11, color: 'var(--success)', fontWeight: 600 }} onClick={async () => {
+                  if (isConnected()) {
+                    if (!isUnlocked() && !(await requestUnlock())) {
+                      alert('デバイスがロックされています'); return;
+                    }
+                    await setAutoLayer(amlEnabled, amlIdleMs, store.amlExcluded.map((_, i) => i), amlMotion);
+                    debugLog('INF', 'AML', 'Settings applied');
+                  }
+                  setAmlEditing(false);
+                }}>✓ Apply</button>
+                <button className="btn" style={{ fontSize: 11 }} onClick={() => setAmlEditing(false)}>✕ Cancel</button>
+              </div>
+            </div>
+
+            {/* Enable/Disable */}
+            <div className="combo-edit-field">
+              <label className="combo-edit-label">STATUS</label>
+              <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 3 }}>トラックボール操作時に自動でマウスレイヤーに切り替え</div>
+              <div className="btn-group">
+                <button className={`btn ${!amlEnabled ? 'btn-active' : ''}`} onClick={() => setAmlEnabled(false)}>OFF</button>
+                <button className={`btn ${amlEnabled ? 'btn-active' : ''}`} onClick={() => setAmlEnabled(true)} style={amlEnabled ? { background: 'var(--success)', color: 'white' } : {}}>ON</button>
+              </div>
+            </div>
+
+            {/* Idle */}
+            <div className="combo-edit-field">
+              <label className="combo-edit-label">発動待機時間</label>
+              <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 3 }}>キー操作後、この時間が経過してからトラックボールを動かすとAMLが発動</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input type="range" className="timing-slider" style={{ flex: 1 }} min={0} max={1000} step={10} value={amlIdleMs} onChange={e => setAmlIdleMs(Number(e.target.value))} />
+                <span style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 600, minWidth: 45, textAlign: 'right' }}>{amlIdleMs}ms</span>
+              </div>
+            </div>
+
+            {/* Duration */}
+            <div className="combo-edit-field">
+              <label className="combo-edit-label">持続時間</label>
+              <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 3 }}>トラックボールを止めてからマウスレイヤーを維持する時間</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input type="range" className="timing-slider" style={{ flex: 1 }} min={100} max={5000} step={50} value={amlDuration} onChange={e => setAmlDuration(Number(e.target.value))} />
+                <span style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 600, minWidth: 45, textAlign: 'right' }}>{amlDuration}ms</span>
+              </div>
+            </div>
+
+            {/* Motion threshold */}
+            <div className="combo-edit-field">
+              <label className="combo-edit-label">最低移動距離</label>
+              <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 3 }}>この距離以上動かさないとAMLが発動しない（誤発動防止）</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input type="range" className="timing-slider" style={{ flex: 1 }} min={0} max={200} step={1} value={amlMotion} onChange={e => setAmlMotion(Number(e.target.value))} />
+                <span style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 600, minWidth: 25, textAlign: 'right' }}>{amlMotion}</span>
+              </div>
+            </div>
+
+            {/* Excluded keys */}
+            <div className="combo-edit-field">
+              <label className="combo-edit-label">除外キー</label>
+              <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 3 }}>これらのキーを押している間はAMLが発動しません</div>
+              <MiniKeyboard
+                selected={store.amlExcluded}
+                onToggle={(id) => {
+                  const excluded = store.amlExcluded.includes(id)
+                    ? store.amlExcluded.filter(p => p !== id)
+                    : [...store.amlExcluded, id];
+                  store.setAmlExcluded(excluded);
+                }}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {store.combos.map(combo => (

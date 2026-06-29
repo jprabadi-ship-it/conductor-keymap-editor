@@ -98,6 +98,7 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, unsa
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {[
+                { v: '0.12.1', changes: ['AML詳細設定をコンボタブに移動', 'トラボAMLタブはクイックON/OFFのみに'] },
                 { v: '0.12.0', changes: ['コンボごとのAML抑制フラグ追加'] },
                 { v: '0.11.2', changes: ['AML除外キーをミニキーボードで選択可能に'] },
                 { v: '0.11.1', changes: ['コンボタブのAML重複を削除（トラックボールAMLタブに一本化）'] },

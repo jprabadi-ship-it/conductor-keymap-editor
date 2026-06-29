@@ -200,78 +200,43 @@ export function TrackballConfig({ store }: Props) {
         ))}
       </div>
 
-      {/* AML */}
+      {/* AML - quick toggle only */}
       {trackballTab === 'aml' && (<>
-      {/* AML */}
       <div className="config-section">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
           <span style={{ fontSize: 13, fontWeight: 600 }}>Auto Mouse Layer (AML)</span>
           <div className="btn-group">
-            <button className={`btn ${!amlEnabled ? 'btn-active' : ''}`} onClick={() => setAmlEnabled(false)}>OFF</button>
-            <button className={`btn ${amlEnabled ? 'btn-active' : ''}`} onClick={() => setAmlEnabled(true)} style={amlEnabled ? { background: 'var(--success)', color: 'white' } : {}}>ON</button>
+            <button className={`btn ${!amlEnabled ? 'btn-active' : ''}`} onClick={async () => {
+              setAmlEnabled(false);
+              if (isConnected()) {
+                if (!isUnlocked() && !(await requestUnlock())) return;
+                await setAutoLayer(false, amlTimeout, store.amlExcluded.map((_, i) => i), amlMinDistance);
+                debugLog('INF', 'Trackball', 'AML disabled');
+              }
+            }}>OFF</button>
+            <button className={`btn ${amlEnabled ? 'btn-active' : ''}`} onClick={async () => {
+              setAmlEnabled(true);
+              if (isConnected()) {
+                if (!isUnlocked() && !(await requestUnlock())) return;
+                await setAutoLayer(true, amlTimeout, store.amlExcluded.map((_, i) => i), amlMinDistance);
+                debugLog('INF', 'Trackball', 'AML enabled');
+              }
+            }} style={amlEnabled ? { background: 'var(--success)', color: 'white' } : {}}>ON</button>
           </div>
         </div>
         <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 12 }}>
           トラックボールを動かすと自動でマウスレイヤーに切り替わります
         </div>
 
-        <div style={{ marginBottom: 10 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
-            <span>発動待機時間</span>
-            <span style={{ color: 'var(--accent)', fontWeight: 600 }}>{amlTimeout}ms</span>
-          </div>
-          <input type="range" className="timing-slider" min={0} max={1000} step={10} value={amlTimeout} onChange={e => setAmlTimeout(Number(e.target.value))} />
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)' }}>
-            <span>0ms</span><span>1000ms</span>
-          </div>
-          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>キー操作後、この時間が経過してからトラックボールを動かすとAMLが発動</div>
+        <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.8 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>発動待機時間</span><span>{amlTimeout}ms</span></div>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>持続時間</span><span>{amlDuration}ms</span></div>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>最低移動距離</span><span>{amlMinDistance}</span></div>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>除外キー</span><span>{store.amlExcluded.length}個</span></div>
         </div>
 
-        <div style={{ marginBottom: 10 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
-            <span>持続時間</span>
-            <span style={{ color: 'var(--accent)', fontWeight: 600 }}>{amlDuration}ms</span>
-          </div>
-          <input type="range" className="timing-slider" min={100} max={5000} step={50} value={amlDuration} onChange={e => setAmlDuration(Number(e.target.value))} />
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)' }}>
-            <span>100ms</span><span>5000ms</span>
-          </div>
-          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>トラックボールを止めてからマウスレイヤーを維持する時間</div>
-        </div>
-
-        <div style={{ marginBottom: 10 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
-            <span>最低移動距離</span>
-            <span style={{ color: 'var(--accent)', fontWeight: 600 }}>{amlMinDistance}</span>
-          </div>
-          <input type="range" className="timing-slider" min={0} max={200} step={1} value={amlMinDistance} onChange={e => setAmlMinDistance(Number(e.target.value))} />
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)' }}>
-            <span>0</span><span>200</span>
-          </div>
-          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>この距離以上動かさないとAMLが発動しない（誤発動防止）</div>
-        </div>
-
-        <button className="btn" style={{ width: '100%', fontSize: 12, padding: '8px', marginBottom: 10, background: 'var(--accent)', color: '#fff', border: '1px solid var(--accent)', fontWeight: 600 }} onClick={async () => {
-          if (!isConnected()) return;
-          if (!isUnlocked() && !(await requestUnlock())) {
-            alert('デバイスがロックされています'); return;
-          }
-          await setAutoLayer(amlEnabled, amlTimeout, store.amlExcluded.map((_, i) => i), amlMinDistance);
-          debugLog('INF', 'Trackball', 'AML settings applied');
-        }}>AML設定を適用</button>
-
-        <div>
-          <div style={{ fontSize: 12, marginBottom: 4 }}>除外キーポジション</div>
-          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 6 }}>これらのキーを押している間はAMLが発動しません。クリックで切替。</div>
-          <AmlMiniKeyboard
-            selected={store.amlExcluded}
-            onToggle={(id) => {
-              const excluded = store.amlExcluded.includes(id)
-                ? store.amlExcluded.filter(p => p !== id)
-                : [...store.amlExcluded, id];
-              store.setAmlExcluded(excluded);
-            }}
-          />
+        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 8, textAlign: 'center' }}>
+          詳細設定は Combos タブの AML から編集できます
         </div>
       </div>
 
