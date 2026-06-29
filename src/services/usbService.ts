@@ -1143,7 +1143,7 @@ export async function writeKeymapToDevice(layers: Layer[], dirtyKeys?: Set<strin
 
       switch (binding.type) {
         case 'basic':
-          if (binding.keyCode?.startsWith('&')) {
+          if (binding.keyCode?.startsWith('&') && binding.keyCode.length > 1) {
             const macroName = binding.keyCode.substring(1);
             // Check editor macro name → deviceId mapping first
             if (macroNameToDeviceId[macroName] !== undefined) {

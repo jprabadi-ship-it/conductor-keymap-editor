@@ -13,7 +13,7 @@ export function KeyButton({ keyConfig, selected, onClick, comboName, isAmlExclud
   const { binding } = keyConfig;
   const isTrans = binding.type === 'trans';
   const isNone = binding.type === 'none';
-  const isMacro = binding.keyCode?.startsWith('&');
+  const isMacro = binding.keyCode?.startsWith('&') && binding.keyCode.length > 1;
 
   let mainLabel = binding.label;
   let subLabel = '';

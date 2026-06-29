@@ -28,7 +28,7 @@ export function KeyboardView({ store }: Props) {
   const macroAssignments = new Map<string, string>();
   if (isMacroMode) {
     layer.keys.forEach(k => {
-      if (k.binding.type === 'basic' && k.binding.keyCode?.startsWith('&')) {
+      if (k.binding.type === 'basic' && k.binding.keyCode?.startsWith('&') && k.binding.keyCode.length > 1) {
         macroAssignments.set(k.id, k.binding.keyCode.substring(1));
       }
     });
@@ -38,7 +38,7 @@ export function KeyboardView({ store }: Props) {
     if (isMacroMode && selectedMacro) {
       const key = layer.keys.find(k => k.id === id);
       if (!key) return;
-      const currentMacro = key.binding.keyCode?.startsWith('&') ? key.binding.keyCode.substring(1) : null;
+      const currentMacro = key.binding.keyCode?.startsWith('&') && key.binding.keyCode.length > 1 ? key.binding.keyCode.substring(1) : null;
       if (currentMacro === selectedMacro.name) {
         // Unassign
         store.updateKeyBinding(store.selectedLayerIndex, id, { type: 'none', keyCode: 'NONE', label: '' });
