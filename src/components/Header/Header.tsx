@@ -16,6 +16,7 @@ interface Props {
 
 export function Header({ store, showConsole, onToggleConsole, usbConnected, unsaved, onWrite, onRead, onSave }: Props) {
   const [showExport, setShowExport] = useState(false);
+  const [theme, setTheme] = useState(() => localStorage.getItem('conductor-theme') || 'dark');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleExport = () => {
@@ -129,6 +130,18 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, unsa
           onClick={() => { store.setOsLayout('jis'); setKeyboardLayout('jis'); store.relabelLayers(); }}
         >JIS</button>
       </div>
+
+      <button
+        className="btn btn-icon"
+        title="Toggle dark/light mode"
+        onClick={() => {
+          const next = theme === 'light' ? 'dark' : 'light';
+          document.documentElement.setAttribute('data-theme', next);
+          localStorage.setItem('conductor-theme', next);
+          setTheme(next);
+        }}
+        style={{ fontSize: 14 }}
+      >{theme === 'light' ? '🌙' : '☀️'}</button>
 
       <div className="header-group">
         <button className="btn btn-icon" onClick={store.undo} disabled={!store.canUndo} title="Undo">↩</button>
