@@ -16,6 +16,7 @@ interface Props {
 
 export function Header({ store, showConsole, onToggleConsole, usbConnected, unsaved, onWrite, onRead, onSave }: Props) {
   const [showExport, setShowExport] = useState(false);
+  const [showChangelog, setShowChangelog] = useState(false);
   const [theme, setTheme] = useState(() => localStorage.getItem('conductor-theme') || 'dark');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -85,8 +86,37 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, unsa
   return (
     <header className="header">
       <div className="header-title">
-        <span>ConductorD Studio v{version}</span>
+        <span style={{ cursor: 'pointer' }} onClick={() => setShowChangelog(true)}>ConductorD Studio v{version}</span>
       </div>
+
+      {showChangelog && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowChangelog(false)}>
+          <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8, padding: 24, maxWidth: 520, maxHeight: '70vh', overflowY: 'auto', color: 'var(--text-primary)', fontSize: 13, lineHeight: 1.6 }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h2 style={{ margin: 0, fontSize: 16 }}>Version History</h2>
+              <button className="btn btn-icon" onClick={() => setShowChangelog(false)} style={{ fontSize: 16 }}>✕</button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {[
+                { v: '0.7.0', changes: ['ダーク/ライトモード切替'] },
+                { v: '0.6.0', changes: ['ジェスチャショートカットのキーピッカー', 'モディファイアトグル', 'Mod-Tap / Basic + モディファイアの表示改善', 'タップキー中央・ホールドアクション左下表示', 'マウスボタンのビットフラグ修正', 'デバッグコンソールのコピーボタン'] },
+                { v: '0.5.0', changes: ['Macros タブでレイアウト入替', 'トラックボールの真円表示', 'エクスポート/インポートに amlExcluded 追加', 'Shifted シンボルをキーコードに追加', '& キーのマクロ誤判定修正'] },
+                { v: '0.4.0', changes: ['US/JIS キーボードレイアウト切替', 'リアルタイムレイアウト切替'] },
+                { v: '0.3.0', changes: ['動的マクロスロット（16個）', 'マクロ Write to Device → NVS 永続化', 'マクロのランタイム反映', 'マクロ削除時の NVS クリア', 'USB 切断時の UI リセット'] },
+                { v: '0.2.0', changes: ['ZMK Studio プロトコル対応', 'キーマップ Read/Write', 'トラックボール設定', 'タッピングターム設定'] },
+                { v: '0.1.0', changes: ['初期実装', 'レイアウトエディタ', 'USB 接続', 'デバッグコンソール'] },
+              ].map(({ v, changes }) => (
+                <div key={v}>
+                  <div style={{ fontWeight: 700, color: 'var(--accent)', marginBottom: 2 }}>v{v}</div>
+                  <ul style={{ margin: 0, paddingLeft: 18 }}>
+                    {changes.map((c, i) => <li key={i} style={{ color: 'var(--text-secondary)' }}>{c}</li>)}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
       <div className="header-breadcrumb">
         <span className="led-dot" style={{ width: 8, height: 8, borderRadius: '50%', background: `var(--led-${store.selectedLayer?.ledColor || 'white'})`, display: 'inline-block' }} />
         <span>{layerName}</span>
