@@ -199,27 +199,7 @@ export function MacroEditor({ store }: Props) {
 
       {/* Steps */}
       <div className="config-section">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-          <div className="config-label" style={{ marginBottom: 0 }}>Steps ({macro.bindings.length})</div>
-          <button
-            className="btn"
-            onClick={() => setRecording(r => !r)}
-            style={{
-              fontSize: 11,
-              padding: '3px 10px',
-              background: recording ? 'var(--danger)' : undefined,
-              color: recording ? '#fff' : undefined,
-              border: recording ? '1px solid var(--danger)' : undefined,
-            }}
-          >
-            {recording ? '⏺ Recording...' : '⏺ Record'}
-          </button>
-        </div>
-        {recording && (
-          <div style={{ fontSize: 11, color: 'var(--danger)', marginBottom: 6 }}>
-            Type keys to add steps. Click "Recording..." to stop.
-          </div>
-        )}
+        <div className="config-label">Steps ({macro.bindings.length})</div>
 
         {macro.bindings.length === 0 && (
           <div style={{ color: 'var(--text-muted)', fontSize: 12, padding: '8px 0', textAlign: 'center' }}>
@@ -355,6 +335,29 @@ export function MacroEditor({ store }: Props) {
           >Write to Device</button>
         </div>
       )}
+
+      {/* Record */}
+      <div className="config-section" style={{ marginTop: 16 }}>
+        <button
+          className="btn"
+          onClick={() => setRecording(r => !r)}
+          style={{
+            width: '100%',
+            fontSize: 12,
+            padding: '6px',
+            background: recording ? 'var(--danger)' : undefined,
+            color: recording ? '#fff' : 'var(--accent)',
+            border: `1px solid ${recording ? 'var(--danger)' : 'var(--accent)'}`,
+          }}
+        >
+          {recording ? '⏺ Recording... (click to stop)' : '⏺ Record keystrokes'}
+        </button>
+        {recording && (
+          <div style={{ fontSize: 11, color: 'var(--danger)', marginTop: 4, textAlign: 'center' }}>
+            Type keys to add steps automatically
+          </div>
+        )}
+      </div>
 
       {/* Delete */}
       <div className="config-section" style={{ marginTop: 16 }}>
