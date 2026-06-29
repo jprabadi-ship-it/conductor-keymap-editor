@@ -194,8 +194,14 @@ function App() {
               <MacroEditor store={store} />
             </div>
             <ResizeHandle side="right" onResize={onResizeRight} />
-            <aside className="right-panel" style={{ width: rightWidth }}>
-              <KeyboardView store={store} />
+            <aside className="right-panel" style={{ width: rightWidth, overflow: 'hidden' }}>
+              <div style={{
+                transform: `scale(${Math.min(1, rightWidth / 700)})`,
+                transformOrigin: 'top left',
+                width: `${100 / Math.min(1, rightWidth / 700)}%`,
+              }}>
+                <KeyboardView store={store} />
+              </div>
             </aside>
           </>
         ) : (
