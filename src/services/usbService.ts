@@ -830,6 +830,7 @@ export async function setMacro(macroId: number, name: string, steps: DeviceMacro
 }
 
 let freeDeviceMacroSlots: number[] = [];
+let macroNameToDeviceId: Record<string, number> = {};
 
 export function getFreeMacroSlots(): number[] {
   return freeDeviceMacroSlots;
@@ -837,6 +838,10 @@ export function getFreeMacroSlots(): number[] {
 
 export function claimFreeMacroSlot(): number | null {
   return freeDeviceMacroSlots.shift() ?? null;
+}
+
+export function registerMacroDeviceId(name: string, deviceId: number) {
+  macroNameToDeviceId[name] = deviceId;
 }
 
 function isDynamicSlot(name: string): boolean {
@@ -895,6 +900,12 @@ export async function readMacrosFromDevice(): Promise<import('../types').Macro[]
       }
 
       macros.push({ name: data.name, waitMs: 30, tapMs: 30, bindings: merged, deviceId: summary.id });
+    }
+    macroNameToDeviceId = {};
+    for (const m of macros) {
+      if (m.deviceId !== undefined) {
+        macroNameToDeviceId[m.name] = m.deviceId;
+      }
     }
     debugLog('INF', 'USB', `readMacrosFromDevice: ${macros.length} macros loaded, ${freeDeviceMacroSlots.length} free slots`);
     return macros;
@@ -1066,14 +1077,20 @@ export async function writeKeymapToDevice(layers: Layer[], dirtyKeys?: Set<strin
       switch (binding.type) {
         case 'basic':
           if (binding.keyCode?.startsWith('&')) {
-            // Macro: look up behavior by name directly from cache
             const macroName = binding.keyCode.substring(1);
-            const macroEntry = Object.entries(behaviorCache).find(([, b]) => b.displayName === macroName);
-            if (macroEntry) {
-              behaviorId = Number(macroEntry[0]);
-              debugLog('INF', 'USB', `  Macro: &${macroName} → beh=${behaviorId}`);
+            // Check editor macro name → deviceId mapping first
+            if (macroNameToDeviceId[macroName] !== undefined) {
+              behaviorId = macroNameToDeviceId[macroName];
+              debugLog('INF', 'USB', `  Macro: &${macroName} → beh=${behaviorId} (via deviceId)`);
             } else {
-              debugLog('ERR', 'USB', `  Macro "&${macroName}" not found in firmware behaviors. Available: ${Object.values(behaviorCache).map(b => b.displayName).filter(n => !['Key Press','None','Transparent','Bluetooth','Bootloader','Momentary Layer','Layer-Tap','Mod-Tap','Toggle Layer','Mouse Key Press'].includes(n)).join(', ')}`);
+              // Fallback: look up by firmware display name
+              const macroEntry = Object.entries(behaviorCache).find(([, b]) => b.displayName === macroName);
+              if (macroEntry) {
+                behaviorId = Number(macroEntry[0]);
+                debugLog('INF', 'USB', `  Macro: &${macroName} → beh=${behaviorId}`);
+              } else {
+                debugLog('ERR', 'USB', `  Macro "&${macroName}" not found in firmware behaviors. Available: ${Object.values(behaviorCache).map(b => b.displayName).filter(n => !['Key Press','None','Transparent','Bluetooth','Bootloader','Momentary Layer','Layer-Tap','Mod-Tap','Toggle Layer','Mouse Key Press'].includes(n)).join(', ')}`);
+              }
             }
           } else if (binding.keyCode?.startsWith('BT_SEL')) {
             behaviorId = behByType["bt"] ?? 0;

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { KeymapStore } from '../../store/useKeymapStore';
 import { MacroAction } from '../../types';
-import { writeMacroToDevice, isConnected, claimFreeMacroSlot, getFreeMacroSlots, saveChanges } from '../../services/usbService';
+import { writeMacroToDevice, isConnected, claimFreeMacroSlot, getFreeMacroSlots, saveChanges, registerMacroDeviceId } from '../../services/usbService';
 
 interface Props {
   store: KeymapStore;
@@ -277,6 +277,7 @@ export function MacroEditor({ store }: Props) {
                 }
                 targetId = slot;
                 store.updateMacro(idx, { deviceId: targetId });
+                registerMacroDeviceId(macro.name, targetId);
               }
               const ok = await writeMacroToDevice(targetId, macro);
               if (ok) {
