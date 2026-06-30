@@ -102,3 +102,32 @@ src/
 - conductor-dongle: `/Users/miyashitakazuya/conductor-dongle` — ZMKファームウェア
 - conductor-macro-editor: `/Users/miyashitakazuya/conductor-macro-editor` — GitHub CI/CD方式のマクロエディタ
 - 元サイト: https://studio.plotoftheprototype.com/editor — Conductor Studio 2.0
+
+## Codex reviewer/fixer handoff — 2026-06-30
+
+このプロジェクトのメインコーダーは Claude Code。Codex はレビュワー兼修正者としてレビューし、必要最小限の修正だけを入れた。
+
+### Push済みコミット
+
+- `f4f50a5 feat(editor): timestamp version history and harden RPC`
+  - `usbService.ts`: RPC応答管理を単一 `frameCallback` から `requestId -> pending request` Map に変更。並行RPCで応答待ちが上書きされるリスクを低減。
+  - `usbService.ts`: disconnect / read error 時に pending request を reject し、`unlocked` を false に戻す。
+  - `App.tsx`: Read前の未保存確認を `dirtyKeys.size` ではなく `unsaved` で判定。
+  - `Header.tsx`: Version History を `Major.Minor.Patch.Build` 形式に変更し、GitHub commit timestamp (`JST`) を追加。GitHub履歴から `0.2.1` と `0.3.2`〜`0.3.5` を補完。
+  - `index.css`: dark theme 側に不足していた共通CSS変数を追加。
+  - `README.md`: Viteテンプレートから ConductorD Studio 用 README に差し替え。
+- `d571184 chore: update Claude Code local permissions`
+  - `.claude/settings.local.json` の allowlist 追加分をユーザー指示で push。
+
+### 検証済み
+
+- `npm run build` 成功。
+- `npm run lint` 成功（既存warningのみ）。
+- Vite dev server で初期表示確認。
+- Version History modal で `v0.13.0.0`、`v0.3.5.0`、`v0.1.0.0` と timestamp 表示を確認。
+
+### 今後の注意
+
+- Version History は今後 `Major.Minor.Patch.Build` の4桁形式で更新する。第4桁は build / revision として細かい更新・ビルド回数を保持する。
+- `.claude/settings.local.json` は既にGitHubで追跡されている。ローカル専用に戻したい場合は別途 `git rm --cached .claude/settings.local.json` と `.gitignore` 整備を検討する。
+- Codex はメイン実装者ではなく、Claude Code の実装を尊重してレビュー・小修正する役割。
