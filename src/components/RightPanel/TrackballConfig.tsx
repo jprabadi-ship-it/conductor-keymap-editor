@@ -3,7 +3,7 @@ import { KeymapStore } from '../../store/useKeymapStore';
 import { isConnected, isUnlocked, requestUnlock, setSensitivity, setAutoLayer, setPrecisionScale, setAccel, getSensitivity, getAutoLayer, getPrecisionScale, getAccel, saveChanges as savePointingChanges } from '../../services/usbService';
 import { KEY_CATEGORIES, KEYCODES, searchKeyCodes } from '../../data/keycodes';
 import { debugLog } from '../DebugConsole';
-import { KEYBOARD_LAYOUT } from '../../data/layout';
+import { KEYBOARD_LAYOUT, keyIdsToPositions, positionsToKeyIds } from '../../data/layout';
 
 interface Props {
   store: KeymapStore;
@@ -76,6 +76,7 @@ function AmlMiniKeyboard({ selected, onToggle }: { selected: string[]; onToggle:
 }
 
 export function TrackballConfig({ store }: Props) {
+  const { setAmlExcluded } = store;
   const [editingGesture, setEditingGesture] = useState<'up' | 'down' | 'left' | 'right' | null>(null);
   const [gestureSearch, setGestureSearch] = useState('');
   const [gestureCategory, setGestureCategory] = useState<string | null>(null);
@@ -111,8 +112,10 @@ export function TrackballConfig({ store }: Props) {
       if (aml) {
         setAmlEnabled(aml.enabled);
         setAmlTimeout(aml.requirePriorIdleMs);
+        setAmlDuration(aml.durationMs);
         setAmlMinDistance(aml.motionThreshold);
-        debugLog('INF', 'Trackball', `AML: enabled=${aml.enabled}, idle=${aml.requirePriorIdleMs}ms`);
+        setAmlExcluded(positionsToKeyIds(aml.excludedPositions));
+        debugLog('INF', 'Trackball', `AML: enabled=${aml.enabled}, idle=${aml.requirePriorIdleMs}ms, duration=${aml.durationMs}ms`);
       }
       const prec = await getPrecisionScale();
       if (prec && prec.denominator > 0) {
@@ -127,7 +130,7 @@ export function TrackballConfig({ store }: Props) {
       }
       setLoaded(true);
     })();
-  }, [loaded]);
+  }, [loaded, setAmlExcluded]);
 
   // Realtime send helper (with unlock check)
   const sendIfRealtime = useCallback(async (fn: () => Promise<any>) => {
@@ -210,7 +213,7 @@ export function TrackballConfig({ store }: Props) {
               setAmlEnabled(false);
               if (isConnected()) {
                 if (!isUnlocked() && !(await requestUnlock())) return;
-                await setAutoLayer(false, amlTimeout, store.amlExcluded.map((_, i) => i), amlMinDistance);
+                await setAutoLayer(false, amlTimeout, keyIdsToPositions(store.amlExcluded), amlMinDistance, amlDuration);
                 debugLog('INF', 'Trackball', 'AML disabled');
               }
             }}>OFF</button>
@@ -218,7 +221,7 @@ export function TrackballConfig({ store }: Props) {
               setAmlEnabled(true);
               if (isConnected()) {
                 if (!isUnlocked() && !(await requestUnlock())) return;
-                await setAutoLayer(true, amlTimeout, store.amlExcluded.map((_, i) => i), amlMinDistance);
+                await setAutoLayer(true, amlTimeout, keyIdsToPositions(store.amlExcluded), amlMinDistance, amlDuration);
                 debugLog('INF', 'Trackball', 'AML enabled');
               }
             }} style={amlEnabled ? { background: 'var(--success)', color: 'white' } : {}}>ON</button>

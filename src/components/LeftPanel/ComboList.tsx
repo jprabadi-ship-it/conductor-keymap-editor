@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { KeymapStore } from '../../store/useKeymapStore';
 import { Combo } from '../../types';
-import { KEYBOARD_LAYOUT } from '../../data/layout';
-import { isConnected, isUnlocked, requestUnlock, setAutoLayer } from '../../services/usbService';
+import { KEYBOARD_LAYOUT, keyIdsToPositions, positionsToKeyIds } from '../../data/layout';
+import { getAutoLayer, isConnected, isUnlocked, requestUnlock, setAutoLayer } from '../../services/usbService';
 import { debugLog } from '../DebugConsole';
 
 interface Props {
@@ -70,6 +70,7 @@ const BINDING_TYPES = [
 ];
 
 export function ComboList({ store }: Props) {
+  const { setAmlExcluded } = store;
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<Partial<Combo>>({});
@@ -85,6 +86,21 @@ export function ComboList({ store }: Props) {
     window.addEventListener('open-aml-edit', handler);
     return () => window.removeEventListener('open-aml-edit', handler);
   }, []);
+
+  useEffect(() => {
+    if (!isConnected()) return;
+    let cancelled = false;
+    (async () => {
+      const aml = await getAutoLayer();
+      if (!aml || cancelled) return;
+      setAmlEnabled(aml.enabled);
+      setAmlIdleMs(aml.requirePriorIdleMs);
+      setAmlDuration(aml.durationMs);
+      setAmlMotion(aml.motionThreshold);
+      setAmlExcluded(positionsToKeyIds(aml.excludedPositions));
+    })();
+    return () => { cancelled = true; };
+  }, [setAmlExcluded]);
 
   const startEdit = (combo: Combo) => {
     setEditingId(combo.id);
@@ -183,7 +199,7 @@ export function ComboList({ store }: Props) {
                     if (!isUnlocked() && !(await requestUnlock())) {
                       alert('デバイスがロックされています'); return;
                     }
-                    await setAutoLayer(amlEnabled, amlIdleMs, store.amlExcluded.map((_, i) => i), amlMotion);
+                    await setAutoLayer(amlEnabled, amlIdleMs, keyIdsToPositions(store.amlExcluded), amlMotion, amlDuration);
                     debugLog('INF', 'AML', 'Settings applied');
                   }
                   setAmlEditing(false);

@@ -803,7 +803,15 @@ export async function setSensitivity(cpi: number, scrollNum: number, scrollDen: 
 export async function getAutoLayer(): Promise<{ enabled: boolean; requirePriorIdleMs: number; excludedPositions: number[]; motionThreshold: number; durationMs: number } | null> {
   try {
     const resp = await sendRequest({ pointing: { getAutoLayer: {} } });
-    return resp.pointing?.getAutoLayer || null;
+    const aml = resp.pointing?.getAutoLayer;
+    if (!aml) return null;
+    return {
+      enabled: aml.enabled ?? true,
+      requirePriorIdleMs: aml.requirePriorIdleMs ?? 0,
+      excludedPositions: aml.excludedPositions ?? [],
+      motionThreshold: aml.motionThreshold ?? 0,
+      durationMs: aml.durationMs ?? 0,
+    };
   } catch (e: any) {
     debugLog('ERR', 'USB', `getAutoLayer failed: ${e.message}`);
     return null;
@@ -812,8 +820,8 @@ export async function getAutoLayer(): Promise<{ enabled: boolean; requirePriorId
 
 export async function setAutoLayer(enabled: boolean, requirePriorIdleMs: number, excludedPositions: number[], motionThreshold: number, durationMs?: number): Promise<boolean> {
   try {
-    await sendRequest({ pointing: { setAutoLayer: { enabled, requirePriorIdleMs, excludedPositions, motionThreshold, durationMs: durationMs || 0 } } });
-    debugLog('INF', 'USB', `AML set: enabled=${enabled}, idle=${requirePriorIdleMs}ms`);
+    await sendRequest({ pointing: { setAutoLayer: { enabled, requirePriorIdleMs, excludedPositions, motionThreshold, durationMs: durationMs ?? 0 } } });
+    debugLog('INF', 'USB', `AML set: enabled=${enabled}, idle=${requirePriorIdleMs}ms, duration=${durationMs ?? 0}ms, excluded=[${excludedPositions.join(',')}]`);
     return true;
   } catch (e: any) {
     debugLog('ERR', 'USB', `setAutoLayer failed: ${e.message}`);

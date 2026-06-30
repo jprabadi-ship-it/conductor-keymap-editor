@@ -58,5 +58,30 @@ export const KEYBOARD_LAYOUT: KeyPosition[] = [
   { id: 'R33', row: 3, col: 5, half: 'right' },
 ];
 
+// ZMK Studio key position order: row-by-row, left side then right side.
+export const KEY_POSITION_ORDER = [
+  'L00','L01','L02','L03','L04','R00','R01','R02','R03','R04',
+  'L10','L11','L12','L13','L14','R10','R11','R12','R13','R14',
+  'L20','L21','L22','L23','L24','R20','R21','R22','R23','R24',
+  'L30','L31','L32','L33','L34','L35','R30','R31','R32','R33',
+];
+
+export function keyIdToPosition(id: string): number | null {
+  const idx = KEY_POSITION_ORDER.indexOf(id);
+  return idx >= 0 ? idx : null;
+}
+
+export function positionToKeyId(position: number): string | null {
+  return KEY_POSITION_ORDER[position] ?? null;
+}
+
+export function keyIdsToPositions(ids: string[]): number[] {
+  return ids.map(keyIdToPosition).filter((pos): pos is number => pos !== null);
+}
+
+export function positionsToKeyIds(positions: number[]): string[] {
+  return positions.map(positionToKeyId).filter((id): id is string => id !== null);
+}
+
 export const LEFT_KEYS = KEYBOARD_LAYOUT.filter(k => k.half === 'left');
 export const RIGHT_KEYS = KEYBOARD_LAYOUT.filter(k => k.half === 'right');
