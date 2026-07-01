@@ -135,11 +135,14 @@ const LAYER_DATA: { id: number; name: string; ledColor: number; bindings: Bindin
   },
   {
     id: 13, name: 'Gesture', ledColor: 6,
+    // Position <-> direction must match trackball_gestures' DT
+    // `positions = <7 27 16 18>;` order (monokey_R.overlay): up=R02,
+    // down=R22, left=R11, right=R13.
     bindings: {
-      R02: b('LC(DOWN)', 'C+Down', 'basic', { modifiers: ['lctrl'] }),
-      R11: b('LC(RIGHT)', 'C+Right', 'basic', { modifiers: ['lctrl'] }),
-      R13: b('LC(LEFT)', 'C+Left', 'basic', { modifiers: ['lctrl'] }),
-      R22: b('LC(UP)', 'C+Up', 'basic', { modifiers: ['lctrl'] }),
+      R02: b('LC(UP)', 'C+Up', 'basic', { modifiers: ['lctrl'] }),
+      R22: b('LC(DOWN)', 'C+Down', 'basic', { modifiers: ['lctrl'] }),
+      R11: b('LC(LEFT)', 'C+Left', 'basic', { modifiers: ['lctrl'] }),
+      R13: b('LC(RIGHT)', 'C+Right', 'basic', { modifiers: ['lctrl'] }),
     },
   },
 ];

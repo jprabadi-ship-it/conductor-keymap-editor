@@ -24,7 +24,10 @@ const GESTURE_LAYER_POOL = [7, 8, 9, 10, 11];
 const SHARED_GESTURE_LAYER = 13;
 
 type Direction = 'up' | 'down' | 'left' | 'right';
-const GESTURE_POSITIONS: Record<Direction, string> = { up: 'R22', down: 'R02', left: 'R13', right: 'R11' };
+// Must match the DT `positions = <7 27 16 18>;` order on trackball_gestures
+// (monokey_R.overlay / monokey_dongle.overlay): up=7=R02, down=27=R22,
+// left=16=R11, right=18=R13.
+const GESTURE_POSITIONS: Record<Direction, string> = { up: 'R02', down: 'R22', left: 'R11', right: 'R13' };
 const DIRECTION_LABELS: Record<Direction, { icon: string; label: string }> = {
   up: { icon: '↑', label: '上' }, down: { icon: '↓', label: '下' },
   left: { icon: '←', label: '左' }, right: { icon: '→', label: '右' },
