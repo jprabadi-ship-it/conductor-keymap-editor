@@ -129,10 +129,10 @@ export function BluetoothConfig({ store }: Props) {
     }
   };
 
-  // Gesture overrides and keymap overlays for the same device share one
-  // layer from the pool once either is customized (whichever feature is
-  // enabled first "claims" it; the other reuses it if enabled later).
-  // Returns the layer id, or null if the pool (5 layers) is exhausted.
+  // Auto-allocates a layer from the placeholder pool (7-11) for gesture
+  // overrides. If the device already has a manually-picked キーマップ overlay
+  // layer (osMap), gestures reuse that same layer instead of taking a second
+  // one from the pool. Returns the layer id, or null if the pool is exhausted.
   const resolveOrAllocateLayer = (endpointIndex: number): number | null => {
     const existing = gestureLayerMap[endpointIndex] || osMap[endpointIndex];
     if (existing) return existing;
@@ -146,17 +146,10 @@ export function BluetoothConfig({ store }: Props) {
     return free;
   };
 
-  const toggleKeymapOverlay = async (endpointIndex: number) => {
-    const currentlyOn = (osMap[endpointIndex] || 0) !== 0;
+  const setKeymapOverlay = async (endpointIndex: number, layerId: number) => {
     const newMap = [...osMap];
     while (newMap.length <= endpointIndex) newMap.push(0);
-    if (currentlyOn) {
-      newMap[endpointIndex] = 0;
-    } else {
-      const layerId = resolveOrAllocateLayer(endpointIndex);
-      if (layerId === null) return;
-      newMap[endpointIndex] = layerId;
-    }
+    newMap[endpointIndex] = layerId;
     const ok = await setOsConfig(true, newMap);
     if (ok) setOsMap(newMap);
   };
@@ -296,12 +289,14 @@ export function BluetoothConfig({ store }: Props) {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                     <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>キーマップ</span>
                     <select
-                      value={(osMap[dev.endpointIndex] || 0) !== 0 ? 'own' : 'shared'}
-                      onChange={() => toggleKeymapOverlay(dev.endpointIndex)}
+                      value={osMap[dev.endpointIndex] || 0}
+                      onChange={e => setKeymapOverlay(dev.endpointIndex, Number(e.target.value))}
                       style={{ fontSize: 11, padding: '2px 4px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text-primary)' }}
                     >
-                      <option value="shared">なし（共有キーマップ）</option>
-                      <option value="own">個別のキーマップを使う{(osMap[dev.endpointIndex] || 0) !== 0 ? ` (Layer ${osMap[dev.endpointIndex]})` : ''}</option>
+                      <option value={0}>なし（共有キーマップ）</option>
+                      {store.layers.filter(l => l.index !== 0).map(l => (
+                        <option key={l.index} value={l.index}>{l.name} (Layer {l.index})</option>
+                      ))}
                     </select>
                   </div>
 
