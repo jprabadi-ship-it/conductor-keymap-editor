@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { KeymapStore } from '../../store/useKeymapStore';
 import { KeyBinding, LedColor, Modifier } from '../../types';
-import { isConnected, getBleProfiles, setBleProfileName, getGestureLayers, setGestureLayers, getOsConfig, setOsConfig } from '../../services/usbService';
+import { isConnected, getBleProfiles, setBleProfileName, getGestureLayers, setGestureLayers, getOsConfig, setOsConfig, getUsbName, setUsbName } from '../../services/usbService';
 import { KEY_CATEGORIES, KEYCODES, searchKeyCodes } from '../../data/keycodes';
 import { debugLog } from '../DebugConsole';
 
@@ -51,8 +51,10 @@ interface DeviceEntry {
 
 export function BluetoothConfig({ store }: Props) {
   const [loaded, setLoaded] = useState(false);
-  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editingIndex, setEditingIndex] = useState<number | 'usb' | null>(null);
   const [editValue, setEditValue] = useState('');
+  const [usbName, setUsbNameState] = useState('');
+  const [usbNameLoaded, setUsbNameLoaded] = useState(false);
 
   const [gestureEnabled, setGestureEnabled] = useState(false);
   const [gestureLayerMap, setGestureLayerMap] = useState<number[]>([]);
@@ -113,7 +115,21 @@ export function BluetoothConfig({ store }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [osLoaded]);
 
-  const startEdit = (index: number, currentName: string) => {
+  // Load the USB device name on mount.
+  useEffect(() => {
+    if (!isConnected() || usbNameLoaded) return;
+    (async () => {
+      const name = await getUsbName();
+      if (name !== null) {
+        setUsbNameState(name);
+        debugLog('INF', 'USB', `Loaded USB name: "${name}"`);
+      }
+      setUsbNameLoaded(true);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [usbNameLoaded]);
+
+  const startEdit = (index: number | 'usb', currentName: string) => {
     setEditingIndex(index);
     setEditValue(currentName);
   };
@@ -123,6 +139,11 @@ export function BluetoothConfig({ store }: Props) {
     const index = editingIndex;
     const name = editValue.trim();
     setEditingIndex(null);
+    if (index === 'usb') {
+      const ok = await setUsbName(name);
+      if (ok) setUsbNameState(name);
+      return;
+    }
     const ok = await setBleProfileName(index, name);
     if (ok) {
       store.setBluetoothProfiles(store.bluetoothProfiles.map((p, i) => i === index ? { ...p, name } : p));
@@ -235,6 +256,8 @@ export function BluetoothConfig({ store }: Props) {
           const hasKeymapOverlay = (osMap[dev.endpointIndex] || 0) !== 0;
           const hasGestureOverride = layerId !== 0;
           const isExpanded = expandedDevice === dev.endpointIndex;
+          const editKey: number | 'usb' = dev.btIndex !== undefined ? dev.btIndex : 'usb';
+          const currentName = dev.btIndex !== undefined ? (store.bluetoothProfiles[dev.btIndex]?.name || '') : usbName;
           return (
             <div key={dev.endpointIndex}>
               <div
@@ -249,7 +272,7 @@ export function BluetoothConfig({ store }: Props) {
                 )}
                 <span className="bt-profile-index">{dev.label}</span>
                 <div className="bt-profile-info">
-                  {dev.btIndex !== undefined && editingIndex === dev.btIndex ? (
+                  {editingIndex === editKey ? (
                     <input
                       autoFocus
                       type="text"
@@ -266,7 +289,7 @@ export function BluetoothConfig({ store }: Props) {
                     />
                   ) : (
                     <div className="bt-profile-name">
-                      {dev.btIndex !== undefined ? (store.bluetoothProfiles[dev.btIndex]?.name || `Profile ${dev.btIndex}`) : 'USB接続'}
+                      {currentName || (dev.btIndex !== undefined ? `Profile ${dev.btIndex}` : 'USB接続')}
                     </div>
                   )}
                   <div className="bt-profile-status">
@@ -275,13 +298,11 @@ export function BluetoothConfig({ store }: Props) {
                     {hasGestureOverride && ' ・ 個別ジェスチャ'}
                   </div>
                 </div>
-                {dev.btIndex !== undefined && (
-                  <button
-                    className="btn btn-outline"
-                    style={{ fontSize: 10, padding: '2px 6px' }}
-                    onClick={e => { e.stopPropagation(); startEdit(dev.btIndex!, store.bluetoothProfiles[dev.btIndex!]?.name || ''); }}
-                  >✏️</button>
-                )}
+                <button
+                  className="btn btn-outline"
+                  style={{ fontSize: 10, padding: '2px 6px' }}
+                  onClick={e => { e.stopPropagation(); startEdit(editKey, currentName); }}
+                >✏️</button>
               </div>
 
               {isExpanded && (

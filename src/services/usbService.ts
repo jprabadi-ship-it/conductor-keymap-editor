@@ -796,6 +796,27 @@ export async function setBleProfileName(profileIndex: number, name: string): Pro
   }
 }
 
+export async function getUsbName(): Promise<string | null> {
+  try {
+    const resp = await sendRequest({ core: { getUsbName: true } });
+    return resp.core?.getUsbName?.name ?? '';
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `getUsbName failed: ${e.message}`);
+    return null;
+  }
+}
+
+export async function setUsbName(name: string): Promise<boolean> {
+  try {
+    await sendRequest({ core: { setUsbName: { name } } });
+    debugLog('INF', 'USB', `USB name set to "${name}"`);
+    return true;
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `setUsbName failed: ${e.message}`);
+    return false;
+  }
+}
+
 import { Layer } from '../types';
 
 // Pointing (trackball) APIs
