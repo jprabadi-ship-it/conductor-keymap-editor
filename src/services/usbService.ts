@@ -956,6 +956,39 @@ export async function setGestureLayers(enabled: boolean, layerMap: number[]): Pr
   }
 }
 
+// Per-output-device keymap overlay. osMap is indexed by
+// zmk_endpoint_instance_to_index (NONE=0, USB=1, BT profile N=2+N); each
+// entry is a layer id activated on top of the shared keymap when that
+// endpoint is selected (0 = no overlay, shared keymap only).
+export async function getOsConfig(): Promise<{ enabled: boolean; osMap: number[]; endpointCount: number; activeEndpoint: number; activeOs: number } | null> {
+  try {
+    const resp = await sendRequest({ core: { getOsConfig: true } });
+    const c = resp.core?.getOsConfig;
+    if (!c) return null;
+    return {
+      enabled: c.enabled ?? false,
+      osMap: c.osMap ?? [],
+      endpointCount: c.endpointCount ?? 0,
+      activeEndpoint: c.activeEndpoint ?? 0,
+      activeOs: c.activeOs ?? 0,
+    };
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `getOsConfig failed: ${e.message}`);
+    return null;
+  }
+}
+
+export async function setOsConfig(enabled: boolean, osMap: number[]): Promise<boolean> {
+  try {
+    await sendRequest({ core: { setOsConfig: { enabled, osMap } } });
+    debugLog('INF', 'USB', `OS config set: enabled=${enabled}, map=[${osMap.join(',')}]`);
+    return true;
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `setOsConfig failed: ${e.message}`);
+    return false;
+  }
+}
+
 // --- Macro RPC ---
 
 export interface DeviceMacroSummary {

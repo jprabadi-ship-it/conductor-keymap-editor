@@ -125,7 +125,14 @@ const LAYER_DATA: { id: number; name: string; ledColor: number; bindings: Bindin
       R31: b('QK_BOOT', 'Boot'), R32: b('BT_CLR', 'BT Clr'), R33: b('BT_CLR_ALL', 'BT All'),
     },
   },
-  ...([7, 8, 9, 10, 11] as const).map(id => ({ id, name: `Layer ${id}`, ledColor: 7, bindings: {} as BindingMap })),
+  // Empty placeholder layers, available as per-device overlays (keymap and/or
+  // gesture). All-&trans by default: activating one of these as a device's
+  // keymap overlay must not disable keys the user hasn't customized yet — it
+  // should fall through to the shared layers, not go silently dead (NONE).
+  ...([7, 8, 9, 10, 11] as const).map(id => ({
+    id, name: `Layer ${id}`, ledColor: 7,
+    bindings: Object.fromEntries(KEYBOARD_LAYOUT.map(k => [k.id, trans()])) as BindingMap,
+  })),
   {
     id: 12, name: 'Precision', ledColor: 6,
     bindings: {

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { KeymapStore } from '../../store/useKeymapStore';
 import { KeyBinding, LedColor, Modifier } from '../../types';
-import { isConnected, getBleProfiles, setBleProfileName, getGestureLayers, setGestureLayers } from '../../services/usbService';
+import { isConnected, getBleProfiles, setBleProfileName, getGestureLayers, setGestureLayers, getOsConfig, setOsConfig } from '../../services/usbService';
 import { KEY_CATEGORIES, KEYCODES, searchKeyCodes } from '../../data/keycodes';
 import { debugLog } from '../DebugConsole';
 
@@ -57,6 +57,8 @@ export function BluetoothConfig({ store }: Props) {
   const [gestureEnabled, setGestureEnabled] = useState(false);
   const [gestureLayerMap, setGestureLayerMap] = useState<number[]>([]);
   const [gestureLoaded, setGestureLoaded] = useState(false);
+  const [osMap, setOsMap] = useState<number[]>([]);
+  const [osLoaded, setOsLoaded] = useState(false);
   const [expandedDevice, setExpandedDevice] = useState<number | null>(null); // endpoint index
   const [editingDirection, setEditingDirection] = useState<Direction | null>(null);
   const [gestureSearch, setGestureSearch] = useState('');
@@ -97,6 +99,20 @@ export function BluetoothConfig({ store }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gestureLoaded]);
 
+  // Load the per-device keymap overlay assignments on mount.
+  useEffect(() => {
+    if (!isConnected() || osLoaded) return;
+    (async () => {
+      const result = await getOsConfig();
+      if (result) {
+        setOsMap(result.osMap);
+        debugLog('INF', 'Keymap', `Loaded OS overlay map: [${result.osMap.join(',')}]`);
+      }
+      setOsLoaded(true);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [osLoaded]);
+
   const startEdit = (index: number, currentName: string) => {
     setEditingIndex(index);
     setEditValue(currentName);
@@ -113,29 +129,36 @@ export function BluetoothConfig({ store }: Props) {
     }
   };
 
-  // Ensures the given endpoint has an override layer assigned, allocating one
-  // from the free pool if needed. Returns the layer id, or null if the pool
-  // is exhausted.
-  const ensureOverrideLayer = async (endpointIndex: number): Promise<number | null> => {
-    const existing = gestureLayerMap[endpointIndex];
+  // Gesture overrides and keymap overlays for the same device share one
+  // layer from the pool once either is customized (whichever feature is
+  // enabled first "claims" it; the other reuses it if enabled later).
+  // Returns the layer id, or null if the pool (5 layers) is exhausted.
+  const resolveOrAllocateLayer = (endpointIndex: number): number | null => {
+    const existing = gestureLayerMap[endpointIndex] || osMap[endpointIndex];
     if (existing) return existing;
 
-    const used = new Set(gestureLayerMap.filter(v => v !== 0));
+    const used = new Set([...gestureLayerMap, ...osMap].filter(v => v !== 0));
     const free = GESTURE_LAYER_POOL.find(l => !used.has(l));
     if (free === undefined) {
-      alert('デバイス別ジェスチャに使える空きレイヤーがありません（最大5台まで）。');
+      alert('デバイス別設定に使える空きレイヤーがありません（最大5台まで）。');
       return null;
     }
-
-    const newMap = [...gestureLayerMap];
-    while (newMap.length <= endpointIndex) newMap.push(0);
-    newMap[endpointIndex] = free;
-
-    const ok = await setGestureLayers(true, newMap);
-    if (!ok) return null;
-    setGestureEnabled(true);
-    setGestureLayerMap(newMap);
     return free;
+  };
+
+  const toggleKeymapOverlay = async (endpointIndex: number) => {
+    const currentlyOn = (osMap[endpointIndex] || 0) !== 0;
+    const newMap = [...osMap];
+    while (newMap.length <= endpointIndex) newMap.push(0);
+    if (currentlyOn) {
+      newMap[endpointIndex] = 0;
+    } else {
+      const layerId = resolveOrAllocateLayer(endpointIndex);
+      if (layerId === null) return;
+      newMap[endpointIndex] = layerId;
+    }
+    const ok = await setOsConfig(true, newMap);
+    if (ok) setOsMap(newMap);
   };
 
   const toggleExpanded = (endpointIndex: number) => {
@@ -163,8 +186,19 @@ export function BluetoothConfig({ store }: Props) {
 
   const applyGestureBinding = async (binding: KeyBinding) => {
     if (expandedDevice === null || editingDirection === null) return;
-    const layerId = await ensureOverrideLayer(expandedDevice);
+    const layerId = resolveOrAllocateLayer(expandedDevice);
     if (layerId === null) return;
+
+    if (!gestureLayerMap[expandedDevice]) {
+      const newMap = [...gestureLayerMap];
+      while (newMap.length <= expandedDevice) newMap.push(0);
+      newMap[expandedDevice] = layerId;
+      const ok = await setGestureLayers(true, newMap);
+      if (!ok) return;
+      setGestureEnabled(true);
+      setGestureLayerMap(newMap);
+    }
+
     const layerArrayIndex = store.layers.findIndex(l => l.index === layerId);
     if (layerArrayIndex === -1) return;
     store.updateKeyBinding(layerArrayIndex, GESTURE_POSITIONS[editingDirection], binding);
@@ -205,7 +239,8 @@ export function BluetoothConfig({ store }: Props) {
         {devices.map(dev => {
           const layerId = gestureLayerMap[dev.endpointIndex] || 0;
           const effectiveLayer = layerId || SHARED_GESTURE_LAYER;
-          const isOverridden = layerId !== 0;
+          const hasKeymapOverlay = (osMap[dev.endpointIndex] || 0) !== 0;
+          const hasGestureOverride = layerId !== 0;
           const isExpanded = expandedDevice === dev.endpointIndex;
           return (
             <div key={dev.endpointIndex}>
@@ -242,7 +277,9 @@ export function BluetoothConfig({ store }: Props) {
                     </div>
                   )}
                   <div className="bt-profile-status">
-                    {dev.status ?? (isOverridden ? `個別 (Layer ${layerId})` : '共有ジェスチャ')}
+                    {dev.status && `${dev.status} ・ `}
+                    {hasKeymapOverlay ? '個別キーマップ' : '共有キーマップ'}
+                    {hasGestureOverride && ' ・ 個別ジェスチャ'}
                   </div>
                 </div>
                 {dev.btIndex !== undefined && (
@@ -256,6 +293,19 @@ export function BluetoothConfig({ store }: Props) {
 
               {isExpanded && (
                 <div style={{ padding: '4px 8px 12px' }} onClick={e => e.stopPropagation()}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>キーマップ</span>
+                    <select
+                      value={(osMap[dev.endpointIndex] || 0) !== 0 ? 'own' : 'shared'}
+                      onChange={() => toggleKeymapOverlay(dev.endpointIndex)}
+                      style={{ fontSize: 11, padding: '2px 4px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text-primary)' }}
+                    >
+                      <option value="shared">なし（共有キーマップ）</option>
+                      <option value="own">個別のキーマップを使う{(osMap[dev.endpointIndex] || 0) !== 0 ? ` (Layer ${osMap[dev.endpointIndex]})` : ''}</option>
+                    </select>
+                  </div>
+
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>ジェスチャ</div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 4 }}>
                     {(['up', 'down', 'left', 'right'] as const).map(dir => {
                       const dl = DIRECTION_LABELS[dir];
