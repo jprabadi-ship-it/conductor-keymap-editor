@@ -1,12 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { KeymapStore } from '../../store/useKeymapStore';
-import { LedColor } from '../../types';
+import { LedColor, LED_COLORS } from '../../types';
 
 interface Props {
   store: KeymapStore;
 }
 
-const LED_COLORS: LedColor[] = ['black', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white'];
 const LED_CSS: Record<LedColor, string> = {
   black: 'var(--led-black)', red: 'var(--led-red)', green: 'var(--led-green)',
   yellow: 'var(--led-yellow)', blue: 'var(--led-blue)', magenta: 'var(--led-magenta)',

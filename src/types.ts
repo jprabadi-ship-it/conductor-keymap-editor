@@ -14,6 +14,10 @@ export interface KeyBinding {
 
 export type LedColor = 'black' | 'red' | 'green' | 'yellow' | 'blue' | 'magenta' | 'cyan' | 'white';
 
+// Index matches the firmware's rgbled-widget color_names table (0=off..7=white).
+// SetLayerPropsRequest.color is this index + 1 (0 is reserved as "no change").
+export const LED_COLORS: LedColor[] = ['black', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white'];
+
 export interface KeyConfig {
   id: string; // e.g. "L00", "R03"
   binding: KeyBinding;

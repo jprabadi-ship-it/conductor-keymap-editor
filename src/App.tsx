@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useKeymapStore } from './store/useKeymapStore';
 import { readKeymap, writeKeymapToDevice, saveChanges, setLayerProps, getDeviceInfo, requestUnlock, isUnlocked, readMacrosFromDevice, onDeviceDisconnect, setKeyboardLayout, getBehaviorDisplayName } from './services/usbService';
+import { LED_COLORS } from './types';
 import { debugLog } from './components/DebugConsole';
 import { Header } from './components/Header/Header';
 import { LayerList } from './components/LeftPanel/LayerList';
@@ -84,11 +85,11 @@ function App() {
             }
           }
           debugLog('INF', 'Editor', `Writing keymap to device... (${store.dirtyKeys.size} keys modified)`);
-          // Write layer names
+          // Write layer names + LED colors
           for (const layer of store.layers) {
-            await setLayerProps(layer.index, layer.name);
+            await setLayerProps(layer.index, layer.name, LED_COLORS.indexOf(layer.ledColor));
           }
-          debugLog('INF', 'Editor', `Layer names written (${store.layers.length} layers)`);
+          debugLog('INF', 'Editor', `Layer names and LED colors written (${store.layers.length} layers)`);
           // Write key bindings
           const ok = await writeKeymapToDevice(store.layers, store.dirtyKeys);
           if (ok) {

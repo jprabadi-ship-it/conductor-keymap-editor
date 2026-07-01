@@ -696,10 +696,12 @@ export async function setLayerBinding(layerId: number, keyPosition: number, beha
   }
 }
 
-export async function setLayerProps(layerId: number, name: string): Promise<boolean> {
+export async function setLayerProps(layerId: number, name: string, colorIndex?: number): Promise<boolean> {
   try {
+    // Firmware color field is colorIndex + 1; 0 means "leave color unchanged".
+    const color = colorIndex === undefined ? 0 : colorIndex + 1;
     const resp = await sendRequest({
-      keymap: { setLayerProps: { layerId, name } },
+      keymap: { setLayerProps: { layerId, name, color } },
     });
     const result = resp.keymap?.setLayerProps;
     if (typeof result === 'number' && result !== 0) {
