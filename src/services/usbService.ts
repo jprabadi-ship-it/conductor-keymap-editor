@@ -771,6 +771,31 @@ export async function setTappingTerm(ms: number): Promise<boolean> {
   }
 }
 
+export async function getBleProfiles(): Promise<{ profiles: { name: string; connected: boolean }[]; activeIndex: number } | null> {
+  try {
+    const resp = await sendRequest({ core: { getBleProfiles: true } });
+    const p = resp.core?.getBleProfiles;
+    if (p) {
+      return { profiles: p.profiles ?? [], activeIndex: p.activeIndex ?? 0 };
+    }
+    return null;
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `getBleProfiles failed: ${e.message}`);
+    return null;
+  }
+}
+
+export async function setBleProfileName(profileIndex: number, name: string): Promise<boolean> {
+  try {
+    await sendRequest({ core: { setBleProfileName: { profileIndex, name } } });
+    debugLog('INF', 'USB', `BT profile ${profileIndex} name set to "${name}"`);
+    return true;
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `setBleProfileName failed: ${e.message}`);
+    return false;
+  }
+}
+
 import { Layer } from '../types';
 
 // Pointing (trackball) APIs
