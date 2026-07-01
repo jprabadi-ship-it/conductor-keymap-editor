@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { KeymapStore } from '../../store/useKeymapStore';
-import { isConnected, isUnlocked, requestUnlock, getTappingTerm, setTappingTerm, saveChanges } from '../../services/usbService';
+import { isConnected, isUnlocked, requestUnlock, getTappingTerm, setTappingTerm, saveChanges, listBehaviors, getBehaviorDetails, getHoldTapPositions, setHoldTapPositions } from '../../services/usbService';
 import { debugLog } from '../DebugConsole';
+import { keyIdsToPositions, positionsToKeyIds } from '../../data/layout';
+import { MiniKeyboardPicker } from './MiniKeyboardPicker';
 
 interface Props {
   store: KeymapStore;
@@ -9,8 +11,25 @@ interface Props {
 
 const PRESETS = [150, 175, 200, 250, 300];
 
+// Named hold-tap behaviors with positional gating (hold-trigger-key-positions),
+// defined in config/monokey.keymap. Resolved to a Studio behaviorId by name at
+// runtime since local IDs aren't stable identifiers we can hardcode.
+const POSITIONAL_HOLD_TAP_NAMES = ['mt_shift_z', 'lt6_j'] as const;
+
+interface HoldTapEntry {
+  name: string;
+  behaviorId: number | null;
+  keyIds: string[];
+  hasOverride: boolean;
+}
+
 export function TimingConfig({ store }: Props) {
   const [loaded, setLoaded] = useState(false);
+  const [holdTapEntries, setHoldTapEntries] = useState<HoldTapEntry[]>(
+    POSITIONAL_HOLD_TAP_NAMES.map(name => ({ name, behaviorId: null, keyIds: [], hasOverride: false }))
+  );
+  const [holdTapLoaded, setHoldTapLoaded] = useState(false);
+  const [editingHoldTap, setEditingHoldTap] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isConnected() || loaded) return;
@@ -23,6 +42,75 @@ export function TimingConfig({ store }: Props) {
       setLoaded(true);
     })();
   }, [loaded]);
+
+  useEffect(() => {
+    if (!isConnected() || holdTapLoaded) return;
+    (async () => {
+      const ids = await listBehaviors();
+      const entries: HoldTapEntry[] = [];
+      for (const name of POSITIONAL_HOLD_TAP_NAMES) {
+        let behaviorId: number | null = null;
+        for (const id of ids) {
+          const details = await getBehaviorDetails(id);
+          if (details?.displayName === name) { behaviorId = id; break; }
+        }
+        if (behaviorId === null) {
+          entries.push({ name, behaviorId: null, keyIds: [], hasOverride: false });
+          continue;
+        }
+        const positions = await getHoldTapPositions(behaviorId);
+        entries.push({
+          name,
+          behaviorId,
+          keyIds: positions ? positionsToKeyIds(positions.positions) : [],
+          hasOverride: positions?.hasRuntimeOverride ?? false,
+        });
+      }
+      setHoldTapEntries(entries);
+      setHoldTapLoaded(true);
+      debugLog('INF', 'Timing', `Loaded positional hold-tap config for ${entries.length} behaviors`);
+    })();
+  }, [holdTapLoaded]);
+
+  const toggleHoldTapKey = (name: string, keyId: string) => {
+    setHoldTapEntries(prev => prev.map(e => e.name !== name ? e : {
+      ...e,
+      keyIds: e.keyIds.includes(keyId) ? e.keyIds.filter(k => k !== keyId) : [...e.keyIds, keyId],
+    }));
+  };
+
+  const saveHoldTapPositions = async (entry: HoldTapEntry) => {
+    if (entry.behaviorId === null) return;
+    if (!isConnected()) { debugLog('WRN', 'Timing', 'Not connected'); return; }
+    if (!isUnlocked() && !(await requestUnlock())) {
+      alert('デバイスがロックされています');
+      return;
+    }
+    const ok = await setHoldTapPositions(entry.behaviorId, keyIdsToPositions(entry.keyIds));
+    if (ok) {
+      setHoldTapEntries(prev => prev.map(e => e.name === entry.name ? { ...e, hasOverride: true } : e));
+      debugLog('INF', 'Timing', `Saved hold-trigger positions for ${entry.name}`);
+    }
+  };
+
+  const resetHoldTapPositions = async (entry: HoldTapEntry) => {
+    if (entry.behaviorId === null) return;
+    if (!isConnected()) { debugLog('WRN', 'Timing', 'Not connected'); return; }
+    if (!isUnlocked() && !(await requestUnlock())) {
+      alert('デバイスがロックされています');
+      return;
+    }
+    const ok = await setHoldTapPositions(entry.behaviorId, [], true);
+    if (ok) {
+      const positions = await getHoldTapPositions(entry.behaviorId);
+      setHoldTapEntries(prev => prev.map(e => e.name === entry.name ? {
+        ...e,
+        keyIds: positions ? positionsToKeyIds(positions.positions) : [],
+        hasOverride: positions?.hasRuntimeOverride ?? false,
+      } : e));
+      debugLog('INF', 'Timing', `Reset ${entry.name} to devicetree default positions`);
+    }
+  };
 
   const handleSave = async () => {
     if (!isConnected()) { debugLog('WRN', 'Timing', 'Not connected'); return; }
@@ -86,6 +174,50 @@ export function TimingConfig({ store }: Props) {
       <div className="save-note">
         この設定はデバイスのFlashメモリに保存され、再起動後も維持されます。
         全てのlayer-tapキーとmod-tapキーに適用されます。
+      </div>
+
+      <div className="config-section">
+        <div className="config-label">位置限定ホールドタップ</div>
+        <div className="config-description">
+          特定のレイヤータップ／modタップキーは、指定したキー（通常は反対の手）を押している間だけホールド判定されます。
+          同じ手の高速な連続入力を誤ってホールドと判定しないようにするための設定です。
+          対象キーがConductorD Studioでレイアウト変更された場合、この設定もあわせて更新してください（ファームウェア再ビルド不要）。
+        </div>
+        {holdTapEntries.map(entry => (
+          <div key={entry.name} style={{ marginBottom: 12, padding: 8, background: 'var(--bg-secondary)', borderRadius: 4 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, fontFamily: 'monospace' }}>{entry.name}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{
+                  fontSize: 9, padding: '1px 6px', borderRadius: 8,
+                  background: entry.hasOverride ? 'var(--accent)' : 'var(--bg-tertiary)',
+                  color: entry.hasOverride ? 'white' : 'var(--text-muted)',
+                }}>
+                  {entry.hasOverride ? 'カスタム' : 'デフォルト'}
+                </span>
+                <button
+                  className="btn btn-outline"
+                  style={{ fontSize: 10, padding: '2px 6px' }}
+                  onClick={() => setEditingHoldTap(editingHoldTap === entry.name ? null : entry.name)}
+                  disabled={entry.behaviorId === null}
+                >{editingHoldTap === entry.name ? '閉じる' : '編集'}</button>
+              </div>
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+              {entry.behaviorId === null ? '未検出（デバイスに存在しません）' : `${entry.keyIds.length}個のキーでホールド判定`}
+            </div>
+            {editingHoldTap === entry.name && entry.behaviorId !== null && (
+              <div style={{ marginTop: 8 }}>
+                <MiniKeyboardPicker selected={entry.keyIds} onToggle={id => toggleHoldTapKey(entry.name, id)} />
+                <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                  <button className="btn btn-primary" style={{ flex: 1, fontSize: 11 }} onClick={() => saveHoldTapPositions(entry)}>保存</button>
+                  <button className="btn btn-outline" style={{ flex: 1, fontSize: 11 }} onClick={() => resetHoldTapPositions(entry)}>デフォルトに戻す</button>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+        <button className="btn btn-outline" style={{ width: '100%', fontSize: 11 }} onClick={() => setHoldTapLoaded(false)}>再読込</button>
       </div>
     </div>
   );
