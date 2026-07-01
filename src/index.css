@@ -267,6 +267,9 @@ input:focus { border-color: var(--accent); }
 .layer-item .layer-name { flex: 1; }
 .layer-item .led-label { font-size: 10px; color: var(--text-secondary); }
 
+.layer-item .layer-trailing {
+  width: 18px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+}
 .layer-item .layer-actions { display: flex; gap: 2px; opacity: 0; transition: opacity 0.15s; }
 .layer-item:hover .layer-actions { opacity: 1; }
 

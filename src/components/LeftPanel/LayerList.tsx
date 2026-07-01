@@ -92,16 +92,19 @@ export function LayerList({ store }: Props) {
             <span style={{ width: 12, height: 12, borderRadius: '50%', background: LED_CSS[layer.ledColor], display: 'inline-block', border: '1px solid var(--border)' }} />
           </button>
 
-          {!layer.isProtected && (
-            <div className="layer-actions">
-              <button
-                className="btn"
-                style={{ fontSize: 11, padding: '0 4px', color: 'var(--danger)' }}
-                onClick={(e) => { e.stopPropagation(); store.removeLayer(layer.index); }}
-              >✕</button>
-            </div>
-          )}
-          {layer.isProtected && <span className="protected-badge" title="保護レイヤー（削除不可）">🔒</span>}
+          <span className="layer-trailing">
+            {layer.isProtected ? (
+              <span className="protected-badge" title="保護レイヤー（削除不可）">🔒</span>
+            ) : (
+              <div className="layer-actions">
+                <button
+                  className="btn"
+                  style={{ fontSize: 11, padding: '0 4px', color: 'var(--danger)' }}
+                  onClick={(e) => { e.stopPropagation(); store.removeLayer(layer.index); }}
+                >✕</button>
+              </div>
+            )}
+          </span>
 
           {ledPickerLayer === layer.index && (
             <div className="led-picker" onClick={e => e.stopPropagation()}>
