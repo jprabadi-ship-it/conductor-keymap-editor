@@ -829,6 +829,32 @@ export async function setAutoLayer(enabled: boolean, requirePriorIdleMs: number,
   }
 }
 
+export async function getHoldTapPositions(behaviorId: number): Promise<{ positions: number[]; hasRuntimeOverride: boolean } | null> {
+  try {
+    const resp = await sendRequest({ behaviors: { getHoldTapPositions: { behaviorId } } });
+    const details = resp.behaviors?.getHoldTapPositions;
+    if (!details) return null;
+    return {
+      positions: details.positions ?? [],
+      hasRuntimeOverride: details.hasRuntimeOverride ?? false,
+    };
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `getHoldTapPositions failed: ${e.message}`);
+    return null;
+  }
+}
+
+export async function setHoldTapPositions(behaviorId: number, positions: number[], clearOverride: boolean = false): Promise<boolean> {
+  try {
+    await sendRequest({ behaviors: { setHoldTapPositions: { behaviorId, positions, clearOverride } } });
+    debugLog('INF', 'USB', `hold-tap positions set for behavior ${behaviorId}: clear=${clearOverride}, positions=[${positions.join(',')}]`);
+    return true;
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `setHoldTapPositions failed: ${e.message}`);
+    return false;
+  }
+}
+
 export async function getPrecisionScale(): Promise<{ numerator: number; denominator: number } | null> {
   try {
     const resp = await sendRequest({ pointing: { getPrecisionScale: {} } });
