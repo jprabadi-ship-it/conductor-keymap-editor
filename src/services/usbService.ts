@@ -924,6 +924,38 @@ export async function setAccel(enabled: boolean, maxMilli: number, threshold: nu
   }
 }
 
+// Per-output-device gesture layer override. layerMap is indexed by
+// zmk_endpoint_instance_to_index (NONE=0, USB=1, BT profile N=2+N); each
+// entry is a layer id (0 = use the gesture processor's DT default layer).
+export async function getGestureLayers(): Promise<{ enabled: boolean; layerMap: number[]; endpointCount: number; activeEndpoint: number; defaultLayer: number } | null> {
+  try {
+    const resp = await sendRequest({ pointing: { getGestureLayers: {} } });
+    const g = resp.pointing?.getGestureLayers;
+    if (!g) return null;
+    return {
+      enabled: g.enabled ?? false,
+      layerMap: g.layerMap ?? [],
+      endpointCount: g.endpointCount ?? 0,
+      activeEndpoint: g.activeEndpoint ?? 0,
+      defaultLayer: g.defaultLayer ?? 0,
+    };
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `getGestureLayers failed: ${e.message}`);
+    return null;
+  }
+}
+
+export async function setGestureLayers(enabled: boolean, layerMap: number[]): Promise<boolean> {
+  try {
+    await sendRequest({ pointing: { setGestureLayers: { enabled, layerMap } } });
+    debugLog('INF', 'USB', `Gesture layers set: enabled=${enabled}, map=[${layerMap.join(',')}]`);
+    return true;
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `setGestureLayers failed: ${e.message}`);
+    return false;
+  }
+}
+
 // --- Macro RPC ---
 
 export interface DeviceMacroSummary {

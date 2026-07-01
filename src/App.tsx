@@ -246,7 +246,7 @@ function App() {
                   >
                     {tab === 'key-config' ? '⚙ Key Config' :
                      tab === 'trackball' ? '🖲 Trackball' :
-                     tab === 'timing' ? '⏱ Timing' : '📡 Bluetooth'}
+                     tab === 'timing' ? '⏱ Timing' : '📡 デバイス'}
                   </button>
                 ))}
               </div>
