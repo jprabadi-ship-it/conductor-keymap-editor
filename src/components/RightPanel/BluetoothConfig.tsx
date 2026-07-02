@@ -225,6 +225,24 @@ export function BluetoothConfig({ store }: Props) {
     setEditingDirection(null);
   };
 
+  // Clears all 4 direction overrides for a device in one go, so switching a
+  // device back to fully-shared gestures doesn't require clearing each
+  // direction individually.
+  const resetAllDeviceGestures = async (endpointIndex: number) => {
+    const directions: Direction[] = ['up', 'down', 'left', 'right'];
+    const cleared = new Set<Direction>();
+    for (const dir of directions) {
+      const ok = await setGestureBinding(endpointIndex, DIRECTION_INDEX[dir], true);
+      if (ok) cleared.add(dir);
+    }
+    setGestureHasOverride(prev => {
+      const next = [...prev];
+      for (const dir of cleared) next[overrideSlot(endpointIndex, dir)] = false;
+      return next;
+    });
+    setEditingDirection(null);
+  };
+
   const devices: DeviceEntry[] = [
     { endpointIndex: USB_ENDPOINT_INDEX, label: 'USB' },
     ...store.bluetoothProfiles.map(p => ({
@@ -320,7 +338,16 @@ export function BluetoothConfig({ store }: Props) {
                     </select>
                   </div>
 
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>ジェスチャ</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>ジェスチャ</span>
+                    {hasGestureOverride && (
+                      <button
+                        className="btn btn-outline"
+                        style={{ fontSize: 10, padding: '1px 6px', marginLeft: 'auto' }}
+                        onClick={() => resetAllDeviceGestures(dev.endpointIndex)}
+                      >全方向を共有に戻す</button>
+                    )}
+                  </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 4 }}>
                     {(['up', 'down', 'left', 'right'] as const).map(dir => {
                       const dl = DIRECTION_LABELS[dir];
