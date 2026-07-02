@@ -661,11 +661,15 @@ export async function readKeymap(): Promise<any> {
       });
 
       const layerName = layer.name && layer.name.length > 0 ? layer.name : `Layer ${layer.id}`;
-      debugLog('INF', 'USB', `  Layer ${layer.id}: "${layerName}" (${Object.keys(bindings).length} keys)`);
+      // Wire value is colorIndex+1 (0 = not reported, e.g. no LED widget
+      // compiled in at all); undefined here means "leave ledColor as-is".
+      const ledColor = layer.color > 0 ? LED_COLORS[layer.color - 1] : undefined;
+      debugLog('INF', 'USB', `  Layer ${layer.id}: "${layerName}" (${Object.keys(bindings).length} keys)${ledColor ? `, color=${ledColor}` : ''}`);
       return {
         id: layer.id,
         name: layerName,
         bindings,
+        ledColor,
       };
     });
 
@@ -817,7 +821,7 @@ export async function setUsbName(name: string): Promise<boolean> {
   }
 }
 
-import { Layer, KeyBinding } from '../types';
+import { Layer, KeyBinding, LED_COLORS } from '../types';
 
 // Pointing (trackball) APIs
 export async function getSensitivity(): Promise<{ cpi: number; cursorNum: number; cursorDen: number; scrollNum: number; scrollDen: number; scrollInverted: boolean } | null> {

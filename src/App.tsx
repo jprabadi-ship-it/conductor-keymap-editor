@@ -117,7 +117,8 @@ function App() {
               }));
               const isGenericName = !dl.name || dl.name.length === 0 || /^Layer \d+$/.test(dl.name);
               const name = isGenericName && existing.name ? existing.name : (dl.name || existing.name);
-              return { ...existing, name, index: dl.id ?? i, keys };
+              const ledColor = dl.ledColor ?? existing.ledColor;
+              return { ...existing, name, ledColor, index: dl.id ?? i, keys };
             });
             // Load firmware macros via RPC (with step data)
             const deviceMacros = await readMacrosFromDevice();
