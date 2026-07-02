@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react';
 import { KeymapStore } from '../../store/useKeymapStore';
 import { KeyBinding, LedColor, Modifier } from '../../types';
-import { isConnected, getBleProfiles, setBleProfileName, getGestureLayers, setGestureLayers, getOsConfig, setOsConfig, getUsbName, setUsbName } from '../../services/usbService';
+import {
+  isConnected, getBleProfiles, setBleProfileName, getOsConfig, setOsConfig, getUsbName, setUsbName,
+  getGestureConfig, setGestureEnabled, setGestureBinding, resolveKeyBindingRpc, gestureBindingLabel,
+  ensureBehaviorsLoaded, GestureBindingValue,
+} from '../../services/usbService';
 import { KEY_CATEGORIES, KEYCODES, searchKeyCodes } from '../../data/keycodes';
 import { debugLog } from '../DebugConsole';
 
@@ -19,8 +23,10 @@ const LED_CSS: Record<LedColor, string> = {
 const USB_ENDPOINT_INDEX = 1;
 const BT_ENDPOINT_INDEX = (btProfile: number) => 2 + btProfile;
 
-// Empty placeholder layers (7-11) available as per-device gesture overrides.
-const GESTURE_LAYER_POOL = [7, 8, 9, 10, 11];
+// Shared/default gesture bindings live on this fixed keymap layer (DT
+// `layer-id = <13>;`), read-only from here — used only to preview/copy the
+// fallback binding. Per-device overrides are a separate value, not a layer
+// position (see conductor_gesture.c / get/set_gesture_config RPC).
 const SHARED_GESTURE_LAYER = 13;
 
 type Direction = 'up' | 'down' | 'left' | 'right';
@@ -28,6 +34,9 @@ type Direction = 'up' | 'down' | 'left' | 'right';
 // (monokey_R.overlay / monokey_dongle.overlay): up=7=R02, down=27=R22,
 // left=16=R11, right=18=R13.
 const GESTURE_POSITIONS: Record<Direction, string> = { up: 'R02', down: 'R22', left: 'R11', right: 'R13' };
+// Matches the firmware's internal gesture_direction enum and the wire
+// SetGestureBindingRequest.direction encoding: 0=up, 1=down, 2=left, 3=right.
+const DIRECTION_INDEX: Record<Direction, number> = { up: 0, down: 1, left: 2, right: 3 };
 const DIRECTION_LABELS: Record<Direction, { icon: string; label: string }> = {
   up: { icon: '↑', label: '上' }, down: { icon: '↓', label: '下' },
   left: { icon: '←', label: '左' }, right: { icon: '→', label: '右' },
@@ -56,8 +65,8 @@ export function BluetoothConfig({ store }: Props) {
   const [usbName, setUsbNameState] = useState('');
   const [usbNameLoaded, setUsbNameLoaded] = useState(false);
 
-  const [gestureEnabled, setGestureEnabled] = useState(false);
-  const [gestureLayerMap, setGestureLayerMap] = useState<number[]>([]);
+  const [gestureHasOverride, setGestureHasOverride] = useState<boolean[]>([]);
+  const [gestureOverrides, setGestureOverrides] = useState<GestureBindingValue[]>([]);
   const [gestureLoaded, setGestureLoaded] = useState(false);
   const [osMap, setOsMap] = useState<number[]>([]);
   const [osLoaded, setOsLoaded] = useState(false);
@@ -86,15 +95,16 @@ export function BluetoothConfig({ store }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded]);
 
-  // Load the per-device gesture layer overrides on mount.
+  // Load the per-device gesture binding overrides on mount.
   useEffect(() => {
     if (!isConnected() || gestureLoaded) return;
     (async () => {
-      const result = await getGestureLayers();
+      await ensureBehaviorsLoaded(); // so gestureBindingLabel() can resolve names
+      const result = await getGestureConfig();
       if (result) {
-        setGestureEnabled(result.enabled);
-        setGestureLayerMap(result.layerMap);
-        debugLog('INF', 'Gesture', `Loaded gesture layer map: [${result.layerMap.join(',')}]`);
+        setGestureHasOverride(result.hasOverride);
+        setGestureOverrides(result.overrides);
+        debugLog('INF', 'Gesture', `Loaded gesture config: enabled=${result.enabled}, ${result.hasOverride.filter(Boolean).length} override(s)`);
       }
       setGestureLoaded(true);
     })();
@@ -150,23 +160,6 @@ export function BluetoothConfig({ store }: Props) {
     }
   };
 
-  // Auto-allocates a layer from the placeholder pool (7-11) for gesture
-  // overrides. If the device already has a manually-picked キーマップ overlay
-  // layer (osMap), gestures reuse that same layer instead of taking a second
-  // one from the pool. Returns the layer id, or null if the pool is exhausted.
-  const resolveOrAllocateLayer = (endpointIndex: number): number | null => {
-    const existing = gestureLayerMap[endpointIndex] || osMap[endpointIndex];
-    if (existing) return existing;
-
-    const used = new Set([...gestureLayerMap, ...osMap].filter(v => v !== 0));
-    const free = GESTURE_LAYER_POOL.find(l => !used.has(l));
-    if (free === undefined) {
-      alert('デバイス別設定に使える空きレイヤーがありません（最大5台まで）。');
-      return null;
-    }
-    return free;
-  };
-
   const setKeymapOverlay = async (endpointIndex: number, layerId: number) => {
     const newMap = [...osMap];
     while (newMap.length <= endpointIndex) newMap.push(0);
@@ -185,6 +178,8 @@ export function BluetoothConfig({ store }: Props) {
     setEditingDirection(null);
   };
 
+  const overrideSlot = (endpointIndex: number, direction: Direction) => endpointIndex * 4 + DIRECTION_INDEX[direction];
+
   const openDirection = (endpointIndex: number, direction: Direction) => {
     if (expandedDevice === endpointIndex && editingDirection === direction) {
       setEditingDirection(null);
@@ -193,36 +188,41 @@ export function BluetoothConfig({ store }: Props) {
     setEditingDirection(direction);
     setGestureSearch('');
     setGestureCategory(null);
-    const layerId = gestureLayerMap[endpointIndex] || SHARED_GESTURE_LAYER;
-    const current = bindingAt(store, layerId, GESTURE_POSITIONS[direction]);
-    setGestureMods(current?.modifiers ?? []);
+    // Only the shared/default binding carries structured modifiers here (an
+    // override is a raw behaviorId/param1 value); seed from that when there's
+    // no override yet, otherwise start blank.
+    const idx = overrideSlot(endpointIndex, direction);
+    if (!gestureHasOverride[idx]) {
+      const shared = bindingAt(store, SHARED_GESTURE_LAYER, GESTURE_POSITIONS[direction]);
+      setGestureMods(shared?.modifiers ?? []);
+    } else {
+      setGestureMods([]);
+    }
   };
 
   const applyGestureBinding = async (binding: KeyBinding) => {
     if (expandedDevice === null || editingDirection === null) return;
-    const layerId = resolveOrAllocateLayer(expandedDevice);
-    if (layerId === null) return;
-
-    if (!gestureLayerMap[expandedDevice]) {
-      const newMap = [...gestureLayerMap];
-      while (newMap.length <= expandedDevice) newMap.push(0);
-      newMap[expandedDevice] = layerId;
-      const ok = await setGestureLayers(true, newMap);
-      if (!ok) return;
-      setGestureEnabled(true);
-      setGestureLayerMap(newMap);
+    const resolved = await resolveKeyBindingRpc(binding);
+    if (!resolved) {
+      alert('このキーの変換に失敗しました（ファームウェアにKey Press/Noneビヘイビアが見つかりません）。');
+      return;
     }
-
-    const layerArrayIndex = store.layers.findIndex(l => l.index === layerId);
-    if (layerArrayIndex === -1) return;
-    store.updateKeyBinding(layerArrayIndex, GESTURE_POSITIONS[editingDirection], binding);
+    const idx = overrideSlot(expandedDevice, editingDirection);
+    const ok = await setGestureBinding(expandedDevice, DIRECTION_INDEX[editingDirection], false, resolved);
+    if (!ok) return;
+    await setGestureEnabled(true);
+    setGestureHasOverride(prev => { const next = [...prev]; next[idx] = true; return next; });
+    setGestureOverrides(prev => { const next = [...prev]; next[idx] = resolved; return next; });
     setEditingDirection(null);
   };
 
-  const resetToShared = () => {
+  const resetToShared = async () => {
     if (expandedDevice === null || editingDirection === null) return;
-    const shared = bindingAt(store, SHARED_GESTURE_LAYER, GESTURE_POSITIONS[editingDirection]);
-    applyGestureBinding(shared ?? { type: 'none', keyCode: 'NONE', label: '' });
+    const idx = overrideSlot(expandedDevice, editingDirection);
+    const ok = await setGestureBinding(expandedDevice, DIRECTION_INDEX[editingDirection], true);
+    if (!ok) return;
+    setGestureHasOverride(prev => { const next = [...prev]; next[idx] = false; return next; });
+    setEditingDirection(null);
   };
 
   const devices: DeviceEntry[] = [
@@ -241,7 +241,7 @@ export function BluetoothConfig({ store }: Props) {
       <div className="config-section">
         <div className="config-label">デバイス</div>
         <div className="config-description">
-          出力先（USB・BT 0〜4）ごとの設定です。クリックしてトラックボールジェスチャを個別設定できます。未設定のデバイスは共有ジェスチャ（Layer {SHARED_GESTURE_LAYER}）を使います。
+          出力先（USB・BT 0〜4）ごとの設定です。クリックしてトラックボールジェスチャを個別設定できます。未設定の方向は共有ジェスチャ（Layer {SHARED_GESTURE_LAYER}）を使います。
         </div>
 
         {!loaded && (
@@ -251,10 +251,9 @@ export function BluetoothConfig({ store }: Props) {
         )}
 
         {devices.map(dev => {
-          const layerId = gestureLayerMap[dev.endpointIndex] || 0;
-          const effectiveLayer = layerId || SHARED_GESTURE_LAYER;
           const hasKeymapOverlay = (osMap[dev.endpointIndex] || 0) !== 0;
-          const hasGestureOverride = layerId !== 0;
+          const hasGestureOverride = (['up', 'down', 'left', 'right'] as const)
+            .some(dir => gestureHasOverride[overrideSlot(dev.endpointIndex, dir)]);
           const isExpanded = expandedDevice === dev.endpointIndex;
           const editKey: number | 'usb' = dev.btIndex !== undefined ? dev.btIndex : 'usb';
           const currentName = dev.btIndex !== undefined ? (store.bluetoothProfiles[dev.btIndex]?.name || '') : usbName;
@@ -325,7 +324,10 @@ export function BluetoothConfig({ store }: Props) {
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 4 }}>
                     {(['up', 'down', 'left', 'right'] as const).map(dir => {
                       const dl = DIRECTION_LABELS[dir];
-                      const binding = bindingAt(store, effectiveLayer, GESTURE_POSITIONS[dir]);
+                      const idx = overrideSlot(dev.endpointIndex, dir);
+                      const label = gestureHasOverride[idx]
+                        ? gestureBindingLabel(gestureOverrides[idx])
+                        : (bindingAt(store, SHARED_GESTURE_LAYER, GESTURE_POSITIONS[dir])?.label || '---');
                       const active = editingDirection === dir;
                       return (
                         <button
@@ -335,7 +337,7 @@ export function BluetoothConfig({ store }: Props) {
                           onClick={() => openDirection(dev.endpointIndex, dir)}
                         >
                           <span style={{ color: 'var(--text-muted)' }}>{dl.icon} {dl.label}</span>
-                          <span style={{ fontWeight: 600 }}>{binding?.label || '---'}</span>
+                          <span style={{ fontWeight: 600 }}>{label}</span>
                         </button>
                       );
                     })}
@@ -408,7 +410,7 @@ export function BluetoothConfig({ store }: Props) {
 
         <div className="config-description" style={{ marginTop: 8 }}>
           BT 0〜4は1台ずつホスト（PC・スマホなど）とペアリングできます。BT_SEL キーで切り替え、鉛筆アイコンから名前（最大14バイト・日本語約4文字）を付けられます。
-          「デフォルト」はその方向の共有ジェスチャ（Layer {SHARED_GESTURE_LAYER}）の現在の割り当てをコピーします。編集内容は「Write」で書き込みます。
+          「デフォルト」はその方向のオーバーライドを解除し、共有ジェスチャ（Layer {SHARED_GESTURE_LAYER}）に戻します。ジェスチャの変更は即座に反映されます（Write不要）。
         </div>
       </div>
     </div>

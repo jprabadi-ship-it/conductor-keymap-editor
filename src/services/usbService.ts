@@ -439,7 +439,7 @@ function modPrefix(mods: number): string {
   return parts.length > 0 ? parts.join('+') + '+' : '';
 }
 
-function hidToLabel(param: number): string {
+export function hidToLabel(param: number): string {
   const { mods, page, usage } = parseParam(param);
   const kbUsage = getKbUsage();
   const shiftMap = getShiftMap();
@@ -817,7 +817,7 @@ export async function setUsbName(name: string): Promise<boolean> {
   }
 }
 
-import { Layer } from '../types';
+import { Layer, KeyBinding } from '../types';
 
 // Pointing (trackball) APIs
 export async function getSensitivity(): Promise<{ cpi: number; cursorNum: number; cursorDen: number; scrollNum: number; scrollDen: number; scrollInverted: boolean } | null> {
@@ -945,34 +945,72 @@ export async function setAccel(enabled: boolean, maxMilli: number, threshold: nu
   }
 }
 
-// Per-output-device gesture layer override. layerMap is indexed by
-// zmk_endpoint_instance_to_index (NONE=0, USB=1, BT profile N=2+N); each
-// entry is a layer id (0 = use the gesture processor's DT default layer).
-export async function getGestureLayers(): Promise<{ enabled: boolean; layerMap: number[]; endpointCount: number; activeEndpoint: number; defaultLayer: number } | null> {
+// Per-output-device gesture binding override. Flattened per (endpoint,
+// direction): index = endpointIndex*4 + direction (0=up,1=down,2=left,3=right).
+// endpointIndex is zmk_endpoint_instance_to_index (NONE=0, USB=1, BT profile
+// N=2+N). hasOverride[i]=false means that slot falls back to the shared/DT
+// default gesture binding.
+export interface GestureBindingValue { behaviorId: number; param1: number; param2: number; }
+
+// Best-effort label for a gesture override value, for display only (mirrors
+// relabelBindings' 'kp' case). Requires ensureBehaviorsLoaded() to have run
+// for the behavior name to be known; falls back to a generic id otherwise.
+export function gestureBindingLabel(v: GestureBindingValue): string {
+  const name = getBehaviorDisplayName(v.behaviorId) ?? '';
+  if (name === 'Key Press' || name === 'kp') {
+    return hidToLabel(v.param1);
+  }
+  if (name === 'None' || name === 'none') {
+    return '---';
+  }
+  return name || `#${v.behaviorId}`;
+}
+
+export async function getGestureConfig(): Promise<{ enabled: boolean; hasOverride: boolean[]; overrides: GestureBindingValue[]; endpointCount: number; activeEndpoint: number } | null> {
   try {
-    const resp = await sendRequest({ pointing: { getGestureLayers: {} } });
-    const g = resp.pointing?.getGestureLayers;
+    const resp = await sendRequest({ pointing: { getGestureConfig: {} } });
+    const g = resp.pointing?.getGestureConfig;
     if (!g) return null;
     return {
       enabled: g.enabled ?? false,
-      layerMap: g.layerMap ?? [],
+      hasOverride: g.hasOverride ?? [],
+      overrides: (g.overrides ?? []).map((o: any) => ({
+        behaviorId: o.behaviorId ?? 0, param1: o.param1 ?? 0, param2: o.param2 ?? 0,
+      })),
       endpointCount: g.endpointCount ?? 0,
       activeEndpoint: g.activeEndpoint ?? 0,
-      defaultLayer: g.defaultLayer ?? 0,
     };
   } catch (e: any) {
-    debugLog('ERR', 'USB', `getGestureLayers failed: ${e.message}`);
+    debugLog('ERR', 'USB', `getGestureConfig failed: ${e.message}`);
     return null;
   }
 }
 
-export async function setGestureLayers(enabled: boolean, layerMap: number[]): Promise<boolean> {
+export async function setGestureEnabled(enabled: boolean): Promise<boolean> {
   try {
-    await sendRequest({ pointing: { setGestureLayers: { enabled, layerMap } } });
-    debugLog('INF', 'USB', `Gesture layers set: enabled=${enabled}, map=[${layerMap.join(',')}]`);
+    await sendRequest({ pointing: { setGestureEnabled: { enabled } } });
+    debugLog('INF', 'USB', `Gesture overrides enabled=${enabled}`);
     return true;
   } catch (e: any) {
-    debugLog('ERR', 'USB', `setGestureLayers failed: ${e.message}`);
+    debugLog('ERR', 'USB', `setGestureEnabled failed: ${e.message}`);
+    return false;
+  }
+}
+
+export async function setGestureBinding(endpointIndex: number, direction: number, clear: boolean, binding?: GestureBindingValue): Promise<boolean> {
+  try {
+    await sendRequest({
+      pointing: {
+        setGestureBinding: {
+          endpointIndex, direction, clear,
+          binding: binding ?? { behaviorId: 0, param1: 0, param2: 0 },
+        },
+      },
+    });
+    debugLog('INF', 'USB', `Gesture binding set: endpoint=${endpointIndex} direction=${direction} clear=${clear}`);
+    return true;
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `setGestureBinding failed: ${e.message}`);
     return false;
   }
 }
@@ -1273,6 +1311,53 @@ function labelToParam(label: string, keyCode: string): number {
     }
   }
   return 0;
+}
+
+export async function ensureBehaviorsLoaded(): Promise<void> {
+  if (Object.keys(behaviorCache).length === 0) {
+    const ids = await listBehaviors();
+    for (const bid of ids) await getBehaviorDetails(bid);
+  }
+}
+
+// Resolves a simple KeyBinding (type 'basic' with optional modifiers, or
+// 'none') to {behaviorId, param1, param2} for RPCs that store a standalone
+// binding value rather than a keymap layer position (e.g. gesture
+// overrides). Mirrors the 'basic'/'none' cases in writeKeymapToDevice's
+// per-key conversion switch, without needing a full layer/dirty-key write.
+export async function resolveKeyBindingRpc(binding: KeyBinding): Promise<{ behaviorId: number; param1: number; param2: number } | null> {
+  await ensureBehaviorsLoaded();
+  let noneId: number | undefined;
+  let kpId: number | undefined;
+  for (const [idStr, beh] of Object.entries(behaviorCache)) {
+    const n = beh.displayName.toLowerCase();
+    if (noneId === undefined && n === 'none') noneId = Number(idStr);
+    if (kpId === undefined && n === 'key press') kpId = Number(idStr);
+  }
+
+  if (binding.type === 'none') {
+    if (noneId === undefined) return null;
+    return { behaviorId: noneId, param1: 0, param2: 0 };
+  }
+
+  if (binding.type === 'basic') {
+    if (kpId === undefined) return null;
+    let param1 = labelToParam(binding.label, binding.keyCode);
+    if (binding.modifiers?.length) {
+      const modBits: Record<string, number> = {
+        lctrl: 0x01, lshift: 0x02, lalt: 0x04, lgui: 0x08,
+        rctrl: 0x10, rshift: 0x20, ralt: 0x40, rgui: 0x80,
+      };
+      let mods = (param1 >>> 24) & 0xFF;
+      for (const m of binding.modifiers) {
+        mods |= modBits[m] || 0;
+      }
+      param1 = (mods << 24) | (param1 & 0x00FFFFFF);
+    }
+    return { behaviorId: kpId, param1, param2: 0 };
+  }
+
+  return null;
 }
 
 export async function writeKeymapToDevice(layers: Layer[], dirtyKeys?: Set<string>): Promise<boolean> {
