@@ -106,9 +106,9 @@ export function KeyConfig({ store }: Props) {
         </div>
       )}
 
-      {binding.type !== 'trans' && binding.type !== 'none' && (
+      {(binding.type === 'basic' || binding.type === 'mod-tap' || binding.type === 'layer-tap') && (
         <div className="config-section">
-          <div className="config-label">Key Code</div>
+          <div className="config-label">{binding.type === 'basic' ? 'Key Code' : 'Tap Key Code'}</div>
           <input
             type="text"
             className="keycode-search"
@@ -127,12 +127,21 @@ export function KeyConfig({ store }: Props) {
           </div>
           <div className="keycode-grid">
             {filteredKeycodes.slice(0, 60).map(kc => {
-              const isSelected = binding.keyCode === kc.code || binding.keyCode === kc.label || binding.label === kc.label;
+              const isTapKey = binding.type === 'mod-tap' || binding.type === 'layer-tap';
+              const currentCode = isTapKey ? binding.tapKeyCode : binding.keyCode;
+              const currentLabel = isTapKey ? binding.tapLabel : binding.label;
+              const isSelected = currentCode === kc.code || currentCode === kc.label || currentLabel === kc.label;
               return (
                 <button
                   key={kc.code}
                   className={`keycode-btn ${isSelected ? 'selected' : ''}`}
-                  onClick={() => updateBinding({ type: 'basic', keyCode: kc.code, label: kc.label })}
+                  onClick={() => {
+                    if (isTapKey) {
+                      updateBinding({ tapKeyCode: kc.code, tapLabel: kc.label });
+                    } else {
+                      updateBinding({ type: 'basic', keyCode: kc.code, label: kc.label });
+                    }
+                  }}
                 >{kc.label}</button>
               );
             })}
