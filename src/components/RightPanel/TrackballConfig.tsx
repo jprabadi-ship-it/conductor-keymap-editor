@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { KeymapStore } from '../../store/useKeymapStore';
 import { isConnected, isUnlocked, requestUnlock, setSensitivity, setAutoLayer, setPrecisionScale, setAccel, getSensitivity, getAutoLayer, getPrecisionScale, getAccel, saveChanges as savePointingChanges } from '../../services/usbService';
 import { KEY_CATEGORIES, KEYCODES, searchKeyCodes } from '../../data/keycodes';
@@ -76,7 +76,7 @@ function AmlMiniKeyboard({ selected, onToggle }: { selected: string[]; onToggle:
 }
 
 export function TrackballConfig({ store }: Props) {
-  const { setAmlExcluded } = store;
+  const { setAmlExcluded, trackballResetTick } = store;
   const [editingGesture, setEditingGesture] = useState<'up' | 'down' | 'left' | 'right' | null>(null);
   const [gestureSearch, setGestureSearch] = useState('');
   const [gestureCategory, setGestureCategory] = useState<string | null>(null);
@@ -131,6 +131,15 @@ export function TrackballConfig({ store }: Props) {
       setLoaded(true);
     })();
   }, [loaded, setAmlExcluded]);
+
+  // Header "⟳ Reset" bumps trackballResetTick — bring mouse acceleration back to its default (弱)
+  const trackballResetTickRef = useRef(trackballResetTick);
+  useEffect(() => {
+    if (trackballResetTick === trackballResetTickRef.current) return;
+    trackballResetTickRef.current = trackballResetTick;
+    setAccelMode(1);
+    debugLog('INF', 'Trackball', 'Mouse acceleration reset to default (弱)');
+  }, [trackballResetTick]);
 
   // Realtime send helper (with unlock check)
   const sendIfRealtime = useCallback(async (fn: () => Promise<any>) => {

@@ -54,6 +54,7 @@ export function useKeymapStore() {
   const [leftPanelTab, setLeftPanelTab] = useState<LeftPanelTab>('layers');
   const [diffMode, setDiffMode] = useState(false);
   const [amlExcluded, setAmlExcluded] = useState<string[]>(['R12', 'R13', 'R14', 'R32']);
+  const [trackballResetTick, setTrackballResetTick] = useState(0);
 
   // Undo/Redo
   const undoStack = useRef<UndoEntry[]>([]);
@@ -241,6 +242,7 @@ export function useKeymapStore() {
     setLayers(createDefaultLayers());
     setCombos(createDefaultCombos());
     setMacros([]);
+    setTrackballResetTick(t => t + 1);
   }, [pushUndo]);
 
   // Selected layer & key helpers
@@ -256,7 +258,7 @@ export function useKeymapStore() {
     layers, combos, macros, osLayout, tappingTerm, gestures, bluetoothProfiles,
     selectedLayerIndex, selectedKeyId, selectedLayer, selectedKey,
     selectedMacroIndex, selectedMacro,
-    rightPanelTab, leftPanelTab, diffMode, amlExcluded, comboOverlays,
+    rightPanelTab, leftPanelTab, diffMode, amlExcluded, comboOverlays, trackballResetTick,
     canUndo, canRedo,
     setSelectedLayerIndex, setSelectedKeyId, setRightPanelTab, setLeftPanelTab,
     setSelectedMacroIndex,
