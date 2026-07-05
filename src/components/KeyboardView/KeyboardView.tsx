@@ -2,6 +2,8 @@ import { KeymapStore } from '../../store/useKeymapStore';
 import { LEFT_KEYS, RIGHT_KEYS } from '../../data/layout';
 import { KeyButton } from './KeyButton';
 import { LedColor } from '../../types';
+import { gestureBindingLabel } from '../../services/usbService';
+import { SHARED_GESTURE_LAYER, GESTURE_POSITIONS, Direction, overrideSlot, buildDeviceEntries } from '../../data/devices';
 
 interface Props {
   store: KeymapStore;
@@ -12,6 +14,11 @@ const LED_CSS_MAP: Record<LedColor, string> = {
   yellow: 'var(--led-yellow)', blue: 'var(--led-blue)', magenta: 'var(--led-magenta)',
   cyan: 'var(--led-cyan)', white: 'var(--led-white)',
 };
+
+// Reverse of GESTURE_POSITIONS: keyId -> direction, for the 4 gesture keys.
+const KEY_ID_TO_DIRECTION: Record<string, Direction> = Object.fromEntries(
+  (Object.entries(GESTURE_POSITIONS) as [Direction, string][]).map(([dir, keyId]) => [keyId, dir])
+);
 
 export function KeyboardView({ store }: Props) {
   const layer = store.selectedLayer;
@@ -34,7 +41,22 @@ export function KeyboardView({ store }: Props) {
     });
   }
 
+  // Gesture layer: preview/edit a specific device's effective binding (override,
+  // falling back to the shared one shown here) for the 4 swipe-direction keys.
+  const isGestureLayer = layer.index === SHARED_GESTURE_LAYER;
+  const gestureDevice = store.selectedGestureDevice;
+  const gestureDevices = isGestureLayer ? buildDeviceEntries(store.bluetoothProfiles, -1) : [];
+
   const handleKeyClick = (id: string) => {
+    const direction = isGestureLayer ? KEY_ID_TO_DIRECTION[id] : undefined;
+    if (direction && gestureDevice !== null) {
+      // Route to the same per-device gesture editor the デバイス tab uses,
+      // instead of the normal Key Config panel.
+      store.setRightPanelTab('bluetooth');
+      store.setExpandedDevice(gestureDevice);
+      store.setEditingDirection(direction);
+      return;
+    }
     if (isMacroMode && selectedMacro) {
       const key = layer.keys.find(k => k.id === id);
       if (!key) return;
@@ -55,8 +77,19 @@ export function KeyboardView({ store }: Props) {
   };
 
   const renderKey = (id: string) => {
-    const keyConfig = layer.keys.find(k => k.id === id);
+    let keyConfig = layer.keys.find(k => k.id === id);
     if (!keyConfig) return <div key={id} />;
+
+    const direction = isGestureLayer ? KEY_ID_TO_DIRECTION[id] : undefined;
+    let deviceOverrideActive = false;
+    if (direction && gestureDevice !== null) {
+      const slot = overrideSlot(gestureDevice, direction);
+      if (store.gestureHasOverride[slot]) {
+        deviceOverrideActive = true;
+        const label = gestureBindingLabel(store.gestureOverrides[slot]);
+        keyConfig = { ...keyConfig, binding: { type: 'basic', keyCode: label, label } };
+      }
+    }
 
     const assignedMacro = macroAssignments.get(id);
     const isThisMacro = assignedMacro === selectedMacro?.name;
@@ -66,11 +99,12 @@ export function KeyboardView({ store }: Props) {
       <KeyButton
         key={id}
         keyConfig={keyConfig}
-        selected={isMacroMode ? isThisMacro : store.selectedKeyId === id}
+        selected={isMacroMode ? isThisMacro : direction && gestureDevice !== null ? store.editingDirection === direction : store.selectedKeyId === id}
         onClick={() => handleKeyClick(id)}
         comboName={comboMap.get(id)}
         isAmlExcluded={store.amlExcluded.includes(id)}
         macroHighlight={isMacroMode ? (isThisMacro ? 'assigned' : hasOtherMacro ? 'other' : undefined) : undefined}
+        gestureDeviceOverride={deviceOverrideActive}
       />
     );
   };
@@ -124,11 +158,34 @@ export function KeyboardView({ store }: Props) {
         >
           ⊘ AML {store.amlExcluded.length}
         </button>
+
+        {isGestureLayer && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 8 }}>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>デバイス</span>
+            <select
+              value={gestureDevice === null ? '' : gestureDevice}
+              onChange={e => store.setSelectedGestureDevice(e.target.value === '' ? null : Number(e.target.value))}
+              style={{ fontSize: 11, padding: '2px 4px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text-primary)' }}
+            >
+              <option value="">共有（デフォルト）</option>
+              {gestureDevices.map(d => (
+                <option key={d.endpointIndex} value={d.endpointIndex}>{d.label}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {store.amlExcluded.length > 0 && (
         <div className="aml-info">
           ⊘ {store.amlExcluded.length}個のキーがAML excluded-positionsに設定済み（Writeで送信）
+        </div>
+      )}
+
+      {isGestureLayer && gestureDevice !== null && (
+        <div className="aml-info">
+          {gestureDevices.find(d => d.endpointIndex === gestureDevice)?.label} の実効ジェスチャを表示中。
+          矢印キー（↑↓←→の位置）をクリックすると、このデバイス専用のオーバーライドを編集できます。
         </div>
       )}
 

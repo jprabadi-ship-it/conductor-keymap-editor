@@ -580,14 +580,26 @@ export async function readKeymap(): Promise<any> {
             label = `BT(${binding.param1},${binding.param2})`;
             keyCode = label;
           }
+        } else if (behName.includes('USB Slot Select') || behName === 'usb_sel') {
+          type = 'basic';
+          label = `USB ${binding.param1}`;
+          keyCode = `USB_SEL_${binding.param1}`;
         } else if (behName.includes('Bootloader') || behName === 'bootloader') {
           type = 'basic'; label = 'Boot'; keyCode = 'BOOTLOADER';
         } else if (behName.includes('Reset') || behName === 'sys_reset') {
           type = 'basic'; label = 'Reset'; keyCode = 'RESET';
         } else if (behName.includes('Output') || behName === 'out') {
           type = 'basic';
-          label = binding.param1 === 0 ? 'Out USB' : binding.param1 === 1 ? 'Out BT' : `Out(${binding.param1})`;
-          keyCode = label;
+          // dt-bindings/zmk/outputs.h: OUT_TOG=0, OUT_USB=1, OUT_BLE=2.
+          if (binding.param1 === 1) {
+            label = 'Out USB'; keyCode = 'OUT_USB';
+          } else if (binding.param1 === 2) {
+            label = 'Out BT'; keyCode = 'OUT_BT';
+          } else if (binding.param1 === 0) {
+            label = 'Out Toggle'; keyCode = 'OUT_TOG';
+          } else {
+            label = `Out(${binding.param1})`; keyCode = label;
+          }
         } else if (behName.includes('Scroll Invert') || behName.includes('scrl_inv') || behName.includes('SCRL_INV')) {
           type = 'basic'; label = 'Scrl Inv'; keyCode = 'SCRL_INV';
         } else if (behName.includes('Mouse Key Press') || behName === 'mkp' || behName.includes('mkp')) {
@@ -800,23 +812,30 @@ export async function setBleProfileName(profileIndex: number, name: string): Pro
   }
 }
 
-export async function getUsbName(): Promise<string | null> {
+// USB has no ZMK-native "profile" concept (unlike BLE), so it gets 5
+// software-selected virtual slots (see conductor_usb_slot.h on the firmware
+// side) mirroring the 5 BLE profiles, switched on-device via &usb_sel.
+export async function getUsbSlots(): Promise<{ slots: { name: string }[]; activeIndex: number } | null> {
   try {
-    const resp = await sendRequest({ core: { getUsbName: true } });
-    return resp.core?.getUsbName?.name ?? '';
+    const resp = await sendRequest({ core: { getUsbSlots: true } });
+    const s = resp.core?.getUsbSlots;
+    if (s) {
+      return { slots: s.slots ?? [], activeIndex: s.activeIndex ?? 0 };
+    }
+    return null;
   } catch (e: any) {
-    debugLog('ERR', 'USB', `getUsbName failed: ${e.message}`);
+    debugLog('ERR', 'USB', `getUsbSlots failed: ${e.message}`);
     return null;
   }
 }
 
-export async function setUsbName(name: string): Promise<boolean> {
+export async function setUsbSlotName(slotIndex: number, name: string): Promise<boolean> {
   try {
-    await sendRequest({ core: { setUsbName: { name } } });
-    debugLog('INF', 'USB', `USB name set to "${name}"`);
+    await sendRequest({ core: { setUsbSlotName: { slotIndex, name } } });
+    debugLog('INF', 'USB', `USB slot ${slotIndex} name set to "${name}"`);
     return true;
   } catch (e: any) {
-    debugLog('ERR', 'USB', `setUsbName failed: ${e.message}`);
+    debugLog('ERR', 'USB', `setUsbSlotName failed: ${e.message}`);
     return false;
   }
 }
@@ -1391,6 +1410,8 @@ export async function writeKeymapToDevice(layers: Layer[], dirtyKeys?: Set<strin
     if (!behByType['trans'] && n === 'transparent') behByType['trans'] = id;
     if (!behByType['bt'] && n === 'bluetooth') behByType['bt'] = id;
     if (!behByType['boot'] && n === 'bootloader') behByType['boot'] = id;
+    if (!behByType['usb_sel'] && n === 'usb slot select') behByType['usb_sel'] = id;
+    if (!behByType['out'] && (n === 'output selection' || n === 'out')) behByType['out'] = id;
   };
   // From raw bindings first (most reliable)
   for (const [, raw] of Object.entries(rawBindings)) {
@@ -1451,14 +1472,24 @@ export async function writeKeymapToDevice(layers: Layer[], dirtyKeys?: Set<strin
                 debugLog('ERR', 'USB', `  Macro "&${macroName}" not found in firmware behaviors. Available: ${Object.values(behaviorCache).map(b => b.displayName).filter(n => !['Key Press','None','Transparent','Bluetooth','Bootloader','Momentary Layer','Layer-Tap','Mod-Tap','Toggle Layer','Mouse Key Press'].includes(n)).join(', ')}`);
               }
             }
+          } else if (binding.keyCode?.startsWith('USB_SEL')) {
+            behaviorId = behByType["usb_sel"] ?? 0;
+            param1 = parseInt(binding.keyCode.replace(/^USB_SEL[_ ]/, '') || '0');
           } else if (binding.keyCode?.startsWith('BT_SEL')) {
             behaviorId = behByType["bt"] ?? 0;
             param1 = 3;
-            param2 = parseInt(binding.keyCode.split(' ').pop() || '0');
+            param2 = parseInt(binding.keyCode.replace(/^BT_SEL[_ ]/, '') || '0');
           } else if (binding.keyCode === 'BT_CLR') {
             behaviorId = behByType["bt"] ?? 0; param1 = 0;
           } else if (binding.keyCode === 'BT_CLR_ALL') {
             behaviorId = behByType["bt"] ?? 0; param1 = 4;
+          } else if (binding.keyCode === 'OUT_USB') {
+            // dt-bindings/zmk/outputs.h: OUT_TOG=0, OUT_USB=1, OUT_BLE=2.
+            behaviorId = behByType["out"] ?? 0; param1 = 1;
+          } else if (binding.keyCode === 'OUT_BT') {
+            behaviorId = behByType["out"] ?? 0; param1 = 2;
+          } else if (binding.keyCode === 'OUT_TOG') {
+            behaviorId = behByType["out"] ?? 0; param1 = 0;
           } else if (binding.keyCode === 'BOOTLOADER') {
             behaviorId = behByType["boot"] ?? 0;
           } else if (binding.keyCode?.startsWith('mkp') || binding.keyCode?.startsWith('KC_BTN') ||

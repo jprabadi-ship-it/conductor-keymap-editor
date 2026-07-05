@@ -7,9 +7,10 @@ interface Props {
   comboName?: string;
   isAmlExcluded?: boolean;
   macroHighlight?: 'assigned' | 'other';
+  gestureDeviceOverride?: boolean;
 }
 
-export function KeyButton({ keyConfig, selected, onClick, comboName, isAmlExcluded, macroHighlight }: Props) {
+export function KeyButton({ keyConfig, selected, onClick, comboName, isAmlExcluded, macroHighlight, gestureDeviceOverride }: Props) {
   const { binding } = keyConfig;
   const isTrans = binding.type === 'trans';
   const isNone = binding.type === 'none';
@@ -82,6 +83,7 @@ export function KeyButton({ keyConfig, selected, onClick, comboName, isAmlExclud
       <span className="key-label">{isTrans ? '' : isNone ? '∅' : mainLabel}</span>
       {holdLabel && <span className={`key-holdlabel ${binding.type === 'basic' ? 'basic-mod' : ''}`}>{holdLabel}</span>}
       {isAmlExcluded && <span className="key-aml-badge">AML</span>}
+      {gestureDeviceOverride && <span className="key-toplabel device">device</span>}
     </button>
   );
 }

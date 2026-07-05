@@ -1,7 +1,8 @@
 import { useState, useCallback, useRef } from 'react';
 import type { Layer, KeyBinding, LedColor, Combo, Macro, MacroStep, GestureShortcut, BluetoothProfile, OsLayout, RightPanelTab, LeftPanelTab, KeymapProject } from '../types';
 import { createDefaultLayers, createDefaultCombos, createDefaultGestures, createDefaultBluetoothProfiles } from '../data/defaultKeymap';
-import { relabelBindings } from '../services/usbService';
+import { relabelBindings, GestureBindingValue } from '../services/usbService';
+import type { Direction } from '../data/devices';
 
 const STORAGE_KEY_KEYMAP = 'conductor-studio-keymap';
 const STORAGE_KEY_COMBOS = 'conductor-studio-combos';
@@ -55,6 +56,17 @@ export function useKeymapStore() {
   const [diffMode, setDiffMode] = useState(false);
   const [amlExcluded, setAmlExcluded] = useState<string[]>(['R12', 'R13', 'R14', 'R32']);
   const [trackballResetTick, setTrackballResetTick] = useState(0);
+
+  // Per-device trackball gesture overrides (see conductor_gesture.c). Shared
+  // between the デバイス tab (BluetoothConfig) and the Gesture-layer device
+  // picker in KeyboardView, so both read/write the same live data.
+  const [gestureHasOverride, setGestureHasOverride] = useState<boolean[]>([]);
+  const [gestureOverrides, setGestureOverrides] = useState<GestureBindingValue[]>([]);
+  // Which device row is expanded in the デバイス tab (endpoint index, or null).
+  const [expandedDevice, setExpandedDevice] = useState<number | null>(null);
+  const [editingDirection, setEditingDirection] = useState<Direction | null>(null);
+  // Device picked in the Gesture layer's toolbar dropdown (null = shared/default).
+  const [selectedGestureDevice, setSelectedGestureDevice] = useState<number | null>(null);
 
   // Undo/Redo
   const undoStack = useRef<UndoEntry[]>([]);
@@ -141,6 +153,22 @@ export function useKeymapStore() {
       setSelectedLayerIndex(selectedLayerIndex - 1);
     }
   }, [layers, selectedLayerIndex, pushUndo]);
+
+  // Overwrites destIndex's key bindings with a copy of sourceIndex's (leaves
+  // the destination layer's own name/LED color/protection untouched).
+  const copyLayerBindings = useCallback((sourceIndex: number, destIndex: number) => {
+    const source = layers[sourceIndex];
+    if (!source || sourceIndex === destIndex) return;
+    pushUndo();
+    setDirtyKeys(prev => {
+      const next = new Set(prev);
+      source.keys.forEach(k => next.add(`${destIndex}:${k.id}`));
+      return next;
+    });
+    setLayers(prev => prev.map((layer, i) =>
+      i === destIndex ? { ...layer, keys: source.keys.map(k => ({ ...k })) } : layer
+    ));
+  }, [layers, pushUndo]);
 
   // Combo operations
   const addCombo = useCallback(() => {
@@ -264,8 +292,11 @@ export function useKeymapStore() {
     setSelectedMacroIndex,
     setDiffMode, setAmlExcluded, setOsLayout, setTappingTerm,
     setGestures, setBluetoothProfiles,
+    gestureHasOverride, setGestureHasOverride, gestureOverrides, setGestureOverrides,
+    expandedDevice, setExpandedDevice, editingDirection, setEditingDirection,
+    selectedGestureDevice, setSelectedGestureDevice,
     dirtyKeys, clearDirtyKeys,
-    updateKeyBinding, setLayerName, setLayerLedColor, addLayer, removeLayer,
+    updateKeyBinding, setLayerName, setLayerLedColor, addLayer, removeLayer, copyLayerBindings,
     addCombo, updateCombo, removeCombo,
     addMacro, updateMacro, removeMacro,
     addMacroStep, updateMacroStep, removeMacroStep, moveMacroStep,

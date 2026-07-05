@@ -14,6 +14,8 @@ const LED_CSS: Record<LedColor, string> = {
 
 export function LayerList({ store }: Props) {
   const [ledPickerLayer, setLedPickerLayer] = useState<number | null>(null);
+  const [menuLayer, setMenuLayer] = useState<number | null>(null);
+  const [copyPickerLayer, setCopyPickerLayer] = useState<number | null>(null);
   const [editingLayer, setEditingLayer] = useState<number | null>(null);
   const [editValue, setEditValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -93,18 +95,48 @@ export function LayerList({ store }: Props) {
           </button>
 
           <span className="layer-trailing">
-            {layer.isProtected ? (
-              <span className="protected-badge" title="保護レイヤー（削除不可）">🔒</span>
-            ) : (
-              <div className="layer-actions">
-                <button
-                  className="btn"
-                  style={{ fontSize: 11, padding: '0 4px', color: 'var(--danger)' }}
-                  onClick={(e) => { e.stopPropagation(); store.removeLayer(layer.index); }}
-                >✕</button>
-              </div>
-            )}
+            <button
+              className="btn"
+              style={{ fontSize: 14, padding: '0 4px' }}
+              onClick={(e) => {
+                e.stopPropagation();
+                setCopyPickerLayer(null);
+                setMenuLayer(menuLayer === layer.index ? null : layer.index);
+              }}
+            >⋯</button>
           </span>
+
+          {menuLayer === layer.index && (
+            <div className="led-picker layer-menu" onClick={e => e.stopPropagation()}>
+              <button
+                className="layer-menu-item"
+                onClick={() => setCopyPickerLayer(layer.index)}
+              >コピー</button>
+              {!layer.isProtected && (
+                <button
+                  className="layer-menu-item danger"
+                  onClick={() => { store.removeLayer(layer.index); setMenuLayer(null); }}
+                >削除</button>
+              )}
+            </div>
+          )}
+
+          {copyPickerLayer === layer.index && (
+            <div className="led-picker layer-menu" onClick={e => e.stopPropagation()}>
+              <div className="led-picker-title">コピー先のレイヤー</div>
+              {store.layers.filter(l => l.index !== layer.index).map(l => (
+                <button
+                  key={l.index}
+                  className="layer-menu-item"
+                  onClick={() => {
+                    store.copyLayerBindings(layer.index, l.index);
+                    setCopyPickerLayer(null);
+                    setMenuLayer(null);
+                  }}
+                >{l.name} ({l.index})</button>
+              ))}
+            </div>
+          )}
 
           {ledPickerLayer === layer.index && (
             <div className="led-picker" onClick={e => e.stopPropagation()}>

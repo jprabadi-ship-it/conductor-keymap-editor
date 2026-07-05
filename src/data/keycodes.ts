@@ -6,7 +6,7 @@ export interface KeyCodeEntry {
 
 export const KEY_CATEGORIES = [
   'Letters', 'Numbers', 'Modifiers', 'Navigation', 'Function',
-  'Special', 'IME', 'Symbols', 'Media', 'Mouse', 'Bluetooth', 'System', 'Layer',
+  'Special', 'IME', 'Symbols', 'Media', 'Mouse', 'Device', 'System', 'Layer',
 ] as const;
 
 export type KeyCategory = typeof KEY_CATEGORIES[number];
@@ -133,16 +133,24 @@ export const KEYCODES: KeyCodeEntry[] = [
   { code: 'KC_WH_U', label: 'Wheel Up', category: 'Mouse' },
   { code: 'KC_WH_D', label: 'Wheel Down', category: 'Mouse' },
 
-  // Bluetooth
-  { code: 'BT_SEL_0', label: 'BT 0', category: 'Bluetooth' },
-  { code: 'BT_SEL_1', label: 'BT 1', category: 'Bluetooth' },
-  { code: 'BT_SEL_2', label: 'BT 2', category: 'Bluetooth' },
-  { code: 'BT_SEL_3', label: 'BT 3', category: 'Bluetooth' },
-  { code: 'BT_SEL_4', label: 'BT 4', category: 'Bluetooth' },
-  { code: 'BT_CLR', label: 'BT Clear', category: 'Bluetooth' },
-  { code: 'BT_CLR_ALL', label: 'BT Clear All', category: 'Bluetooth' },
-  { code: 'OUT_USB', label: 'Out USB', category: 'Bluetooth' },
-  { code: 'OUT_BT', label: 'Out BT', category: 'Bluetooth' },
+  // Device (Bluetooth profiles + USB virtual slots — see conductor_usb_slot.h
+  // on the firmware side; USB has only one physical connection, so its slots
+  // are software-selected, unlike BT's real pairing profiles)
+  { code: 'BT_SEL_0', label: 'BT 0', category: 'Device' },
+  { code: 'BT_SEL_1', label: 'BT 1', category: 'Device' },
+  { code: 'BT_SEL_2', label: 'BT 2', category: 'Device' },
+  { code: 'BT_SEL_3', label: 'BT 3', category: 'Device' },
+  { code: 'BT_SEL_4', label: 'BT 4', category: 'Device' },
+  { code: 'BT_CLR', label: 'BT Clear', category: 'Device' },
+  { code: 'BT_CLR_ALL', label: 'BT Clear All', category: 'Device' },
+  { code: 'OUT_USB', label: 'Out USB', category: 'Device' },
+  { code: 'OUT_BT', label: 'Out BT', category: 'Device' },
+  { code: 'OUT_TOG', label: 'Out Toggle', category: 'Device' },
+  { code: 'USB_SEL_0', label: 'USB 0', category: 'Device' },
+  { code: 'USB_SEL_1', label: 'USB 1', category: 'Device' },
+  { code: 'USB_SEL_2', label: 'USB 2', category: 'Device' },
+  { code: 'USB_SEL_3', label: 'USB 3', category: 'Device' },
+  { code: 'USB_SEL_4', label: 'USB 4', category: 'Device' },
 
   // System
   { code: 'QK_BOOT', label: 'Boot', category: 'System' },

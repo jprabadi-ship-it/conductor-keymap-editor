@@ -2,11 +2,14 @@ import { useEffect, useState } from 'react';
 import { KeymapStore } from '../../store/useKeymapStore';
 import { KeyBinding, LedColor, Modifier } from '../../types';
 import {
-  isConnected, getBleProfiles, setBleProfileName, getOsConfig, setOsConfig, getUsbName, setUsbName,
+  isConnected, getBleProfiles, setBleProfileName, getOsConfig, setOsConfig, getUsbSlots, setUsbSlotName,
   getGestureConfig, setGestureEnabled, setGestureBinding, resolveKeyBindingRpc, gestureBindingLabel,
-  ensureBehaviorsLoaded, GestureBindingValue,
+  ensureBehaviorsLoaded,
 } from '../../services/usbService';
 import { KEY_CATEGORIES, KEYCODES, searchKeyCodes } from '../../data/keycodes';
+import {
+  SHARED_GESTURE_LAYER, Direction, GESTURE_POSITIONS, DIRECTION_INDEX, DIRECTION_LABELS, overrideSlot, buildDeviceEntries,
+} from '../../data/devices';
 import { debugLog } from '../DebugConsole';
 
 interface Props {
@@ -19,28 +22,6 @@ const LED_CSS: Record<LedColor, string> = {
   cyan: 'var(--led-cyan)', white: 'var(--led-white)',
 };
 
-// zmk_endpoint_instance_to_index(): 0=NONE (unused here), 1=USB, 2..6=BT profile 0..4.
-const USB_ENDPOINT_INDEX = 1;
-const BT_ENDPOINT_INDEX = (btProfile: number) => 2 + btProfile;
-
-// Shared/default gesture bindings live on this fixed keymap layer (DT
-// `layer-id = <13>;`), read-only from here — used only to preview/copy the
-// fallback binding. Per-device overrides are a separate value, not a layer
-// position (see conductor_gesture.c / get/set_gesture_config RPC).
-const SHARED_GESTURE_LAYER = 13;
-
-type Direction = 'up' | 'down' | 'left' | 'right';
-// Must match the DT `positions = <7 27 16 18>;` order on trackball_gestures
-// (monokey_R.overlay / monokey_dongle.overlay): up=7=R02, down=27=R22,
-// left=16=R11, right=18=R13.
-const GESTURE_POSITIONS: Record<Direction, string> = { up: 'R02', down: 'R22', left: 'R11', right: 'R13' };
-// Matches the firmware's internal gesture_direction enum and the wire
-// SetGestureBindingRequest.direction encoding: 0=up, 1=down, 2=left, 3=right.
-const DIRECTION_INDEX: Record<Direction, number> = { up: 0, down: 1, left: 2, right: 3 };
-const DIRECTION_LABELS: Record<Direction, { icon: string; label: string }> = {
-  up: { icon: '↑', label: '上' }, down: { icon: '↓', label: '下' },
-  left: { icon: '←', label: '左' }, right: { icon: '→', label: '右' },
-};
 const MOD_BUTTONS: { key: Modifier; label: string }[] = [
   { key: 'lctrl', label: '⌃' }, { key: 'lshift', label: '⇧' },
   { key: 'lalt', label: '⌥' }, { key: 'lgui', label: '⌘' },
@@ -50,28 +31,22 @@ function bindingAt(store: KeymapStore, layerId: number, keyId: string): KeyBindi
   return store.layers.find(l => l.index === layerId)?.keys.find(k => k.id === keyId)?.binding;
 }
 
-interface DeviceEntry {
-  endpointIndex: number;
-  label: string;
-  ledColor?: LedColor;
-  btIndex?: number; // present for BT rows only (renameable)
-  status?: string;
-}
-
 export function BluetoothConfig({ store }: Props) {
   const [loaded, setLoaded] = useState(false);
-  const [editingIndex, setEditingIndex] = useState<number | 'usb' | null>(null);
+  // 'usb:N' or 'bt:N'
+  const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
-  const [usbName, setUsbNameState] = useState('');
-  const [usbNameLoaded, setUsbNameLoaded] = useState(false);
+  const [usbSlots, setUsbSlots] = useState<{ name: string }[]>([]);
+  const [usbActiveIndex, setUsbActiveIndex] = useState(0);
+  const [usbSlotsLoaded, setUsbSlotsLoaded] = useState(false);
 
-  const [gestureHasOverride, setGestureHasOverride] = useState<boolean[]>([]);
-  const [gestureOverrides, setGestureOverrides] = useState<GestureBindingValue[]>([]);
+  const {
+    gestureHasOverride, setGestureHasOverride, gestureOverrides, setGestureOverrides,
+    expandedDevice, setExpandedDevice, editingDirection, setEditingDirection,
+  } = store;
   const [gestureLoaded, setGestureLoaded] = useState(false);
   const [osMap, setOsMap] = useState<number[]>([]);
   const [osLoaded, setOsLoaded] = useState(false);
-  const [expandedDevice, setExpandedDevice] = useState<number | null>(null); // endpoint index
-  const [editingDirection, setEditingDirection] = useState<Direction | null>(null);
   const [gestureSearch, setGestureSearch] = useState('');
   const [gestureCategory, setGestureCategory] = useState<string | null>(null);
   const [gestureMods, setGestureMods] = useState<Modifier[]>([]);
@@ -125,38 +100,40 @@ export function BluetoothConfig({ store }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [osLoaded]);
 
-  // Load the USB device name on mount.
+  // Load the USB virtual slot names on mount.
   useEffect(() => {
-    if (!isConnected() || usbNameLoaded) return;
+    if (!isConnected() || usbSlotsLoaded) return;
     (async () => {
-      const name = await getUsbName();
-      if (name !== null) {
-        setUsbNameState(name);
-        debugLog('INF', 'USB', `Loaded USB name: "${name}"`);
+      const result = await getUsbSlots();
+      if (result) {
+        setUsbSlots(result.slots);
+        setUsbActiveIndex(result.activeIndex);
+        debugLog('INF', 'USB', `Loaded ${result.slots.length} USB slots (active: ${result.activeIndex})`);
       }
-      setUsbNameLoaded(true);
+      setUsbSlotsLoaded(true);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [usbNameLoaded]);
+  }, [usbSlotsLoaded]);
 
-  const startEdit = (index: number | 'usb', currentName: string) => {
-    setEditingIndex(index);
+  const startEdit = (key: string, currentName: string) => {
+    setEditingKey(key);
     setEditValue(currentName);
   };
 
   const commitEdit = async () => {
-    if (editingIndex === null) return;
-    const index = editingIndex;
+    if (editingKey === null) return;
+    const [kind, idxStr] = editingKey.split(':');
+    const idx = Number(idxStr);
     const name = editValue.trim();
-    setEditingIndex(null);
-    if (index === 'usb') {
-      const ok = await setUsbName(name);
-      if (ok) setUsbNameState(name);
+    setEditingKey(null);
+    if (kind === 'usb') {
+      const ok = await setUsbSlotName(idx, name);
+      if (ok) setUsbSlots(prev => prev.map((s, i) => i === idx ? { ...s, name } : s));
       return;
     }
-    const ok = await setBleProfileName(index, name);
+    const ok = await setBleProfileName(idx, name);
     if (ok) {
-      store.setBluetoothProfiles(store.bluetoothProfiles.map((p, i) => i === index ? { ...p, name } : p));
+      store.setBluetoothProfiles(store.bluetoothProfiles.map((p, i) => i === idx ? { ...p, name } : p));
     }
   };
 
@@ -178,9 +155,14 @@ export function BluetoothConfig({ store }: Props) {
     setEditingDirection(null);
   };
 
-  const overrideSlot = (endpointIndex: number, direction: Direction) => endpointIndex * 4 + DIRECTION_INDEX[direction];
-
   const openDirection = (endpointIndex: number, direction: Direction) => {
+    // Jump the keyboard canvas to the Gesture layer with this device selected
+    // in its toolbar dropdown, so the two views stay in sync (and clicking
+    // the arrow key there jumps back here — see KeyboardView.tsx).
+    store.setLeftPanelTab('layers');
+    store.setSelectedLayerIndex(SHARED_GESTURE_LAYER);
+    store.setSelectedGestureDevice(endpointIndex);
+
     if (expandedDevice === endpointIndex && editingDirection === direction) {
       setEditingDirection(null);
       return;
@@ -243,23 +225,14 @@ export function BluetoothConfig({ store }: Props) {
     setEditingDirection(null);
   };
 
-  const devices: DeviceEntry[] = [
-    { endpointIndex: USB_ENDPOINT_INDEX, label: 'USB' },
-    ...store.bluetoothProfiles.map(p => ({
-      endpointIndex: BT_ENDPOINT_INDEX(p.index),
-      label: `BT ${p.index}`,
-      ledColor: p.ledColor,
-      btIndex: p.index,
-      status: p.active ? '使用中' : p.connected ? '接続済' : '未接続',
-    })),
-  ];
+  const devices = buildDeviceEntries(store.bluetoothProfiles, usbActiveIndex);
 
   return (
     <div>
       <div className="config-section">
         <div className="config-label">デバイス</div>
         <div className="config-description">
-          出力先（USB・BT 0〜4）ごとの設定です。クリックしてトラックボールジェスチャを個別設定できます。未設定の方向は共有ジェスチャ（Layer {SHARED_GESTURE_LAYER}）を使います。
+          出力先（USB 0〜4・BT 0〜4）ごとの設定です。クリックしてトラックボールジェスチャを個別設定できます。未設定の方向は共有ジェスチャ（Layer {SHARED_GESTURE_LAYER}）を使います。
         </div>
 
         {!loaded && (
@@ -273,8 +246,10 @@ export function BluetoothConfig({ store }: Props) {
           const hasGestureOverride = (['up', 'down', 'left', 'right'] as const)
             .some(dir => gestureHasOverride[overrideSlot(dev.endpointIndex, dir)]);
           const isExpanded = expandedDevice === dev.endpointIndex;
-          const editKey: number | 'usb' = dev.btIndex !== undefined ? dev.btIndex : 'usb';
-          const currentName = dev.btIndex !== undefined ? (store.bluetoothProfiles[dev.btIndex]?.name || '') : usbName;
+          const editKey = dev.btIndex !== undefined ? `bt:${dev.btIndex}` : `usb:${dev.usbSlot}`;
+          const currentName = dev.btIndex !== undefined
+            ? (store.bluetoothProfiles[dev.btIndex]?.name || '')
+            : (usbSlots[dev.usbSlot!]?.name || '');
           return (
             <div key={dev.endpointIndex}>
               <div
@@ -289,7 +264,7 @@ export function BluetoothConfig({ store }: Props) {
                 )}
                 <span className="bt-profile-index">{dev.label}</span>
                 <div className="bt-profile-info">
-                  {editingIndex === editKey ? (
+                  {editingKey === editKey ? (
                     <input
                       autoFocus
                       type="text"
@@ -301,12 +276,12 @@ export function BluetoothConfig({ store }: Props) {
                       onBlur={commitEdit}
                       onKeyDown={e => {
                         if (e.key === 'Enter') commitEdit();
-                        if (e.key === 'Escape') setEditingIndex(null);
+                        if (e.key === 'Escape') setEditingKey(null);
                       }}
                     />
                   ) : (
                     <div className="bt-profile-name">
-                      {currentName || (dev.btIndex !== undefined ? `Profile ${dev.btIndex}` : 'USB接続')}
+                      {currentName || (dev.btIndex !== undefined ? `Profile ${dev.btIndex}` : `USB ${dev.usbSlot}`)}
                     </div>
                   )}
                   <div className="bt-profile-status">
@@ -436,7 +411,8 @@ export function BluetoothConfig({ store }: Props) {
         })}
 
         <div className="config-description" style={{ marginTop: 8 }}>
-          BT 0〜4は1台ずつホスト（PC・スマホなど）とペアリングできます。BT_SEL キーで切り替え、鉛筆アイコンから名前（最大14バイト・日本語約4文字）を付けられます。
+          USBケーブルは物理的に1本しかないため、USB 0〜4はソフトウェア上の仮想スロットです。設定レイヤーの USB_SEL キーで切り替え、どのホスト（Windows PC・Mac・iPad・Androidなど）に繋いでいるかを手動で選べます。
+          BT 0〜4は1台ずつホスト（PC・スマホなど）とペアリングできます。BT_SEL キーで切り替え、どちらも鉛筆アイコンから名前（最大14バイト・日本語約4文字）を付けられます。
           「デフォルト」はその方向のオーバーライドを解除し、共有ジェスチャ（Layer {SHARED_GESTURE_LAYER}）に戻します。ジェスチャの変更は即座に反映されます（Write不要）。
         </div>
       </div>

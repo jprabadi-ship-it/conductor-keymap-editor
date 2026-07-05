@@ -215,48 +215,50 @@ function App() {
 
         <ResizeHandle side="left" onResize={onResizeLeft} />
 
-        {store.leftPanelTab === 'macros' ? (
-          <>
-            {/* Macro mode: editor in center, keyboard on right */}
-            <div className="macro-center-panel" style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
-              <MacroEditor store={store} />
-            </div>
-            <ResizeHandle side="right" onResize={onResizeRight} />
-            <aside className="right-panel" style={{ width: RIGHT_MAX, overflow: 'hidden' }}>
-              <div style={{
-                transform: `scale(${Math.min(1, RIGHT_MAX / 700)})`,
-                transformOrigin: 'top left',
-                width: `${100 / Math.min(1, RIGHT_MAX / 700)}%`,
-              }}>
-                <KeyboardView store={store} />
+        <div className="center-column">
+          {store.leftPanelTab === 'macros' ? (
+            <>
+              {/* Macro mode: editor in center, keyboard on right */}
+              <div className="macro-center-panel" style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
+                <MacroEditor store={store} />
               </div>
-            </aside>
-          </>
-        ) : (
-          <>
-            {/* Normal mode: keyboard in center, config on right */}
-            <KeyboardView store={store} />
-            <ResizeHandle side="right" onResize={onResizeRight} />
-            <aside className="right-panel" style={{ width: rightWidth }}>
-              <div className="right-panel-tabs">
-                {(['key-config', 'trackball', 'timing', 'bluetooth'] as const).map(tab => (
-                  <button
-                    key={tab}
-                    className={`right-panel-tab ${store.rightPanelTab === tab ? 'active' : ''}`}
-                    onClick={() => store.setRightPanelTab(tab)}
-                  >
-                    {tab === 'key-config' ? '⚙ Key Config' :
-                     tab === 'trackball' ? '🖲 Trackball' :
-                     tab === 'timing' ? '⏱ Timing' : '📡 デバイス'}
-                  </button>
-                ))}
-              </div>
-              <div className="right-panel-content">
-                {rightPanelContent()}
-              </div>
-            </aside>
-          </>
-        )}
+              <ResizeHandle side="right" onResize={onResizeRight} />
+              <aside className="right-panel" style={{ width: RIGHT_MAX, overflow: 'hidden' }}>
+                <div style={{
+                  transform: `scale(${Math.min(1, RIGHT_MAX / 700)})`,
+                  transformOrigin: 'top left',
+                  width: `${100 / Math.min(1, RIGHT_MAX / 700)}%`,
+                }}>
+                  <KeyboardView store={store} />
+                </div>
+              </aside>
+            </>
+          ) : (
+            <>
+              {/* Normal mode: keyboard in center, config on right */}
+              <KeyboardView store={store} />
+              <ResizeHandle side="right" onResize={onResizeRight} />
+              <aside className="right-panel" style={{ width: rightWidth }}>
+                <div className="right-panel-tabs">
+                  {(['key-config', 'trackball', 'timing', 'bluetooth'] as const).map(tab => (
+                    <button
+                      key={tab}
+                      className={`right-panel-tab ${store.rightPanelTab === tab ? 'active' : ''}`}
+                      onClick={() => store.setRightPanelTab(tab)}
+                    >
+                      {tab === 'key-config' ? '⚙ Key Config' :
+                       tab === 'trackball' ? '🖲 Trackball' :
+                       tab === 'timing' ? '⏱ Timing' : '📡 デバイス'}
+                    </button>
+                  ))}
+                </div>
+                <div className="right-panel-content">
+                  {rightPanelContent()}
+                </div>
+              </aside>
+            </>
+          )}
+        </div>
       </div>
 
       <DebugConsole visible={showConsole} />
