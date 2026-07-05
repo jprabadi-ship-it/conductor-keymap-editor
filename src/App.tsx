@@ -56,6 +56,65 @@ function App() {
     return () => clearTimeout(timer);
   }, [store.layers, store.combos, store.macros, store.osLayout]);
 
+  // Pulls the keymap from the device and applies it to the local store.
+  // Called both from the header's explicit "Read" button and automatically
+  // right after connecting, so the editor never starts from stale local
+  // state that could get pushed back to the device on the next Write.
+  const handleRead = async () => {
+    if (unsaved) {
+      if (!confirm('未保存の変更があります。デバイスから読み込むと上書きされます。続けますか？')) return;
+    }
+    const result = await readKeymap();
+    if (result?.layers) {
+      const project = store.exportProject();
+      project.layers = result.layers.map((dl: any, i: number) => {
+        const existing = project.layers[i] || project.layers[0];
+        const keys = existing.keys.map((k: any) => ({
+          id: k.id,
+          binding: dl.bindings[k.id] || { type: 'none', keyCode: 'NONE', label: '' },
+        }));
+        const isGenericName = !dl.name || dl.name.length === 0 || /^Layer \d+$/.test(dl.name);
+        const name = isGenericName && existing.name ? existing.name : (dl.name || existing.name);
+        const ledColor = dl.ledColor ?? existing.ledColor;
+        return { ...existing, name, ledColor, index: dl.id ?? i, keys };
+      });
+      // Load firmware macros via RPC (with step data)
+      const deviceMacros = await readMacrosFromDevice();
+      if (deviceMacros && deviceMacros.length > 0) {
+        project.macros = deviceMacros;
+        // Re-map macro key labels: DT name → editor name
+        for (const layer of project.layers) {
+          for (const key of layer.keys) {
+            if (key.binding.keyCode?.startsWith('&') && key.binding.keyCode.length > 1) {
+              const dtName = key.binding.keyCode.substring(1);
+              const macro = deviceMacros.find(m => m.deviceId !== undefined &&
+                getBehaviorDisplayName(m.deviceId) === dtName);
+              if (macro && macro.name !== dtName) {
+                key.binding.label = `&${macro.name}`;
+                key.binding.keyCode = `&${macro.name}`;
+              }
+            }
+          }
+        }
+        debugLog('INF', 'Editor', `Firmware macros loaded with steps: ${deviceMacros.map(m => `${m.name}(${m.bindings.length})`).join(', ')}`);
+      } else if (result.firmwareMacros?.length > 0) {
+        const fwMacros = result.firmwareMacros.map((m: any) => ({
+          name: m.name,
+          waitMs: 30,
+          tapMs: 30,
+          bindings: [],
+        }));
+        project.macros = fwMacros;
+        debugLog('INF', 'Editor', `Firmware macros loaded (no step data): ${fwMacros.map((m: any) => m.name).join(', ')}`);
+      }
+      store.importProject(project);
+      store.clearDirtyKeys();
+      setUnsaved(false);
+      debugLog('INF', 'Editor', `Keymap applied: ${result.layers.length} layers`);
+      showToast(`${result.layers.length} layers loaded from device`);
+    }
+  };
+
   const rightPanelContent = () => {
     switch (store.rightPanelTab) {
       case 'key-config': return <KeyConfig store={store} />;
@@ -102,60 +161,7 @@ function App() {
             }
           }
         }}
-        onRead={async () => {
-          if (unsaved) {
-            if (!confirm('未保存の変更があります。デバイスから読み込むと上書きされます。続けますか？')) return;
-          }
-          const result = await readKeymap();
-          if (result?.layers) {
-            const project = store.exportProject();
-            project.layers = result.layers.map((dl: any, i: number) => {
-              const existing = project.layers[i] || project.layers[0];
-              const keys = existing.keys.map((k: any) => ({
-                id: k.id,
-                binding: dl.bindings[k.id] || { type: 'none', keyCode: 'NONE', label: '' },
-              }));
-              const isGenericName = !dl.name || dl.name.length === 0 || /^Layer \d+$/.test(dl.name);
-              const name = isGenericName && existing.name ? existing.name : (dl.name || existing.name);
-              const ledColor = dl.ledColor ?? existing.ledColor;
-              return { ...existing, name, ledColor, index: dl.id ?? i, keys };
-            });
-            // Load firmware macros via RPC (with step data)
-            const deviceMacros = await readMacrosFromDevice();
-            if (deviceMacros && deviceMacros.length > 0) {
-              project.macros = deviceMacros;
-              // Re-map macro key labels: DT name → editor name
-              for (const layer of project.layers) {
-                for (const key of layer.keys) {
-                  if (key.binding.keyCode?.startsWith('&') && key.binding.keyCode.length > 1) {
-                    const dtName = key.binding.keyCode.substring(1);
-                    const macro = deviceMacros.find(m => m.deviceId !== undefined &&
-                      getBehaviorDisplayName(m.deviceId) === dtName);
-                    if (macro && macro.name !== dtName) {
-                      key.binding.label = `&${macro.name}`;
-                      key.binding.keyCode = `&${macro.name}`;
-                    }
-                  }
-                }
-              }
-              debugLog('INF', 'Editor', `Firmware macros loaded with steps: ${deviceMacros.map(m => `${m.name}(${m.bindings.length})`).join(', ')}`);
-            } else if (result.firmwareMacros?.length > 0) {
-              const fwMacros = result.firmwareMacros.map((m: any) => ({
-                name: m.name,
-                waitMs: 30,
-                tapMs: 30,
-                bindings: [],
-              }));
-              project.macros = fwMacros;
-              debugLog('INF', 'Editor', `Firmware macros loaded (no step data): ${fwMacros.map((m: any) => m.name).join(', ')}`);
-            }
-            store.importProject(project);
-            store.clearDirtyKeys();
-            setUnsaved(false);
-            debugLog('INF', 'Editor', `Keymap applied: ${result.layers.length} layers`);
-            showToast(`${result.layers.length} layers loaded from device`);
-          }
-        }}
+        onRead={handleRead}
         onSave={() => {
           store.autoSave();
           setUnsaved(false);
@@ -208,6 +214,11 @@ function App() {
                 if (!ok) {
                   debugLog('WRN', 'USB', 'Device is locked. Write operations will fail. Press studio_unlock combo on keyboard.');
                 }
+                // Auto-read on connect so the editor never sits on stale
+                // local/cached state that could get pushed back to the
+                // device (with a stale "Write") before the user has seen
+                // what's actually on it.
+                await handleRead();
               }
             }}
           />
