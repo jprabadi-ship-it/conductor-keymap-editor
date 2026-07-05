@@ -75,6 +75,9 @@ export const KEYCODES: KeyCodeEntry[] = [
   { code: 'KC_HENK', label: 'Henkan', category: 'IME' },
   { code: 'KC_MHEN', label: 'Muhenkan', category: 'IME' },
   { code: 'KC_KANA', label: 'Kana', category: 'IME' },
+  // macOS "🌐" Globe/fn key (dt-bindings/zmk/keys.h's GLOBE ->
+  // AC_NEXT_KEYBOARD_LAYOUT_SELECT, Consumer usage 0x29D).
+  { code: 'GLOBE', label: 'Globe', category: 'IME' },
 
   // Symbols
   { code: 'KC_MINS', label: '-', category: 'Symbols' },

@@ -416,6 +416,9 @@ const CONSUMER_USAGE: Record<number, string> = {
   0x6F: 'Bri+', 0x70: 'Bri-',
   0xB5: 'Next', 0xB6: 'Prev', 0xB7: 'Stop', 0xCD: 'Play',
   0xE2: 'Mute', 0xE9: 'Vol+', 0xEA: 'Vol-',
+  // AC_NEXT_KEYBOARD_LAYOUT_SELECT -- the macOS "🌐 Globe/fn" key
+  // (dt-bindings/zmk/keys.h's GLOBE define).
+  0x29D: 'Globe',
 };
 
 const MOD_BITS: [number, string][] = [
