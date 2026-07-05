@@ -591,7 +591,7 @@ input:focus { border-color: var(--accent); }
 /* Layer switcher */
 .layer-switcher {
   display: flex; gap: 2px; justify-content: center; flex-wrap: nowrap;
-  padding: 12px 16px 8px;
+  padding: 12px 16px 20px;
 }
 .layer-dot {
   display: flex; flex-direction: column; align-items: center; gap: 3px;
