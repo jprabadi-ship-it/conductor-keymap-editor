@@ -522,7 +522,7 @@ export async function readKeymap(): Promise<any> {
       'sticky key', 'momentary layer', 'sticky layer', 'studio unlock',
       'reset', 'to layer', 'bluetooth', 'bootloader',
       'layer-tap', 'mod-tap', 'toggle layer', 'toggle scroll invert',
-      'enc_key_press',
+      'enc_key_press', 'toggle aml', 'usb slot select',
     ]);
     const firmwareMacros: { id: number; name: string }[] = [];
     for (const [idStr, beh] of Object.entries(behaviorCache)) {

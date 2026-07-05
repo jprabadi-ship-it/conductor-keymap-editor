@@ -129,7 +129,18 @@ export function DebugConsole({ visible }: Props) {
           style={{ fontSize: 10, width: 24, height: 24 }}
           onClick={() => {
             const text = filteredLogs.map(l => `${l.timestamp} ${l.level} [${l.source}] ${l.message}`).join('\n');
-            navigator.clipboard.writeText(text);
+            navigator.clipboard.writeText(text).catch(() => {
+              // Clipboard API can reject (permissions, insecure context, etc.) --
+              // fall back to a hidden textarea + execCommand so the copy still works.
+              const ta = document.createElement('textarea');
+              ta.value = text;
+              ta.style.position = 'fixed';
+              ta.style.opacity = '0';
+              document.body.appendChild(ta);
+              ta.select();
+              try { document.execCommand('copy'); } catch { /* ignore */ }
+              document.body.removeChild(ta);
+            });
           }}
           title="Copy logs"
         >📋</button>
