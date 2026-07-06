@@ -118,19 +118,15 @@ export async function connectBle(): Promise<boolean> {
   }
   try {
     debugLog('INF', 'BLE', 'Requesting Bluetooth device...');
-    // Filtering by service UUID also surfaces devices macOS knows about from
-    // its own pairing DB but that are NOT currently advertising -- Chrome
-    // lists these (often labeled "<name> - Paired") but gatt.connect() on
-    // them fails with "Unsupported device" since there's no live peripheral
-    // to attach to. Name-prefix filters only match a real, currently
-    // advertising device, so stick to those: the keyboard must be in
-    // pairing/advertising mode (e.g. the pair combo) when this runs.
+    // Same requestDevice shape as the official zmk-studio-ts-client: filter
+    // by the Studio service UUID ONLY. On macOS Chrome surfaces the
+    // already-HID-connected keyboard through this filter (CoreBluetooth's
+    // connected-peripherals lookup matches by service UUID), so no pairing
+    // mode is needed. Do NOT add namePrefix filters: those also match the
+    // OS pairing DB's classic-Bluetooth ghost entries ("<name> - Paired"),
+    // which always fail gatt.connect() with "Unsupported device".
     bleDevice = await (navigator as any).bluetooth.requestDevice({
-      filters: [
-        { namePrefix: 'conductor' },
-        { namePrefix: 'Conductor' },
-        { namePrefix: 'monokey' },
-      ],
+      filters: [{ services: [STUDIO_BLE_SERVICE] }],
       optionalServices: [STUDIO_BLE_SERVICE],
     });
     debugLog('INF', 'BLE', `Device selected: ${bleDevice.name}, connecting GATT...`);
@@ -141,11 +137,16 @@ export async function connectBle(): Promise<boolean> {
       resetConnectionState();
       onDisconnectCallback?.();
     });
-    const server = await bleDevice.gatt.connect();
-    const service = await server.getPrimaryService(STUDIO_BLE_SERVICE);
+    if (!bleDevice.gatt.connected) {
+      await bleDevice.gatt.connect();
+    }
+    const service = await bleDevice.gatt.getPrimaryService(STUDIO_BLE_SERVICE);
     bleChar = await service.getCharacteristic(STUDIO_BLE_RPC_CHRC);
-    // startNotifications subscribes via CCC; the characteristic uses
-    // indications, which Web Bluetooth handles through the same API.
+    // stop-then-start, like the official client: reconnecting to the same
+    // device otherwise silently loses notifications. startNotifications
+    // subscribes via CCC; the characteristic uses indications, which Web
+    // Bluetooth handles through the same API.
+    await bleChar.stopNotifications().catch(() => {});
     await bleChar.startNotifications();
     bleChar.addEventListener('characteristicvaluechanged', (e: any) => {
       const dv = e.target.value as DataView;
