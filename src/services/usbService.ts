@@ -236,6 +236,35 @@ export async function getDeviceInfo(): Promise<{ name: string; firmwareVersion: 
   }
 }
 
+export interface RuntimeBatteryState {
+  central: number | null; // dongle; null = unknown (255 on the wire)
+  peripheralR: number | null; // slot 0 -- has the trackball
+  peripheralL: number | null; // slot 1
+  charging: boolean;
+}
+
+const UNKNOWN_BATTERY = 255;
+function normalizeBattery(v: number | undefined): number | null {
+  return v === undefined || v === UNKNOWN_BATTERY ? null : v;
+}
+
+export async function getRuntimeState(): Promise<RuntimeBatteryState | null> {
+  try {
+    const resp = await sendRequest({ core: { getRuntimeState: true } });
+    const rs = resp.core?.getRuntimeState;
+    if (!rs) return null;
+    return {
+      central: normalizeBattery(rs.batteryCentral),
+      peripheralR: normalizeBattery(rs.batteryPeripheral),
+      peripheralL: normalizeBattery(rs.batteryPeripheralL),
+      charging: !!rs.charging,
+    };
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `getRuntimeState failed: ${e.message}`);
+    return null;
+  }
+}
+
 export async function getLockState(): Promise<number> {
   try {
     const resp = await sendRequest({ core: { getLockState: true } });
