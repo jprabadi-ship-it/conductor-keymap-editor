@@ -118,10 +118,19 @@ export async function connectBle(): Promise<boolean> {
   }
   try {
     debugLog('INF', 'BLE', 'Requesting Bluetooth device...');
-    // The Studio service UUID is not in the advertisement (only HID is), so
-    // filter by the keyboard name and request the service via optionalServices.
+    // Name filters match while the keyboard is advertising (pairing mode /
+    // reconnecting). The service-UUID filter additionally lets Chrome surface
+    // a device that is ALREADY connected to the OS (macOS exposes connected
+    // peripherals by service UUID even though they no longer advertise) --
+    // without it, a dongle busy on its BLE profile never shows up and the
+    // user would have to re-enter pairing mode first.
     bleDevice = await (navigator as any).bluetooth.requestDevice({
-      filters: [{ namePrefix: 'conductor' }, { namePrefix: 'Conductor' }, { namePrefix: 'monokey' }],
+      filters: [
+        { services: [STUDIO_BLE_SERVICE] },
+        { namePrefix: 'conductor' },
+        { namePrefix: 'Conductor' },
+        { namePrefix: 'monokey' },
+      ],
       optionalServices: [STUDIO_BLE_SERVICE],
     });
     debugLog('INF', 'BLE', `Device selected: ${bleDevice.name}, connecting GATT...`);
