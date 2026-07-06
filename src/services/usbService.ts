@@ -971,6 +971,27 @@ export async function setAccel(enabled: boolean, maxMilli: number, threshold: nu
   }
 }
 
+export async function getInertia(): Promise<{ enabled: boolean; decayMilli: number; startSpeed: number } | null> {
+  try {
+    const resp = await sendRequest({ pointing: { getInertia: {} } });
+    return resp.pointing?.getInertia?.inertia || null;
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `getInertia failed: ${e.message}`);
+    return null;
+  }
+}
+
+export async function setInertia(enabled: boolean, decayMilli: number, startSpeed: number): Promise<boolean> {
+  try {
+    await sendRequest({ pointing: { setInertia: { inertia: { enabled, decayMilli, startSpeed } } } });
+    debugLog('INF', 'USB', `Inertia set: enabled=${enabled}, decay=${decayMilli}, startSpeed=${startSpeed}`);
+    return true;
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `setInertia failed: ${e.message}`);
+    return false;
+  }
+}
+
 // Per-output-device gesture binding override. Flattened per (endpoint,
 // direction): index = endpointIndex*4 + direction (0=up,1=down,2=left,3=right).
 // endpointIndex is zmk_endpoint_instance_to_index (NONE=0, USB=1, BT profile

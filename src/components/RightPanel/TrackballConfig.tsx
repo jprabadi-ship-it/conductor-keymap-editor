@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { KeymapStore } from '../../store/useKeymapStore';
-import { isConnected, isUnlocked, requestUnlock, setSensitivity, setAutoLayer, setPrecisionScale, setAccel, getSensitivity, getAutoLayer, getPrecisionScale, getAccel, saveChanges as savePointingChanges } from '../../services/usbService';
+import { isConnected, isUnlocked, requestUnlock, setSensitivity, setAutoLayer, setPrecisionScale, setAccel, getSensitivity, getAutoLayer, getPrecisionScale, getAccel, getInertia, setInertia, saveChanges as savePointingChanges } from '../../services/usbService';
 import { KEY_CATEGORIES, KEYCODES, searchKeyCodes } from '../../data/keycodes';
 import { debugLog } from '../DebugConsole';
 import { KEYBOARD_LAYOUT, keyIdsToPositions, positionsToKeyIds } from '../../data/layout';
@@ -20,6 +20,10 @@ const PRECISION_PRESETS = [
 const ACCEL_OPTIONS = [
   { label: 'オフ', value: 0 }, { label: '弱', value: 1 },
   { label: '中', value: 2 }, { label: '強', value: 3 },
+];
+// decayMilli = 16msティックごとに残る速度x1000。大きいほど長く滑る
+const INERTIA_DECAY_PRESETS = [
+  { label: '短い', value: 850 }, { label: '標準', value: 900 }, { label: '長い', value: 950 },
 ];
 
 const DIRECTION_LABELS: Record<string, { icon: string; label: string }> = {
@@ -94,8 +98,11 @@ export function TrackballConfig({ store }: Props) {
   const [accelMaxRatio, setAccelMaxRatio] = useState(1.2);
   const [accelStartSpeed, setAccelStartSpeed] = useState(10);
   const [accelRampWidth, setAccelRampWidth] = useState(28);
+  const [inertiaEnabled, setInertiaEnabled] = useState(false);
+  const [inertiaDecay, setInertiaDecay] = useState(900);
+  const [inertiaStartSpeed, setInertiaStartSpeed] = useState(8);
   const [loaded, setLoaded] = useState(false);
-  const [trackballTab, setTrackballTab] = useState<'aml' | 'gesture' | 'cursor'>('aml');
+  const [trackballTab, setTrackballTab] = useState<'aml' | 'gesture' | 'cursor' | 'inertia'>('aml');
 
   // Load settings from device on mount if connected
   useEffect(() => {
@@ -127,6 +134,13 @@ export function TrackballConfig({ store }: Props) {
         setAccelMaxRatio(acc.maxMilli / 1000);
         setAccelStartSpeed(acc.threshold);
         setAccelRampWidth(acc.range);
+      }
+      const inertia = await getInertia();
+      if (inertia) {
+        setInertiaEnabled(inertia.enabled);
+        if (inertia.decayMilli > 0) setInertiaDecay(inertia.decayMilli);
+        if (inertia.startSpeed > 0) setInertiaStartSpeed(inertia.startSpeed);
+        debugLog('INF', 'Trackball', `Inertia: enabled=${inertia.enabled}, decay=${inertia.decayMilli}, startSpeed=${inertia.startSpeed}`);
       }
       setLoaded(true);
     })();
@@ -185,6 +199,16 @@ export function TrackballConfig({ store }: Props) {
     sendIfRealtime(() => setAccel(accelMode > 0, Math.round(maxR * 1000), start, ramp));
   };
 
+  // Inertia sends immediately (AML pattern): FW applies + persists in one RPC
+  const sendInertia = async (enabled: boolean, decay: number, startSpeed: number) => {
+    if (!isConnected()) return;
+    if (!isUnlocked() && !(await requestUnlock())) {
+      debugLog('WRN', 'Trackball', 'Device locked. Press studio_unlock combo.');
+      return;
+    }
+    await setInertia(enabled, decay, startSpeed);
+  };
+
   return (
     <div>
       {/* Tabs */}
@@ -193,6 +217,7 @@ export function TrackballConfig({ store }: Props) {
           { key: 'aml', label: 'AML' },
           { key: 'gesture', label: 'ジェスチャ' },
           { key: 'cursor', label: 'カーソル' },
+          { key: 'inertia', label: '慣性' },
         ] as const).map(tab => (
           <button
             key={tab.key}
@@ -547,6 +572,69 @@ export function TrackballConfig({ store }: Props) {
       </div>
       <div className="save-note">
         スライダーを動かすとリアルタイムで反映されます。「保存」でFlashに永続化してください。
+      </div>
+      </>)}
+
+      {/* Inertia (trackpad-style glide) */}
+      {trackballTab === 'inertia' && (<>
+      <div className="config-section">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+          <span style={{ fontSize: 13, fontWeight: 600 }}>慣性スクロール / カーソル</span>
+          <div className="btn-group">
+            <button className={`btn ${!inertiaEnabled ? 'btn-active' : ''}`} onClick={async () => {
+              setInertiaEnabled(false);
+              await sendInertia(false, inertiaDecay, inertiaStartSpeed);
+              debugLog('INF', 'Trackball', 'Inertia disabled');
+            }}>OFF</button>
+            <button className={`btn ${inertiaEnabled ? 'btn-active' : ''}`} onClick={async () => {
+              setInertiaEnabled(true);
+              await sendInertia(true, inertiaDecay, inertiaStartSpeed);
+              debugLog('INF', 'Trackball', 'Inertia enabled');
+            }} style={inertiaEnabled ? { background: 'var(--success)', color: 'white' } : {}}>ON</button>
+          </div>
+        </div>
+        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>
+          トラックパッドのように、ボールを弾いた後もカーソルやスクロールが減衰しながら滑り続けます。ボールに触れると即停止します。
+        </div>
+      </div>
+
+      <div className="config-section">
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
+          <span>滑走の長さ</span>
+          <span style={{ color: 'var(--accent)', fontWeight: 700, fontSize: 16 }}>
+            {INERTIA_DECAY_PRESETS.find(p => p.value === inertiaDecay)?.label ?? inertiaDecay}
+          </span>
+        </div>
+        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>弾いた後にどれだけ長く滑り続けるか</div>
+        <div style={{ display: 'flex', gap: 4 }}>
+          {INERTIA_DECAY_PRESETS.map(p => (
+            <button key={p.value} className={`preset-btn ${inertiaDecay === p.value ? 'selected' : ''}`}
+              onClick={async () => {
+                setInertiaDecay(p.value);
+                await sendInertia(inertiaEnabled, p.value, inertiaStartSpeed);
+              }}>{p.label}</button>
+          ))}
+        </div>
+      </div>
+
+      <div className="config-section">
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
+          <span>発動のしにくさ</span>
+          <span style={{ color: 'var(--accent)', fontWeight: 600 }}>{inertiaStartSpeed}</span>
+        </div>
+        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>
+          この速さ以上で弾いた時だけ慣性が働きます。小さいほど発動しやすく、大きいほど強く弾かないと発動しません。
+        </div>
+        <input type="range" className="timing-slider" min={2} max={30} step={1} value={inertiaStartSpeed}
+          onChange={e => setInertiaStartSpeed(Number(e.target.value))}
+          onPointerUp={() => sendInertia(inertiaEnabled, inertiaDecay, inertiaStartSpeed)} />
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)' }}>
+          <span>発動しやすい</span><span>強く弾いた時だけ</span>
+        </div>
+      </div>
+
+      <div className="save-note">
+        変更は即座にデバイスへ送信・保存されます（接続時）。
       </div>
       </>)}
     </div>
