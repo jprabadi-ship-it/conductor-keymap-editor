@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { connectUsb, disconnectUsb, getRuntimeState, RuntimeBatteryState } from '../../services/usbService';
+import { connectUsb, disconnectUsb, connectBle, disconnectBle, getRuntimeState, RuntimeBatteryState } from '../../services/usbService';
 
 interface Props {
   connected: boolean;
@@ -26,13 +26,25 @@ export function ConnectionPanel({ connected, connectionType, onConnectionChange 
 
   const handleUsbConnect = async () => {
     if (connected) {
-      await disconnectUsb();
+      await (connectionType === 'bluetooth' ? disconnectBle() : disconnectUsb());
       onConnectionChange(false, null);
       return;
     }
     const success = await connectUsb();
     if (success) {
       onConnectionChange(true, 'usb');
+    }
+  };
+
+  const handleBleConnect = async () => {
+    if (connected) {
+      await (connectionType === 'bluetooth' ? disconnectBle() : disconnectUsb());
+      onConnectionChange(false, null);
+      return;
+    }
+    const success = await connectBle();
+    if (success) {
+      onConnectionChange(true, 'bluetooth');
     }
   };
 
@@ -56,12 +68,12 @@ export function ConnectionPanel({ connected, connectionType, onConnectionChange 
   return (
     <div className="connection-panel">
       <div style={{ display: 'flex', gap: 12, marginBottom: 8 }}>
-        <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>⚡ USB</span>
+        <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>⚡ USB / ᛒ BLE</span>
       </div>
 
       <div className="connection-status">
         <span className={`status-dot ${connected ? 'connected' : ''}`} />
-        <span>{connected ? `Connected (${connectionType?.toUpperCase()})` : 'Disconnected'}</span>
+        <span>{connected ? `Connected (${connectionType === 'bluetooth' ? 'BLE' : 'USB'})` : 'Disconnected'}</span>
       </div>
 
       {connected && battery && (
@@ -72,12 +84,21 @@ export function ConnectionPanel({ connected, connectionType, onConnectionChange 
         </div>
       )}
 
-      <button className="connect-btn connect-btn-usb" onClick={handleUsbConnect}>
-        ⚡ {connected && connectionType === 'usb' ? 'Disconnect USB' : 'Connect via USB'}
-      </button>
+      {(!connected || connectionType === 'usb') && (
+        <button className="connect-btn connect-btn-usb" onClick={handleUsbConnect}>
+          ⚡ {connected && connectionType === 'usb' ? 'Disconnect USB' : 'Connect via USB'}
+        </button>
+      )}
+
+      {(!connected || connectionType === 'bluetooth') && (
+        <button className="connect-btn connect-btn-usb" onClick={handleBleConnect}
+          style={{ marginTop: connected ? 0 : 6, background: 'var(--info)' }}>
+          ᛒ {connected && connectionType === 'bluetooth' ? 'Disconnect BLE' : 'Connect via Bluetooth'}
+        </button>
+      )}
 
       <div className="connection-help">
-        USBケーブルで接続してください。Web Serial API（Chrome/Edge）が必要です。
+        USBケーブル、またはBluetooth（BT0-4のいずれかでペアリング済みのホストから）で接続できます。Web Serial / Web Bluetooth API（Chrome/Edge）が必要です。
       </div>
     </div>
   );

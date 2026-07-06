@@ -96,6 +96,87 @@ class FrameDecoder {
 
 const decoder = new FrameDecoder();
 
+// ---- Web Bluetooth transport (ZMK Studio GATT RPC service) ----
+// Same framed byte stream as serial: the firmware's gatt_rpc_transport.c
+// feeds raw bytes into the same RPC ring buffer, so the SLIP-style
+// encoder/decoder above is shared. Responses arrive as GATT indications
+// (~27-byte chunks), so BLE requests get a much longer timeout than USB.
+const STUDIO_BLE_SERVICE = '00000000-0196-6107-c967-c5cfb1c2482a';
+const STUDIO_BLE_RPC_CHRC = '00000001-0196-6107-c967-c5cfb1c2482a';
+const BLE_WRITE_CHUNK = 100;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let bleDevice: any = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let bleChar: any = null;
+
+export async function connectBle(): Promise<boolean> {
+  if (!('bluetooth' in navigator)) {
+    debugLog('ERR', 'BLE', 'Web Bluetooth API is not supported. Use Chrome or Edge.');
+    alert('Web Bluetooth API is not supported. Use Chrome or Edge.');
+    return false;
+  }
+  try {
+    debugLog('INF', 'BLE', 'Requesting Bluetooth device...');
+    // The Studio service UUID is not in the advertisement (only HID is), so
+    // filter by the keyboard name and request the service via optionalServices.
+    bleDevice = await (navigator as any).bluetooth.requestDevice({
+      filters: [{ namePrefix: 'conductor' }, { namePrefix: 'Conductor' }, { namePrefix: 'monokey' }],
+      optionalServices: [STUDIO_BLE_SERVICE],
+    });
+    debugLog('INF', 'BLE', `Device selected: ${bleDevice.name}, connecting GATT...`);
+    bleDevice.addEventListener('gattserverdisconnected', () => {
+      debugLog('WRN', 'BLE', 'GATT disconnected');
+      bleChar = null;
+      bleDevice = null;
+      resetConnectionState();
+      onDisconnectCallback?.();
+    });
+    const server = await bleDevice.gatt.connect();
+    const service = await server.getPrimaryService(STUDIO_BLE_SERVICE);
+    bleChar = await service.getCharacteristic(STUDIO_BLE_RPC_CHRC);
+    // startNotifications subscribes via CCC; the characteristic uses
+    // indications, which Web Bluetooth handles through the same API.
+    await bleChar.startNotifications();
+    bleChar.addEventListener('characteristicvaluechanged', (e: any) => {
+      const dv = e.target.value as DataView;
+      decoder.onData(new Uint8Array(dv.buffer, dv.byteOffset, dv.byteLength));
+    });
+    initProto();
+    debugLog('INF', 'BLE', 'Studio GATT RPC connected');
+    return true;
+  } catch (e: any) {
+    if (e?.name !== 'NotFoundError') {
+      debugLog('ERR', 'BLE', `Connection failed: ${e.message || e}`);
+    } else {
+      debugLog('INF', 'BLE', 'User cancelled device selection');
+    }
+    try { bleDevice?.gatt?.disconnect?.(); } catch { /* ignore */ }
+    bleDevice = null;
+    bleChar = null;
+    return false;
+  }
+}
+
+export async function disconnectBle(): Promise<void> {
+  try {
+    if (bleChar) { await bleChar.stopNotifications().catch(() => {}); bleChar = null; }
+    if (bleDevice) { bleDevice.gatt?.disconnect?.(); bleDevice = null; }
+    resetConnectionState();
+    debugLog('INF', 'BLE', 'Disconnected');
+  } catch (e: any) {
+    debugLog('WRN', 'BLE', `Disconnect error: ${e.message}`);
+  }
+}
+
+async function bleWriteFrame(frame: Uint8Array): Promise<void> {
+  if (!bleChar) throw new Error('BLE not connected');
+  for (let offset = 0; offset < frame.length; offset += BLE_WRITE_CHUNK) {
+    const chunk = frame.slice(offset, offset + BLE_WRITE_CHUNK);
+    await bleChar.writeValueWithResponse(chunk);
+  }
+}
+
 // Serial connection
 export async function connectUsb(): Promise<boolean> {
   if (!('serial' in navigator)) {
@@ -150,7 +231,7 @@ async function startReading() {
 }
 
 export function isConnected(): boolean {
-  return port !== null;
+  return port !== null || bleChar !== null;
 }
 
 export async function disconnectUsb(): Promise<void> {
@@ -196,7 +277,8 @@ function handleFrame(data: Uint8Array) {
 }
 
 async function sendRequest(payload: Record<string, unknown>): Promise<any> {
-  if (!writer) throw new Error('Not connected');
+  const viaBle = bleChar !== null;
+  if (!writer && !viaBle) throw new Error('Not connected');
   initProto();
 
   const id = ++requestId;
@@ -204,15 +286,21 @@ async function sendRequest(payload: Record<string, unknown>): Promise<any> {
   const buffer = RequestType.encode(msg).finish();
   const frame = encodeFrame(buffer);
 
+  // BLE responses arrive as ~27-byte GATT indications (each acked per conn
+  // interval), so large replies like getKeymap take seconds -- give BLE a
+  // much longer deadline than the serial transport.
+  const timeoutMs = viaBle ? 30000 : 5000;
+
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
       pendingRequests.delete(id);
       reject(new Error('Response timeout'));
-    }, 5000);
+    }, timeoutMs);
 
     pendingRequests.set(id, { resolve, reject, timeout });
 
-    writer!.write(frame).catch((e: any) => {
+    const write = viaBle ? bleWriteFrame(frame) : writer!.write(frame);
+    write.catch((e: any) => {
       clearTimeout(timeout);
       pendingRequests.delete(id);
       reject(e);

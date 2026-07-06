@@ -27,7 +27,8 @@ function App() {
   const [leftWidth, setLeftWidth] = useState(320);
   const [rightWidth, setRightWidth] = useState(340);
   const [showConsole, setShowConsole] = useState(false);
-  const [usbConnected, setUsbConnected] = useState(false);
+  const [usbConnected, setUsbConnected] = useState(false); // true for either transport (USB or BLE)
+  const [connType, setConnType] = useState<'usb' | 'bluetooth' | null>(null);
   const [unsaved, setUnsaved] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'device' | 'local' | 'error' } | null>(null);
 
@@ -37,7 +38,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    onDeviceDisconnect(() => setUsbConnected(false));
+    onDeviceDisconnect(() => { setUsbConnected(false); setConnType(null); });
     setKeyboardLayout(store.osLayout);
   }, []);
 
@@ -202,9 +203,10 @@ function App() {
 
           <ConnectionPanel
             connected={usbConnected}
-            connectionType={usbConnected ? 'usb' : null}
+            connectionType={connType}
             onConnectionChange={async (conn, type) => {
-              setUsbConnected(conn && type === 'usb');
+              setUsbConnected(conn);
+              setConnType(conn ? type : null);
               if (conn) {
                 const info = await getDeviceInfo();
                 if (info) {
