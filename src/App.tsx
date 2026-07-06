@@ -29,9 +29,9 @@ function App() {
   const [showConsole, setShowConsole] = useState(false);
   const [usbConnected, setUsbConnected] = useState(false);
   const [unsaved, setUnsaved] = useState(false);
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'device' | 'local' | 'error' } | null>(null);
 
-  const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
+  const showToast = useCallback((message: string, type: 'device' | 'local' | 'error' = 'device') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
   }, []);
@@ -157,7 +157,7 @@ function App() {
               store.clearDirtyKeys();
               setUnsaved(false);
               debugLog('INF', 'Editor', 'Keymap written and saved to device flash');
-              showToast('Keymap saved to device');
+              showToast('実機のFlashに書き込みました', 'device');
             }
           }
         }}
@@ -166,6 +166,7 @@ function App() {
           store.autoSave();
           setUnsaved(false);
           debugLog('INF', 'Editor', 'Saved to LocalStorage');
+          showToast('ブラウザのLocalStorageに保存しました', 'local');
         }}
       />
 
@@ -205,7 +206,6 @@ function App() {
             onConnectionChange={async (conn, type) => {
               setUsbConnected(conn && type === 'usb');
               if (conn) {
-                setShowConsole(true);
                 const info = await getDeviceInfo();
                 if (info) {
                   debugLog('INF', 'USB', `Device: ${info.name} (FW: ${info.firmwareVersion})`);
@@ -287,12 +287,12 @@ function App() {
       {toast && (
         <div style={{
           position: 'fixed', bottom: 40, left: '50%', transform: 'translateX(-50%)',
-          background: toast.type === 'success' ? 'var(--success)' : 'var(--danger)',
+          background: toast.type === 'device' ? 'var(--success)' : toast.type === 'local' ? 'var(--info)' : 'var(--danger)',
           color: 'white', padding: '8px 20px', borderRadius: 6, fontSize: 13, fontWeight: 600,
           zIndex: 2000, boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
           animation: 'fadeIn 0.2s ease',
         }}>
-          {toast.type === 'success' ? '✓' : '✗'} {toast.message}
+          {toast.type === 'device' ? '🔌' : toast.type === 'local' ? '💾' : '✗'} {toast.message}
         </div>
       )}
     </>
