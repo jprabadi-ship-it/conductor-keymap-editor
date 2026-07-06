@@ -118,15 +118,15 @@ export async function connectBle(): Promise<boolean> {
   }
   try {
     debugLog('INF', 'BLE', 'Requesting Bluetooth device...');
-    // Name filters match while the keyboard is advertising (pairing mode /
-    // reconnecting). The service-UUID filter additionally lets Chrome surface
-    // a device that is ALREADY connected to the OS (macOS exposes connected
-    // peripherals by service UUID even though they no longer advertise) --
-    // without it, a dongle busy on its BLE profile never shows up and the
-    // user would have to re-enter pairing mode first.
+    // Filtering by service UUID also surfaces devices macOS knows about from
+    // its own pairing DB but that are NOT currently advertising -- Chrome
+    // lists these (often labeled "<name> - Paired") but gatt.connect() on
+    // them fails with "Unsupported device" since there's no live peripheral
+    // to attach to. Name-prefix filters only match a real, currently
+    // advertising device, so stick to those: the keyboard must be in
+    // pairing/advertising mode (e.g. the pair combo) when this runs.
     bleDevice = await (navigator as any).bluetooth.requestDevice({
       filters: [
-        { services: [STUDIO_BLE_SERVICE] },
         { namePrefix: 'conductor' },
         { namePrefix: 'Conductor' },
         { namePrefix: 'monokey' },
