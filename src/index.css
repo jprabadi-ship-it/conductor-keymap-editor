@@ -797,7 +797,7 @@ input:focus { border-color: var(--accent); }
 .center-column .keyboard-container {
   width: 100%;
   box-sizing: border-box;
-  gap: 12px;
+  gap: 22px;
 }
 .center-column .keyboard-half {
   grid-template-columns: repeat(6, 1fr);
@@ -806,11 +806,19 @@ input:focus { border-color: var(--accent); }
   flex: 1;
   min-width: 0;
 }
-.center-column .key-btn,
-.center-column .trackball-placeholder {
+.center-column .key-btn {
   width: auto;
   height: auto;
   aspect-ratio: 1;
+}
+.center-column .trackball-placeholder {
+  /* width/height auto with no content would collapse to ~0 (no definite
+     size for aspect-ratio to resolve against) -- stretch to the row's
+     height instead so it renders as a normal-looking circle. */
+  width: auto;
+  height: 100%;
+  aspect-ratio: 1;
+  align-self: stretch;
 }
 .center-column .right-panel {
   height: auto;
