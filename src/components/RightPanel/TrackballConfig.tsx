@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { KeymapStore } from '../../store/useKeymapStore';
-import { isConnected, isUnlocked, requestUnlock, setSensitivity, setAutoLayer, setPrecisionScale, setAccel, getSensitivity, getAutoLayer, getPrecisionScale, getAccel, getInertia, setInertia, saveChanges as savePointingChanges } from '../../services/usbService';
+import { isConnected, isUnlocked, requestUnlock, setSensitivity, setAutoLayer, setPrecisionScale, setAccel, getSensitivity, getAutoLayer, getPrecisionScale, getAccel, getInertia, setInertia, getDragScale, setDragScale, saveChanges as savePointingChanges } from '../../services/usbService';
 import { KEY_CATEGORIES, KEYCODES, searchKeyCodes } from '../../data/keycodes';
 import { debugLog } from '../DebugConsole';
 import { KEYBOARD_LAYOUT, keyIdsToPositions, positionsToKeyIds } from '../../data/layout';
@@ -24,6 +24,9 @@ const ACCEL_OPTIONS = [
 // decayMilli = 16msティックごとに残る速度x1000。大きいほど長く滑る
 const INERTIA_DECAY_PRESETS = [
   { label: '短い', value: 850 }, { label: '標準', value: 900 }, { label: '長い', value: 950 },
+];
+const DRAG_SCALE_PRESETS = [
+  { label: '1/4', num: 1, den: 4 }, { label: '1/2', num: 1, den: 2 }, { label: '2/3', num: 2, den: 3 },
 ];
 
 const DIRECTION_LABELS: Record<string, { icon: string; label: string }> = {
@@ -101,6 +104,9 @@ export function TrackballConfig({ store }: Props) {
   const [inertiaEnabled, setInertiaEnabled] = useState(false);
   const [inertiaDecay, setInertiaDecay] = useState(900);
   const [inertiaStartSpeed, setInertiaStartSpeed] = useState(8);
+  const [dragScaleEnabled, setDragScaleEnabled] = useState(false);
+  const [dragScaleNum, setDragScaleNum] = useState(1);
+  const [dragScaleDen, setDragScaleDen] = useState(2);
   const [loaded, setLoaded] = useState(false);
   const [trackballTab, setTrackballTab] = useState<'aml' | 'gesture' | 'cursor' | 'inertia'>('aml');
 
@@ -141,6 +147,13 @@ export function TrackballConfig({ store }: Props) {
         if (inertia.decayMilli > 0) setInertiaDecay(inertia.decayMilli);
         if (inertia.startSpeed > 0) setInertiaStartSpeed(inertia.startSpeed);
         debugLog('INF', 'Trackball', `Inertia: enabled=${inertia.enabled}, decay=${inertia.decayMilli}, startSpeed=${inertia.startSpeed}`);
+      }
+      const dragScale = await getDragScale();
+      if (dragScale) {
+        setDragScaleEnabled(dragScale.enabled);
+        if (dragScale.numerator > 0) setDragScaleNum(dragScale.numerator);
+        if (dragScale.denominator > 0) setDragScaleDen(dragScale.denominator);
+        debugLog('INF', 'Trackball', `Drag scale: enabled=${dragScale.enabled}, ratio=${dragScale.numerator}/${dragScale.denominator}`);
       }
       setLoaded(true);
     })();
@@ -207,6 +220,15 @@ export function TrackballConfig({ store }: Props) {
       return;
     }
     await setInertia(enabled, decay, startSpeed);
+  };
+
+  const sendDragScale = async (enabled: boolean, num: number, den: number) => {
+    if (!isConnected()) return;
+    if (!isUnlocked() && !(await requestUnlock())) {
+      debugLog('WRN', 'Trackball', 'Device locked. Press studio_unlock combo.');
+      return;
+    }
+    await setDragScale(enabled, num, den);
   };
 
   return (
@@ -515,6 +537,37 @@ export function TrackballConfig({ store }: Props) {
           </svg>
         </div>
       )}
+
+      {/* Drag precision: slows cursor down while any mouse button is held */}
+      <div className="config-section">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+          <span style={{ fontSize: 13, fontWeight: 600 }}>ドラッグ精密モード</span>
+          <div className="btn-group">
+            <button className={`btn ${!dragScaleEnabled ? 'btn-active' : ''}`} onClick={async () => {
+              setDragScaleEnabled(false);
+              await sendDragScale(false, dragScaleNum, dragScaleDen);
+            }}>OFF</button>
+            <button className={`btn ${dragScaleEnabled ? 'btn-active' : ''}`} onClick={async () => {
+              setDragScaleEnabled(true);
+              await sendDragScale(true, dragScaleNum, dragScaleDen);
+            }} style={dragScaleEnabled ? { background: 'var(--success)', color: 'white' } : {}}>ON</button>
+          </div>
+        </div>
+        <div className="config-description">
+          クリックしたまま動かす（ドラッグ）間だけ、カーソル速度を落として精密に操作できます。レイヤー切替不要、ボタンを離せば即座に通常速度に戻ります（精密モード中は無効）。
+        </div>
+        {dragScaleEnabled && (
+          <div style={{ display: 'flex', gap: 4, marginTop: 6 }}>
+            {DRAG_SCALE_PRESETS.map(p => (
+              <button key={p.label} className={`preset-btn ${dragScaleNum === p.num && dragScaleDen === p.den ? 'selected' : ''}`}
+                onClick={async () => {
+                  setDragScaleNum(p.num); setDragScaleDen(p.den);
+                  await sendDragScale(true, p.num, p.den);
+                }}>{p.label}</button>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Advanced */}
       <div className="config-section">

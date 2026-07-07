@@ -1140,6 +1140,27 @@ export async function setInertia(enabled: boolean, decayMilli: number, startSpee
   }
 }
 
+export async function getDragScale(): Promise<{ enabled: boolean; numerator: number; denominator: number } | null> {
+  try {
+    const resp = await sendRequest({ pointing: { getDragScale: {} } });
+    return resp.pointing?.getDragScale?.dragScale || null;
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `getDragScale failed: ${e.message}`);
+    return null;
+  }
+}
+
+export async function setDragScale(enabled: boolean, numerator: number, denominator: number): Promise<boolean> {
+  try {
+    await sendRequest({ pointing: { setDragScale: { dragScale: { enabled, numerator, denominator } } } });
+    debugLog('INF', 'USB', `Drag scale set: enabled=${enabled}, ratio=${numerator}/${denominator}`);
+    return true;
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `setDragScale failed: ${e.message}`);
+    return false;
+  }
+}
+
 // Per-output-device gesture binding override. Flattened per (endpoint,
 // direction): index = endpointIndex*4 + direction (0=up,1=down,2=left,3=right).
 // endpointIndex is zmk_endpoint_instance_to_index (NONE=0, USB=1, BT profile
