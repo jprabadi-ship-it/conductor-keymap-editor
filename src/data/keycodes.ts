@@ -65,19 +65,19 @@ export const KEYCODES: KeyCodeEntry[] = [
   { code: 'KC_APP', label: 'App', category: 'Special' },
 
   // IME
-  { code: 'KC_LANG1', label: 'LANG1', category: 'IME' },
-  { code: 'KC_LANG2', label: 'LANG2', category: 'IME' },
-  { code: 'KC_INT1', label: 'INT1', category: 'IME' },
-  { code: 'KC_INT2', label: 'INT2', category: 'IME' },
-  { code: 'KC_INT3', label: 'INT3', category: 'IME' },
-  { code: 'KC_INT4', label: 'INT4', category: 'IME' },
-  { code: 'KC_INT5', label: 'INT5', category: 'IME' },
-  { code: 'KC_HENK', label: 'Henkan', category: 'IME' },
-  { code: 'KC_MHEN', label: 'Muhenkan', category: 'IME' },
-  { code: 'KC_KANA', label: 'Kana', category: 'IME' },
+  { code: 'KC_LANG1', label: 'LANG1 (かな)', category: 'IME' },
+  { code: 'KC_LANG2', label: 'LANG2 (英数)', category: 'IME' },
+  { code: 'KC_INT1', label: 'INT1 (ろ/_)', category: 'IME' },
+  { code: 'KC_INT2', label: 'INT2 (かな/カナ)', category: 'IME' },
+  { code: 'KC_INT3', label: 'INT3 (¥)', category: 'IME' },
+  { code: 'KC_INT4', label: 'INT4 (変換)', category: 'IME' },
+  { code: 'KC_INT5', label: 'INT5 (無変換)', category: 'IME' },
+  { code: 'KC_HENK', label: 'Henkan (変換)', category: 'IME' },
+  { code: 'KC_MHEN', label: 'Muhenkan (無変換)', category: 'IME' },
+  { code: 'KC_KANA', label: 'Kana (かな)', category: 'IME' },
   // macOS "🌐" Globe/fn key (dt-bindings/zmk/keys.h's GLOBE ->
   // AC_NEXT_KEYBOARD_LAYOUT_SELECT, Consumer usage 0x29D).
-  { code: 'GLOBE', label: 'Globe', category: 'IME' },
+  { code: 'GLOBE', label: 'Globe (🌐/fn)', category: 'IME' },
 
   // Symbols
   { code: 'KC_MINS', label: '-', category: 'Symbols' },
