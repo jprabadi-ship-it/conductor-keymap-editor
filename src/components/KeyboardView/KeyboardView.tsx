@@ -24,6 +24,11 @@ export function KeyboardView({ store }: Props) {
   const layer = store.selectedLayer;
   if (!layer) return null;
 
+  const baseLayer = store.layers.find(l => l.index === 0);
+  const diffActive = store.diffMode && layer.index !== 0 && !!baseLayer;
+  const bindingKey = (b: typeof layer.keys[number]['binding']) =>
+    JSON.stringify([b.type, b.keyCode, b.label, b.modifiers, b.layer, b.tapKeyCode, b.tapLabel]);
+
   const comboMap = new Map<string, string>();
   store.comboOverlays.forEach(o => comboMap.set(o.keyId, o.comboName));
 
@@ -95,6 +100,12 @@ export function KeyboardView({ store }: Props) {
     const isThisMacro = assignedMacro === selectedMacro?.name;
     const hasOtherMacro = assignedMacro && !isThisMacro;
 
+    const diffChanged = diffActive && (() => {
+      const baseBinding = baseLayer!.keys.find(k => k.id === id)?.binding;
+      if (!baseBinding) return false;
+      return bindingKey(baseBinding) !== bindingKey(keyConfig!.binding);
+    })();
+
     return (
       <KeyButton
         key={id}
@@ -105,6 +116,7 @@ export function KeyboardView({ store }: Props) {
         isAmlExcluded={store.amlExcluded.includes(id)}
         macroHighlight={isMacroMode ? (isThisMacro ? 'assigned' : hasOtherMacro ? 'other' : undefined) : undefined}
         gestureDeviceOverride={deviceOverrideActive}
+        diffChanged={diffChanged}
       />
     );
   };
@@ -147,6 +159,8 @@ export function KeyboardView({ store }: Props) {
         <button
           className={`btn btn-outline ${store.diffMode ? 'btn-active' : ''}`}
           onClick={() => store.setDiffMode(!store.diffMode)}
+          disabled={layer.index === 0}
+          title={layer.index === 0 ? 'baseレイヤーでは差分表示できません' : 'baseレイヤーとの差分をハイライト表示'}
           style={{ fontSize: 11 }}
         >
           ⇄ Diff
@@ -175,6 +189,13 @@ export function KeyboardView({ store }: Props) {
           </div>
         )}
       </div>
+
+      {diffActive && (
+        <div className="aml-info" style={{ borderColor: 'var(--warning)' }}>
+          <span className="key-btn diff-changed" style={{ display: 'inline-block', width: 10, height: 10, padding: 0, marginRight: 6, verticalAlign: 'middle' }} />
+          枠がオレンジのキーは base レイヤーと異なります
+        </div>
+      )}
 
       {store.amlExcluded.length > 0 && (
         <div className="aml-info">

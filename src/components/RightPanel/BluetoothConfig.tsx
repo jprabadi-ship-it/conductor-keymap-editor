@@ -299,18 +299,41 @@ export function BluetoothConfig({ store }: Props) {
 
               {isExpanded && (
                 <div style={{ padding: '4px 8px 12px' }} onClick={e => e.stopPropagation()}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>キーマップ</span>
-                    <select
-                      value={osMap[dev.endpointIndex] || 0}
-                      onChange={e => setKeymapOverlay(dev.endpointIndex, Number(e.target.value))}
-                      style={{ fontSize: 11, padding: '2px 4px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text-primary)' }}
-                    >
-                      <option value={0}>なし（共有キーマップ）</option>
-                      {store.layers.filter(l => l.index !== 0).map(l => (
-                        <option key={l.index} value={l.index}>{l.name} (Layer {l.index})</option>
-                      ))}
-                    </select>
+                  <div style={{ marginBottom: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>キーマップ</span>
+                      {hasKeymapOverlay && (
+                        <button
+                          className="btn btn-outline"
+                          style={{ fontSize: 10, padding: '1px 6px', marginLeft: 'auto' }}
+                          onClick={() => {
+                            store.setSelectedLayerIndex(osMap[dev.endpointIndex]);
+                            store.setDiffMode(true);
+                          }}
+                        >⇄ 差分を見る</button>
+                      )}
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(84px, 1fr))', gap: 4 }}>
+                      <button
+                        className={`btn btn-outline ${!hasKeymapOverlay ? 'btn-active' : ''}`}
+                        style={{ fontSize: 10, padding: '4px 6px' }}
+                        onClick={() => setKeymapOverlay(dev.endpointIndex, 0)}
+                      >なし（共有）</button>
+                      {store.layers.filter(l => l.index !== 0).map(l => {
+                        const active = (osMap[dev.endpointIndex] || 0) === l.index;
+                        return (
+                          <button
+                            key={l.index}
+                            className={`btn btn-outline ${active ? 'btn-active' : ''}`}
+                            style={{ fontSize: 10, padding: '4px 6px', display: 'flex', alignItems: 'center', gap: 4 }}
+                            onClick={() => setKeymapOverlay(dev.endpointIndex, l.index)}
+                          >
+                            <span className="led-dot" style={{ width: 8, height: 8, borderRadius: '50%', background: LED_CSS[l.ledColor], flexShrink: 0 }} />
+                            {l.name}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>

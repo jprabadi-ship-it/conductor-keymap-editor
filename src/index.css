@@ -433,6 +433,11 @@ input:focus { border-color: var(--accent); }
   background: #e8e0f0;
 }
 
+.key-btn.diff-changed {
+  border-color: var(--warning);
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.35);
+}
+
 .key-aml-badge {
   position: absolute; bottom: 2px; right: 2px;
   font-size: 7px; background: var(--warning); color: #000;

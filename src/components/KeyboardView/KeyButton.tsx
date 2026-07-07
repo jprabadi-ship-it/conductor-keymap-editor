@@ -8,9 +8,10 @@ interface Props {
   isAmlExcluded?: boolean;
   macroHighlight?: 'assigned' | 'other';
   gestureDeviceOverride?: boolean;
+  diffChanged?: boolean;
 }
 
-export function KeyButton({ keyConfig, selected, onClick, comboName, isAmlExcluded, macroHighlight, gestureDeviceOverride }: Props) {
+export function KeyButton({ keyConfig, selected, onClick, comboName, isAmlExcluded, macroHighlight, gestureDeviceOverride, diffChanged }: Props) {
   const { binding } = keyConfig;
   const isTrans = binding.type === 'trans';
   const isNone = binding.type === 'none';
@@ -71,6 +72,7 @@ export function KeyButton({ keyConfig, selected, onClick, comboName, isAmlExclud
   let extraClass = '';
   if (macroHighlight === 'assigned') extraClass = ' macro-assigned';
   else if (macroHighlight === 'other') extraClass = ' macro-other';
+  if (diffChanged) extraClass += ' diff-changed';
 
   return (
     <button
