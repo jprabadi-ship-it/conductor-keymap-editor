@@ -216,11 +216,6 @@ function App() {
                 if (!ok) {
                   debugLog('WRN', 'USB', 'Device is locked. Write operations will fail. Press studio_unlock combo on keyboard.');
                 }
-                // Auto-read on connect so the editor never sits on stale
-                // local/cached state that could get pushed back to the
-                // device (with a stale "Write") before the user has seen
-                // what's actually on it.
-                await handleRead();
               }
             }}
           />
