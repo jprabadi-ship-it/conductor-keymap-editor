@@ -1428,6 +1428,11 @@ const ZMK_TO_USAGE: Record<string, number> = {
   N1: 30, N2: 31, N3: 32, N4: 33, N5: 34, N6: 35, N7: 36, N8: 37, N9: 38, N0: 39,
   LANG1: 144, LANG2: 145, LANG3: 146,
   INT_RO: 135, INT_KANA: 136, INT_YEN: 137,
+  // Keypad/numpad usages (USB HID Keyboard/Keypad page 0x54-0x63) -- distinct
+  // from the top-row N1-N0 above, used when a layer is bound to &kp KP_N1 etc.
+  KP_FSLH: 84, KP_STAR: 85, KP_MINUS: 86, KP_PLUS: 87, KP_ENTER: 88,
+  KP_N1: 89, KP_N2: 90, KP_N3: 91, KP_N4: 92, KP_N5: 93,
+  KP_N6: 94, KP_N7: 95, KP_N8: 96, KP_N9: 97, KP_N0: 98, KP_DOT: 99,
 };
 
 const ZMK_TO_SHIFTED: Record<string, number> = {

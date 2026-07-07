@@ -31,11 +31,20 @@ const KEY_EVENT_TO_MACRO: Record<string, string> = {
   F7: 'F7', F8: 'F8', F9: 'F9', F10: 'F10', F11: 'F11', F12: 'F12',
   ShiftLeft: 'LSHIFT', ShiftRight: 'RSHIFT', ControlLeft: 'LCTRL', ControlRight: 'RCTRL',
   AltLeft: 'LALT', AltRight: 'RALT', MetaLeft: 'LGUI', MetaRight: 'RGUI',
+  // Numpad row (e.g. a "number" layer bound to &kp KP_N1.. rather than
+  // plain &kp N1..) reports separate Numpad* browser codes, distinct from
+  // the top-row Digit* codes above -- without these, recording a macro
+  // while that layer is held silently captured nothing for the digits.
+  Numpad0: 'KP_N0', Numpad1: 'KP_N1', Numpad2: 'KP_N2', Numpad3: 'KP_N3', Numpad4: 'KP_N4',
+  Numpad5: 'KP_N5', Numpad6: 'KP_N6', Numpad7: 'KP_N7', Numpad8: 'KP_N8', Numpad9: 'KP_N9',
+  NumpadAdd: 'KP_PLUS', NumpadSubtract: 'KP_MINUS', NumpadMultiply: 'KP_STAR',
+  NumpadDivide: 'KP_FSLH', NumpadDecimal: 'KP_DOT', NumpadEnter: 'KP_ENTER',
 };
 
 const MACRO_KEY_CATEGORIES = [
   { name: 'Letters', keys: 'A B C D E F G H I J K L M N O P Q R S T U V W X Y Z'.split(' ') },
   { name: 'Numbers', keys: 'N1 N2 N3 N4 N5 N6 N7 N8 N9 N0'.split(' ') },
+  { name: 'Numpad', keys: 'KP_N1 KP_N2 KP_N3 KP_N4 KP_N5 KP_N6 KP_N7 KP_N8 KP_N9 KP_N0 KP_PLUS KP_MINUS KP_STAR KP_FSLH KP_DOT KP_ENTER'.split(' ') },
   { name: 'Symbols', keys: 'MINUS EQUAL LBKT RBKT BSLH SEMI SQT GRAVE COMMA DOT FSLH EXCL AT HASH DLLR PRCNT CARET AMPS STAR LPAR RPAR PLUS UNDER TILDE PIPE'.split(' ') },
   { name: 'Modifiers', keys: 'LSHIFT RSHIFT LCTRL RCTRL LALT RALT LGUI RGUI'.split(' ') },
   { name: 'Navigation', keys: 'ENTER ESC BSPC DEL TAB SPACE CAPS UP DOWN LEFT RIGHT HOME END PG_UP PG_DN'.split(' ') },
