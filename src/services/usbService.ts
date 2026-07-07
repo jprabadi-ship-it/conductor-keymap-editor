@@ -1,6 +1,7 @@
 import protobuf from 'protobufjs';
 import { debugLog } from '../components/DebugConsole';
 import protoJson from '../data/zmk-studio-proto.json';
+import { keyIdsToPositions, positionsToKeyIds } from '../data/layout';
 
 const SOF = 171;
 const EOF = 173;
@@ -633,6 +634,151 @@ const KEY_ORDER = [
   'L30','L31','L32','L33','L34','L35','R30','R31','R32','R33',
 ];
 
+// Detect macro behaviors (non-standard behaviors). Module-scope so both
+// readKeymap and combo decoding (which sees the same behaviorId universe)
+// can classify a behaviorId as "a firmware macro" consistently.
+const STANDARD_BEHAVIORS = new Set([
+  'key press', 'mouse key press', 'mouse_move', 'mouse_scroll',
+  'none', 'transparent', 'caps word', 'external power',
+  'grave/escape', 'key repeat', 'key toggle', 'output selection',
+  'sticky key', 'momentary layer', 'sticky layer', 'studio unlock',
+  'reset', 'to layer', 'bluetooth', 'bootloader',
+  'layer-tap', 'mod-tap', 'toggle layer', 'toggle scroll invert',
+  'enc_key_press', 'toggle aml', 'usb slot select',
+]);
+
+function computeMacroBehaviorIds(): Set<number> {
+  const ids = new Set<number>();
+  for (const [idStr, beh] of Object.entries(behaviorCache)) {
+    if (!STANDARD_BEHAVIORS.has(beh.displayName.toLowerCase()) && !beh.displayName.toLowerCase().startsWith('mt_')) {
+      ids.add(Number(idStr));
+    }
+  }
+  return ids;
+}
+
+// Decode a raw {behaviorId, param1, param2} triple (as returned by any RPC
+// that carries a BehaviorBinding -- keymap bindings, combo bindings, gesture
+// overrides) into the editor's local KeyBinding shape. Shared so combos
+// don't need their own, slightly-different copy of this classification logic.
+function decodeBinding(binding: { behaviorId: number; param1: number; param2: number }): KeyBinding {
+  const macroBehaviorIds = computeMacroBehaviorIds();
+  const beh = behaviorCache[binding.behaviorId];
+  const behName = beh?.displayName || '';
+
+  let type = 'basic';
+  let label = hidToLabel(binding.param1);
+  let keyCode = label;
+  const extra: any = {};
+
+  if (behName.includes('Bluetooth') || behName === 'bt' || behName.includes('bt')) {
+    type = 'basic';
+    // param1: 0=CLR, 1=NXT, 2=PRV, 3=SEL, 4=CLR_ALL, 5=DISC
+    if (binding.param1 === 3) {
+      label = `BT ${binding.param2}`;
+      keyCode = `BT_SEL ${binding.param2}`;
+    } else if (binding.param1 === 0) {
+      label = 'BT Clr'; keyCode = 'BT_CLR';
+    } else if (binding.param1 === 4) {
+      label = 'BT All'; keyCode = 'BT_CLR_ALL';
+    } else if (binding.param1 === 1) {
+      label = 'BT Nxt'; keyCode = 'BT_NXT';
+    } else if (binding.param1 === 2) {
+      label = 'BT Prv'; keyCode = 'BT_PRV';
+    } else if (binding.param1 === 5) {
+      label = 'BT Disc'; keyCode = 'BT_DISC';
+    } else {
+      label = `BT(${binding.param1},${binding.param2})`;
+      keyCode = label;
+    }
+  } else if (behName.includes('USB Slot Select') || behName === 'usb_sel') {
+    type = 'basic';
+    label = `USB ${binding.param1}`;
+    keyCode = `USB_SEL_${binding.param1}`;
+  } else if (behName.includes('Bootloader') || behName === 'bootloader') {
+    type = 'basic'; label = 'Boot'; keyCode = 'BOOTLOADER';
+  } else if (behName.includes('Reset') || behName === 'sys_reset') {
+    type = 'basic'; label = 'Reset'; keyCode = 'RESET';
+  } else if (behName.includes('Output') || behName === 'out') {
+    type = 'basic';
+    // dt-bindings/zmk/outputs.h: OUT_TOG=0, OUT_USB=1, OUT_BLE=2.
+    if (binding.param1 === 1) {
+      label = 'Out USB'; keyCode = 'OUT_USB';
+    } else if (binding.param1 === 2) {
+      label = 'Out BT'; keyCode = 'OUT_BT';
+    } else if (binding.param1 === 0) {
+      label = 'Out Toggle'; keyCode = 'OUT_TOG';
+    } else {
+      label = `Out(${binding.param1})`; keyCode = label;
+    }
+  } else if (behName.includes('Scroll Invert') || behName.includes('scrl_inv') || behName.includes('SCRL_INV')) {
+    type = 'basic'; label = 'Scrl Inv'; keyCode = 'SCRL_INV';
+  } else if (behName.includes('Mouse Key Press') || behName === 'mkp' || behName.includes('mkp')) {
+    type = 'basic';
+    const mouseLabel: Record<number, string> = { 1: 'Click', 2: 'R Click', 4: 'M Click', 8: 'MB4', 16: 'MB5' };
+    const mouseCode: Record<number, string> = { 1: 'KC_BTN1', 2: 'KC_BTN2', 4: 'KC_BTN3', 8: 'KC_BTN4', 16: 'KC_BTN5' };
+    label = mouseLabel[binding.param1] || `MB${binding.param1}`;
+    keyCode = mouseCode[binding.param1] || `mkp MB${binding.param1}`;
+  } else if (behName.includes('Key Press') || behName === 'kp') {
+    type = 'basic';
+    const { mods: kpMods } = parseParam(binding.param1);
+    if (kpMods) {
+      const modMap: [number, string][] = [
+        [0x01, 'lctrl'], [0x02, 'lshift'], [0x04, 'lalt'], [0x08, 'lgui'],
+        [0x10, 'rctrl'], [0x20, 'rshift'], [0x40, 'ralt'], [0x80, 'rgui'],
+      ];
+      const mods: string[] = [];
+      for (const [bit, name] of modMap) {
+        if (kpMods & bit) mods.push(name);
+      }
+      extra.modifiers = mods;
+      const baseParam = binding.param1 & 0x00FFFFFF;
+      const baseLabel = hidToLabel(baseParam);
+      label = baseLabel;
+      keyCode = baseLabel;
+    }
+  } else if (behName.includes('Mod-Tap') || behName === 'mt') {
+    type = 'mod-tap';
+    extra.tapLabel = hidToLabel(binding.param2);
+    label = extra.tapLabel;
+  } else if (behName.includes('Layer-Tap') || behName === 'lt') {
+    type = 'layer-tap';
+    extra.layer = binding.param1;
+    extra.tapLabel = hidToLabel(binding.param2);
+    label = extra.tapLabel;
+  } else if (behName.includes('Momentary') || behName === 'mo') {
+    type = 'momentary';
+    extra.layer = binding.param1;
+    label = `L${binding.param1}`;
+    keyCode = `MO(${binding.param1})`;
+  } else if (behName.includes('Toggle') || behName === 'tog') {
+    type = 'toggle';
+    extra.layer = binding.param1;
+    label = `TG${binding.param1}`;
+    keyCode = `TG(${binding.param1})`;
+  } else if (behName.includes('None') || behName === 'none') {
+    type = 'none';
+    label = '';
+    keyCode = 'NONE';
+  } else if (behName.includes('Trans') || behName === 'trans') {
+    type = 'trans';
+    label = '---';
+    keyCode = 'TRANS';
+  } else if (macroBehaviorIds.has(binding.behaviorId)) {
+    type = 'basic';
+    const editorName = Object.entries(macroNameToDeviceId).find(([, id]) => id === binding.behaviorId)?.[0];
+    const macroName = editorName || behaviorCache[binding.behaviorId]?.displayName || `macro_${binding.behaviorId}`;
+    label = `&${macroName}`;
+    keyCode = `&${macroName}`;
+  } else if (binding.behaviorId === 0 && binding.param1 === 0 && binding.param2 === 0) {
+    type = 'none';
+    label = '';
+    keyCode = 'NONE';
+  }
+
+  return { type, keyCode, label, ...extra } as KeyBinding;
+}
+
 export async function readKeymap(): Promise<any> {
   try {
     debugLog('INF', 'USB', 'Reading keymap from device...');
@@ -644,26 +790,12 @@ export async function readKeymap(): Promise<any> {
     }
     debugLog('INF', 'USB', `Loaded ${Object.keys(behaviorCache).length} behavior details`);
 
-    // Detect macro behaviors (non-standard behaviors)
-    const STANDARD_BEHAVIORS = new Set([
-      'key press', 'mouse key press', 'mouse_move', 'mouse_scroll',
-      'none', 'transparent', 'caps word', 'external power',
-      'grave/escape', 'key repeat', 'key toggle', 'output selection',
-      'sticky key', 'momentary layer', 'sticky layer', 'studio unlock',
-      'reset', 'to layer', 'bluetooth', 'bootloader',
-      'layer-tap', 'mod-tap', 'toggle layer', 'toggle scroll invert',
-      'enc_key_press', 'toggle aml', 'usb slot select',
-    ]);
-    const firmwareMacros: { id: number; name: string }[] = [];
-    for (const [idStr, beh] of Object.entries(behaviorCache)) {
-      if (!STANDARD_BEHAVIORS.has(beh.displayName.toLowerCase()) && !beh.displayName.toLowerCase().startsWith('mt_')) {
-        firmwareMacros.push({ id: Number(idStr), name: beh.displayName });
-      }
-    }
+    const macroBehaviorIds = computeMacroBehaviorIds();
+    const firmwareMacros: { id: number; name: string }[] = [...macroBehaviorIds].map(id => ({
+      id, name: behaviorCache[id]?.displayName || `macro_${id}`,
+    }));
     debugLog('INF', 'USB', `Firmware macros found: ${firmwareMacros.length} [${firmwareMacros.map(m => `${m.id}:${m.name}`).join(', ')}]`);
     debugLog('INF', 'USB', `Non-standard check: cache has ${Object.keys(behaviorCache).length} behaviors, standard set has ${STANDARD_BEHAVIORS.size} entries`);
-    // Build a set of macro behavior IDs for binding detection
-    const macroBehaviorIds = new Set(firmwareMacros.map(m => m.id));
 
     const resp = await sendRequest({ keymap: { getKeymap: true } });
     const keymap = resp.keymap?.getKeymap;
@@ -682,123 +814,12 @@ export async function readKeymap(): Promise<any> {
       (layer.bindings || []).forEach((binding: any, idx: number) => {
         if (idx >= KEY_ORDER.length) return;
         const posId = KEY_ORDER[idx];
-        const beh = behaviorCache[binding.behaviorId];
-        const behName = beh?.displayName || '';
+        const decoded = decodeBinding(binding);
 
-        let type = 'basic';
-        let label = hidToLabel(binding.param1);
-        let keyCode = label;
-        const extra: any = {};
-
-        if (behName.includes('Bluetooth') || behName === 'bt' || behName.includes('bt')) {
-          type = 'basic';
-          // param1: 0=CLR, 1=NXT, 2=PRV, 3=SEL, 4=CLR_ALL, 5=DISC
-          if (binding.param1 === 3) {
-            label = `BT ${binding.param2}`;
-            keyCode = `BT_SEL ${binding.param2}`;
-          } else if (binding.param1 === 0) {
-            label = 'BT Clr'; keyCode = 'BT_CLR';
-          } else if (binding.param1 === 4) {
-            label = 'BT All'; keyCode = 'BT_CLR_ALL';
-          } else if (binding.param1 === 1) {
-            label = 'BT Nxt'; keyCode = 'BT_NXT';
-          } else if (binding.param1 === 2) {
-            label = 'BT Prv'; keyCode = 'BT_PRV';
-          } else if (binding.param1 === 5) {
-            label = 'BT Disc'; keyCode = 'BT_DISC';
-          } else {
-            label = `BT(${binding.param1},${binding.param2})`;
-            keyCode = label;
-          }
-        } else if (behName.includes('USB Slot Select') || behName === 'usb_sel') {
-          type = 'basic';
-          label = `USB ${binding.param1}`;
-          keyCode = `USB_SEL_${binding.param1}`;
-        } else if (behName.includes('Bootloader') || behName === 'bootloader') {
-          type = 'basic'; label = 'Boot'; keyCode = 'BOOTLOADER';
-        } else if (behName.includes('Reset') || behName === 'sys_reset') {
-          type = 'basic'; label = 'Reset'; keyCode = 'RESET';
-        } else if (behName.includes('Output') || behName === 'out') {
-          type = 'basic';
-          // dt-bindings/zmk/outputs.h: OUT_TOG=0, OUT_USB=1, OUT_BLE=2.
-          if (binding.param1 === 1) {
-            label = 'Out USB'; keyCode = 'OUT_USB';
-          } else if (binding.param1 === 2) {
-            label = 'Out BT'; keyCode = 'OUT_BT';
-          } else if (binding.param1 === 0) {
-            label = 'Out Toggle'; keyCode = 'OUT_TOG';
-          } else {
-            label = `Out(${binding.param1})`; keyCode = label;
-          }
-        } else if (behName.includes('Scroll Invert') || behName.includes('scrl_inv') || behName.includes('SCRL_INV')) {
-          type = 'basic'; label = 'Scrl Inv'; keyCode = 'SCRL_INV';
-        } else if (behName.includes('Mouse Key Press') || behName === 'mkp' || behName.includes('mkp')) {
-          type = 'basic';
-          const mouseLabel: Record<number, string> = { 1: 'Click', 2: 'R Click', 4: 'M Click', 8: 'MB4', 16: 'MB5' };
-          const mouseCode: Record<number, string> = { 1: 'KC_BTN1', 2: 'KC_BTN2', 4: 'KC_BTN3', 8: 'KC_BTN4', 16: 'KC_BTN5' };
-          label = mouseLabel[binding.param1] || `MB${binding.param1}`;
-          keyCode = mouseCode[binding.param1] || `mkp MB${binding.param1}`;
-        } else if (behName.includes('Key Press') || behName === 'kp') {
-          type = 'basic';
-          const { mods: kpMods } = parseParam(binding.param1);
-          if (kpMods) {
-            const modMap: [number, string][] = [
-              [0x01, 'lctrl'], [0x02, 'lshift'], [0x04, 'lalt'], [0x08, 'lgui'],
-              [0x10, 'rctrl'], [0x20, 'rshift'], [0x40, 'ralt'], [0x80, 'rgui'],
-            ];
-            const mods: string[] = [];
-            for (const [bit, name] of modMap) {
-              if (kpMods & bit) mods.push(name);
-            }
-            extra.modifiers = mods;
-            const baseParam = binding.param1 & 0x00FFFFFF;
-            const baseLabel = hidToLabel(baseParam);
-            label = baseLabel;
-            keyCode = baseLabel;
-          }
-        } else if (behName.includes('Mod-Tap') || behName === 'mt') {
-          type = 'mod-tap';
-          extra.tapLabel = hidToLabel(binding.param2);
-          label = extra.tapLabel;
-        } else if (behName.includes('Layer-Tap') || behName === 'lt') {
-          type = 'layer-tap';
-          extra.layer = binding.param1;
-          extra.tapLabel = hidToLabel(binding.param2);
-          label = extra.tapLabel;
-        } else if (behName.includes('Momentary') || behName === 'mo') {
-          type = 'momentary';
-          extra.layer = binding.param1;
-          label = `L${binding.param1}`;
-          keyCode = `MO(${binding.param1})`;
-        } else if (behName.includes('Toggle') || behName === 'tog') {
-          type = 'toggle';
-          extra.layer = binding.param1;
-          label = `TG${binding.param1}`;
-          keyCode = `TG(${binding.param1})`;
-        } else if (behName.includes('None') || behName === 'none') {
-          type = 'none';
-          label = '';
-          keyCode = 'NONE';
-        } else if (behName.includes('Trans') || behName === 'trans') {
-          type = 'trans';
-          label = '---';
-          keyCode = 'TRANS';
-        } else if (macroBehaviorIds.has(binding.behaviorId)) {
-          type = 'basic';
-          const editorName = Object.entries(macroNameToDeviceId).find(([, id]) => id === binding.behaviorId)?.[0];
-          const macroName = editorName || behaviorCache[binding.behaviorId]?.displayName || `macro_${binding.behaviorId}`;
-          label = `&${macroName}`;
-          keyCode = `&${macroName}`;
-        } else if (binding.behaviorId === 0 && binding.param1 === 0 && binding.param2 === 0) {
-          type = 'none';
-          label = '';
-          keyCode = 'NONE';
-        }
-
-        bindings[posId] = { type, keyCode, label, ...extra };
+        bindings[posId] = decoded;
         rawBindings[`${layer.id}:${posId}`] = { behaviorId: binding.behaviorId, param1: binding.param1, param2: binding.param2 };
         if (layer.id === 0 && (posId === 'L00' || posId === 'L01')) {
-          debugLog('INF', 'USB', `  RAW ${posId}: beh=${binding.behaviorId} p1=0x${binding.param1.toString(16)} p2=0x${binding.param2.toString(16)} → "${label}"`);
+          debugLog('INF', 'USB', `  RAW ${posId}: beh=${binding.behaviorId} p1=0x${binding.param1.toString(16)} p2=0x${binding.param2.toString(16)} → "${decoded.label}"`);
         }
       });
 
@@ -1499,28 +1520,53 @@ export async function ensureBehaviorsLoaded(): Promise<void> {
   }
 }
 
-// Resolves a simple KeyBinding (type 'basic' with optional modifiers, or
-// 'none') to {behaviorId, param1, param2} for RPCs that store a standalone
-// binding value rather than a keymap layer position (e.g. gesture
-// overrides). Mirrors the 'basic'/'none' cases in writeKeymapToDevice's
-// per-key conversion switch, without needing a full layer/dirty-key write.
-export async function resolveKeyBindingRpc(binding: KeyBinding): Promise<{ behaviorId: number; param1: number; param2: number } | null> {
-  await ensureBehaviorsLoaded();
-  let noneId: number | undefined;
-  let kpId: number | undefined;
+// Behavior-name -> behaviorId lookup, shared by resolveKeyBindingRpc and
+// writeKeymapToDevice's per-key conversion so both use the same matching
+// rules (exact/specific matches first to avoid e.g. "toggle" colliding with
+// "toggle scroll invert").
+function computeBehByType(): Record<string, number> {
+  const behByType: Record<string, number> = {};
   for (const [idStr, beh] of Object.entries(behaviorCache)) {
     const n = beh.displayName.toLowerCase();
-    if (noneId === undefined && n === 'none') noneId = Number(idStr);
-    if (kpId === undefined && n === 'key press') kpId = Number(idStr);
+    const id = Number(idStr);
+    if (!behByType['mkp'] && (n === 'mouse key press' || n === 'mkp')) behByType['mkp'] = id;
+    if (!behByType['kp'] && n === 'key press') behByType['kp'] = id;
+    if (!behByType['mo'] && (n === 'momentary layer' || n.includes('momentary'))) behByType['mo'] = id;
+    if (!behByType['lt'] && (n === 'layer-tap' || n === 'lt')) behByType['lt'] = id;
+    if (!behByType['mt'] && (n === 'mod-tap' || n === 'mt')) behByType['mt'] = id;
+    if (!behByType['tog'] && (n === 'toggle layer' || n.includes('toggle layer'))) behByType['tog'] = id;
+    if (!behByType['none'] && n === 'none') behByType['none'] = id;
+    if (!behByType['trans'] && n === 'transparent') behByType['trans'] = id;
+    if (!behByType['bt'] && n === 'bluetooth') behByType['bt'] = id;
+    if (!behByType['boot'] && n === 'bootloader') behByType['boot'] = id;
+    if (!behByType['usb_sel'] && n === 'usb slot select') behByType['usb_sel'] = id;
+    if (!behByType['out'] && (n === 'output selection' || n === 'out')) behByType['out'] = id;
   }
+  return behByType;
+}
+
+// Resolves a KeyBinding to {behaviorId, param1, param2} for RPCs that store
+// a standalone binding value rather than a keymap layer position (e.g.
+// gesture overrides, combo bindings). Covers the same binding types as
+// writeKeymapToDevice's per-key conversion switch, minus the handful of
+// keymap-only special cases (BT_SEL/USB_SEL/mkp/etc.) that combos and
+// gestures don't expose in their own editors.
+export async function resolveKeyBindingRpc(binding: KeyBinding): Promise<{ behaviorId: number; param1: number; param2: number } | null> {
+  await ensureBehaviorsLoaded();
+  const behByType = computeBehByType();
 
   if (binding.type === 'none') {
-    if (noneId === undefined) return null;
-    return { behaviorId: noneId, param1: 0, param2: 0 };
+    if (behByType['none'] === undefined) return null;
+    return { behaviorId: behByType['none'], param1: 0, param2: 0 };
+  }
+
+  if (binding.type === 'trans') {
+    if (behByType['trans'] === undefined) return null;
+    return { behaviorId: behByType['trans'], param1: 0, param2: 0 };
   }
 
   if (binding.type === 'basic') {
-    if (kpId === undefined) return null;
+    if (behByType['kp'] === undefined) return null;
     let param1 = labelToParam(binding.label, binding.keyCode);
     if (binding.modifiers?.length) {
       const modBits: Record<string, number> = {
@@ -1533,10 +1579,138 @@ export async function resolveKeyBindingRpc(binding: KeyBinding): Promise<{ behav
       }
       param1 = (mods << 24) | (param1 & 0x00FFFFFF);
     }
-    return { behaviorId: kpId, param1, param2: 0 };
+    return { behaviorId: behByType['kp'], param1, param2: 0 };
+  }
+
+  if (binding.type === 'momentary') {
+    if (behByType['mo'] === undefined) return null;
+    return { behaviorId: behByType['mo'], param1: binding.layer ?? 0, param2: 0 };
+  }
+
+  if (binding.type === 'toggle') {
+    if (behByType['tog'] === undefined) return null;
+    return { behaviorId: behByType['tog'], param1: binding.layer ?? 0, param2: 0 };
+  }
+
+  if (binding.type === 'layer-tap') {
+    if (behByType['lt'] === undefined) return null;
+    const param2 = labelToParam(binding.tapLabel || binding.label, binding.tapKeyCode || '');
+    return { behaviorId: behByType['lt'], param1: binding.layer ?? 0, param2 };
+  }
+
+  if (binding.type === 'mod-tap') {
+    if (behByType['mt'] === undefined) return null;
+    const mtModUsage: Record<string, number> = {
+      lctrl: 0x700E0, lshift: 0x700E1, lalt: 0x700E2, lgui: 0x700E3,
+      rctrl: 0x700E4, rshift: 0x700E5, ralt: 0x700E6, rgui: 0x700E7,
+    };
+    const param1 = binding.modifiers?.length
+      ? (mtModUsage[binding.modifiers[0]] || 0x700E1)
+      : labelToParam(binding.label, binding.keyCode);
+    const tapKey = binding.tapLabel || binding.label;
+    const param2 = labelToParam(tapKey, binding.tapKeyCode || tapKey);
+    return { behaviorId: behByType['mt'], param1, param2 };
   }
 
   return null;
+}
+
+// Reads the device's real combos via combo.getCombos (previously never
+// called -- the Combos tab used to show a hardcoded local demo list with no
+// relation to what's actually compiled into the keyboard). Each combo gets a
+// synthetic id/name since the device doesn't store either.
+export async function getCombosFromDevice(): Promise<import('../types').Combo[] | null> {
+  await ensureBehaviorsLoaded();
+  try {
+    const resp = await sendRequest({ combo: { getCombos: true } });
+    const data = resp.combo?.getCombos;
+    if (!data) {
+      debugLog('WRN', 'USB', 'Empty combos response');
+      return null;
+    }
+    const combos: import('../types').Combo[] = (data.combos || []).map((c: any, i: number) => {
+      const binding = decodeBinding({
+        behaviorId: c.binding?.behaviorId ?? 0,
+        param1: c.binding?.param1 ?? 0,
+        param2: c.binding?.param2 ?? 0,
+      });
+      const layers: number[] = [];
+      const mask = c.layerMask ?? 0;
+      for (let bit = 0; bit < 32; bit++) {
+        if (mask & (1 << bit)) layers.push(bit);
+      }
+      return {
+        id: `combo_${i}`,
+        name: `Combo ${i + 1}`,
+        keyPositions: positionsToKeyIds(c.keyPositions || []),
+        binding,
+        timeoutMs: c.timeoutMs || 50,
+        layers,
+      };
+    });
+    debugLog('INF', 'USB', `Loaded ${combos.length} combos from device (max ${data.maxCombos})`);
+    return combos;
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `getCombosFromDevice failed: ${e.message}`);
+    return null;
+  }
+}
+
+// Replaces all combos on the device with the given list: removes every
+// existing combo (from last index down to 0, mirroring the firmware's own
+// apply_stored_combos() replace-all semantics) then adds each local combo in
+// order. The RPC is index-based (set/add/remove one at a time) with no bulk
+// "set all", so a full resync is the simplest way to keep local reordering,
+// additions, and deletions all correct without tracking a diff.
+export async function writeCombosToDevice(combos: import('../types').Combo[]): Promise<boolean> {
+  try {
+    const before = await sendRequest({ combo: { getCombos: true } });
+    const currentCount = before.combo?.getCombos?.combos?.length ?? 0;
+    for (let i = currentCount - 1; i >= 0; i--) {
+      await sendRequest({ combo: { removeCombo: { index: i } } });
+    }
+
+    let ok = true;
+    for (const combo of combos) {
+      const rpcBinding = await resolveKeyBindingRpc(combo.binding);
+      if (!rpcBinding) {
+        debugLog('WRN', 'USB', `Skipping combo "${combo.name}": unresolvable binding (${combo.binding.type}/${combo.binding.keyCode})`);
+        ok = false;
+        continue;
+      }
+      const positions = keyIdsToPositions(combo.keyPositions);
+      if (positions.length < 2) {
+        debugLog('WRN', 'USB', `Skipping combo "${combo.name}": fewer than 2 key positions`);
+        ok = false;
+        continue;
+      }
+      let layerMask = 0;
+      for (const l of combo.layers || []) layerMask |= (1 << l);
+
+      const addResp = await sendRequest({
+        combo: {
+          addCombo: {
+            combo: {
+              keyPositions: positions,
+              binding: rpcBinding,
+              timeoutMs: combo.timeoutMs || 50,
+              layerMask,
+            },
+          },
+        },
+      });
+      if (addResp.combo?.addCombo?.ok === undefined) {
+        debugLog('WRN', 'USB', `Failed to add combo "${combo.name}": ${JSON.stringify(addResp.combo?.addCombo)}`);
+        ok = false;
+      }
+    }
+
+    debugLog('INF', 'USB', `Wrote ${combos.length} combos to device (removed ${currentCount} old)`);
+    return ok;
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `writeCombosToDevice failed: ${e.message}`);
+    return false;
+  }
 }
 
 export async function writeKeymapToDevice(layers: Layer[], dirtyKeys?: Set<string>): Promise<boolean> {

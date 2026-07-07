@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useKeymapStore } from './store/useKeymapStore';
-import { readKeymap, writeKeymapToDevice, saveChanges, setLayerProps, getDeviceInfo, requestUnlock, isUnlocked, readMacrosFromDevice, onDeviceDisconnect, setKeyboardLayout, getBehaviorDisplayName } from './services/usbService';
+import { readKeymap, writeKeymapToDevice, saveChanges, setLayerProps, getDeviceInfo, requestUnlock, isUnlocked, readMacrosFromDevice, onDeviceDisconnect, setKeyboardLayout, getBehaviorDisplayName, getCombosFromDevice, writeCombosToDevice } from './services/usbService';
 import { LED_COLORS } from './types';
 import { debugLog } from './components/DebugConsole';
 import { Header } from './components/Header/Header';
@@ -108,6 +108,14 @@ function App() {
         project.macros = fwMacros;
         debugLog('INF', 'Editor', `Firmware macros loaded (no step data): ${fwMacros.map((m: any) => m.name).join(', ')}`);
       }
+      // Combos: read after macros so binding labels referencing a macro
+      // (&macro_name) resolve to the editor's friendly name, not the raw
+      // device behavior name.
+      const deviceCombos = await getCombosFromDevice();
+      if (deviceCombos) {
+        project.combos = deviceCombos;
+        debugLog('INF', 'Editor', `Combos loaded: ${deviceCombos.length}`);
+      }
       store.importProject(project);
       store.clearDirtyKeys();
       setUnsaved(false);
@@ -152,6 +160,15 @@ function App() {
           debugLog('INF', 'Editor', `Layer names and LED colors written (${store.layers.length} layers)`);
           // Write key bindings
           const ok = await writeKeymapToDevice(store.layers, store.dirtyKeys);
+          // Combos persist themselves per-RPC (no separate save step, unlike
+          // the keymap subsystem's saveChanges() below) -- write regardless
+          // of keymap dirty-key tracking, same as layer names/colors above.
+          const combosOk = await writeCombosToDevice(store.combos);
+          if (!combosOk) {
+            debugLog('WRN', 'Editor', 'Some combos failed to write -- check the console for details');
+          } else {
+            debugLog('INF', 'Editor', `Combos written (${store.combos.length})`);
+          }
           if (ok) {
             const saved = await saveChanges();
             if (saved) {
