@@ -170,7 +170,7 @@ function buildTrayMenu() {
     },
     { type: 'separator' },
     {
-      label: 'キーマップを表示する',
+      label: 'Open miniMap',
       type: 'checkbox',
       checked: !!(popupWin && popupWin.isVisible()),
       click: (menuItem) => {
