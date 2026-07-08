@@ -55,11 +55,13 @@ function toggleWindow() {
 }
 
 // Small frameless window anchored under the tray icon, showing the
-// currently-active layer's key layout. It never quits the app -- losing
-// focus just hides it, same as a native menu-bar popover. Sized to fit the
-// keyboard grid at its natural (unscaled) size -- this is a legend meant to
-// be read at a glance while typing on blank keycaps, so shrinking it to fit
-// a smaller window isn't worth the loss of legibility.
+// currently-active layer's key layout. Shown/hidden only via the tray's
+// "キーマップを表示する" checkbox -- once up, it stays on top and doesn't
+// auto-hide on blur, since it's meant to sit there as a running overlay
+// while typing, not a click-away popover. Sized to fit the keyboard grid at
+// its natural (unscaled) size -- this is a legend meant to be read at a
+// glance while typing on blank keycaps, so shrinking it to fit a smaller
+// window isn't worth the loss of legibility.
 const POPUP_WIDTH = 720
 const POPUP_HEIGHT = 360
 
@@ -99,7 +101,6 @@ function createPopupWindow() {
   }
 
   popupWin.on('moved', () => { popupUserMoved = true })
-  popupWin.on('blur', () => popupWin?.hide())
   popupWin.on('closed', () => { popupWin = null })
 
   return popupWin
@@ -141,12 +142,8 @@ function showPopupContextMenu() {
   menu.popup({ window: popupWin })
 }
 
-function togglePopup() {
+function showPopup() {
   if (!popupWin) createPopupWindow()
-  if (popupWin.isVisible()) {
-    popupWin.hide()
-    return
-  }
   if (!popupUserMoved) positionPopupNearTray()
   popupWin.show()
   popupWin.focus()
@@ -154,12 +151,12 @@ function togglePopup() {
   popupWin.webContents.send('show-minimap', showMinimap)
 }
 
-function createTray() {
-  const iconPath = path.join(__dirname, 'trayIcon.png')
-  tray = new Tray(nativeImage.createFromPath(iconPath))
-  tray.setToolTip('ConductorD Studio')
+function hidePopup() {
+  popupWin?.hide()
+}
 
-  const menu = Menu.buildFromTemplate([
+function buildTrayMenu() {
+  return Menu.buildFromTemplate([
     {
       label: 'Show ConductorD Studio',
       click: () => {
@@ -173,6 +170,16 @@ function createTray() {
     },
     { type: 'separator' },
     {
+      label: 'キーマップを表示する',
+      type: 'checkbox',
+      checked: !!(popupWin && popupWin.isVisible()),
+      click: (menuItem) => {
+        if (menuItem.checked) showPopup()
+        else hidePopup()
+      },
+    },
+    { type: 'separator' },
+    {
       label: 'Quit',
       click: () => {
         isQuitting = true
@@ -180,13 +187,16 @@ function createTray() {
       },
     },
   ])
+}
 
-  // Don't use setContextMenu: on macOS that makes every click (left or
-  // right) open the menu, which kills left-click-to-toggle. Show the menu
-  // manually on right-click instead. Left-click shows the layer popup (the
-  // quick-glance action); the full editor stays one right-click menu away.
-  tray.on('click', togglePopup)
-  tray.on('right-click', () => tray.popUpContextMenu(menu))
+function createTray() {
+  const iconPath = path.join(__dirname, 'trayIcon.png')
+  tray = new Tray(nativeImage.createFromPath(iconPath))
+  tray.setToolTip('ConductorD Studio')
+
+  // Left-click does nothing -- everything lives behind right-click now.
+  // Rebuild the menu each time so the checkbox reflects current visibility.
+  tray.on('right-click', () => tray.popUpContextMenu(buildTrayMenu()))
 }
 
 ipcMain.on('layer-state', (_event, state) => {
