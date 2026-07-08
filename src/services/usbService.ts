@@ -17,6 +17,7 @@ let writer: any = null;
 let requestId = 0;
 let onDisconnectCallback: (() => void) | null = null;
 let onActiveLayerCallback: ((highestLayer: number) => void) | null = null;
+let onKeyInputCallback: ((position: number, pressed: boolean) => void) | null = null;
 
 type PendingRequest = {
   resolve: (value: any) => void;
@@ -43,6 +44,20 @@ export function onDeviceDisconnect(cb: () => void) {
 // the firmware sends when the active layer changes (zmk.core.Notification).
 export function onActiveLayerChange(cb: (highestLayer: number) => void) {
   onActiveLayerCallback = cb;
+}
+
+// Fires on every physical key press/release, streamed by the firmware's
+// input_stream_worker once subscribeInput(true) is sent (core_subsystem.c).
+export function onKeyInputEvent(cb: (position: number, pressed: boolean) => void) {
+  onKeyInputCallback = cb;
+}
+
+export async function subscribeToInput(enable: boolean): Promise<void> {
+  try {
+    await sendRequest({ core: { subscribeInput: { enable } } });
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `subscribeInput failed: ${e.message}`);
+  }
 }
 
 // Protobuf types
@@ -268,12 +283,16 @@ function handleFrame(data: Uint8Array) {
   try {
     const resp = ResponseType.decode(data) as any;
 
-    // Unsolicited pushes (not tied to a pending request) -- currently only
-    // the active-layer change is consumed, the rest is decoded and dropped.
+    // Unsolicited pushes (not tied to a pending request).
     const highestLayer = resp.notification?.core?.layerChanged?.highestLayer
       ?? resp.notification?.core?.runtimeStateChanged?.highestLayer;
     if (highestLayer !== undefined) {
       onActiveLayerCallback?.(highestLayer);
+    }
+
+    const inputKey = resp.notification?.core?.inputKey;
+    if (inputKey !== undefined) {
+      onKeyInputCallback?.(inputKey.position, !!inputKey.pressed);
     }
 
     const rr = resp.requestResponse;

@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useKeymapStore } from './store/useKeymapStore';
-import { readKeymap, writeKeymapToDevice, saveChanges, setLayerProps, getDeviceInfo, requestUnlock, isUnlocked, readMacrosFromDevice, onDeviceDisconnect, onActiveLayerChange, getRuntimeState, setKeyboardLayout, getBehaviorDisplayName, getCombosFromDevice, writeCombosToDevice } from './services/usbService';
+import { readKeymap, writeKeymapToDevice, saveChanges, setLayerProps, getDeviceInfo, requestUnlock, isUnlocked, readMacrosFromDevice, onDeviceDisconnect, onActiveLayerChange, onKeyInputEvent, subscribeToInput, getRuntimeState, setKeyboardLayout, getBehaviorDisplayName, getCombosFromDevice, writeCombosToDevice } from './services/usbService';
 import { LED_COLORS } from './types';
 import { debugLog } from './components/DebugConsole';
 import { Header } from './components/Header/Header';
@@ -32,6 +32,7 @@ function App() {
   const [unsaved, setUnsaved] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'device' | 'local' | 'error' } | null>(null);
   const [highestLayer, setHighestLayer] = useState(0);
+  const [pressedPositions, setPressedPositions] = useState<number[]>([]);
 
   const showToast = useCallback((message: string, type: 'device' | 'local' | 'error' = 'device') => {
     setToast({ message, type });
@@ -39,8 +40,14 @@ function App() {
   }, []);
 
   useEffect(() => {
-    onDeviceDisconnect(() => { setUsbConnected(false); setConnType(null); });
+    onDeviceDisconnect(() => { setUsbConnected(false); setConnType(null); setPressedPositions([]); });
     onActiveLayerChange(setHighestLayer);
+    onKeyInputEvent((position, pressed) => {
+      setPressedPositions(prev => {
+        if (pressed) return prev.includes(position) ? prev : [...prev, position];
+        return prev.includes(position) ? prev.filter(p => p !== position) : prev;
+      });
+    });
     setKeyboardLayout(store.osLayout);
   }, []);
 
@@ -59,15 +66,20 @@ function App() {
     return () => { cancelled = true; clearInterval(interval); };
   }, [usbConnected]);
 
+  // Live key-press streaming, for the tray popup's light-up-on-press guide.
+  useEffect(() => {
+    if (usbConnected) subscribeToInput(true);
+  }, [usbConnected]);
+
   // Relays live layer state to the Electron main process, which forwards it
   // to the menu-bar tray's small popup window (see electron/main.cjs). A
   // no-op in a plain browser tab, where window.electronAPI doesn't exist.
   useEffect(() => {
     (window as any).electronAPI?.sendLayerState?.({
       layers: store.layers, combos: store.combos, amlExcluded: store.amlExcluded,
-      highestLayer, connected: usbConnected,
+      highestLayer, connected: usbConnected, pressedPositions,
     });
-  }, [store.layers, store.combos, store.amlExcluded, highestLayer, usbConnected]);
+  }, [store.layers, store.combos, store.amlExcluded, highestLayer, usbConnected, pressedPositions]);
 
   const onResizeLeft = useCallback((delta: number) => {
     setLeftWidth(prev => Math.max(LEFT_MIN, Math.min(LEFT_MAX, prev + delta)));
