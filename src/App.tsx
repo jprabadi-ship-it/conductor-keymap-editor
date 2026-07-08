@@ -63,8 +63,11 @@ function App() {
   // to the menu-bar tray's small popup window (see electron/main.cjs). A
   // no-op in a plain browser tab, where window.electronAPI doesn't exist.
   useEffect(() => {
-    (window as any).electronAPI?.sendLayerState?.({ layers: store.layers, highestLayer, connected: usbConnected });
-  }, [store.layers, highestLayer, usbConnected]);
+    (window as any).electronAPI?.sendLayerState?.({
+      layers: store.layers, combos: store.combos, amlExcluded: store.amlExcluded,
+      highestLayer, connected: usbConnected,
+    });
+  }, [store.layers, store.combos, store.amlExcluded, highestLayer, usbConnected]);
 
   const onResizeLeft = useCallback((delta: number) => {
     setLeftWidth(prev => Math.max(LEFT_MIN, Math.min(LEFT_MAX, prev + delta)));

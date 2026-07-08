@@ -56,9 +56,12 @@ function toggleWindow() {
 
 // Small frameless window anchored under the tray icon, showing the
 // currently-active layer's key layout. It never quits the app -- losing
-// focus just hides it, same as a native menu-bar popover.
-const POPUP_WIDTH = 380
-const POPUP_HEIGHT = 200
+// focus just hides it, same as a native menu-bar popover. Sized to fit the
+// keyboard grid at its natural (unscaled) size -- this is a legend meant to
+// be read at a glance while typing on blank keycaps, so shrinking it to fit
+// a smaller window isn't worth the loss of legibility.
+const POPUP_WIDTH = 720
+const POPUP_HEIGHT = 360
 
 function createPopupWindow() {
   popupWin = new BrowserWindow({
