@@ -846,13 +846,21 @@ input:focus { border-color: var(--accent); }
   transform-origin: center center;
 }
 .layer-popup-header {
-  align-self: flex-start;
+  align-self: stretch;
   display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600;
 }
 .layer-popup-disconnected {
   font-size: 10px; font-weight: 500; color: var(--text-muted);
   border: 1px solid var(--border); border-radius: 3px; padding: 1px 5px;
 }
+.layer-popup-menu-btn {
+  margin-left: auto;
+  -webkit-app-region: no-drag;
+  background: none; border: none; cursor: pointer;
+  font-size: 16px; line-height: 1; color: var(--text-muted);
+  padding: 2px 8px; border-radius: 4px;
+}
+.layer-popup-menu-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
 .layer-popup-empty {
   display: flex; align-items: center; justify-content: center;
   font-size: 13px; color: var(--text-muted);

@@ -135,6 +135,11 @@ export function LayerPopup() {
           <span className="led-dot" style={{ width: 10, height: 10, borderRadius: '50%', background: LED_CSS_MAP[layer.ledColor] }} />
           <span>{layer.name}</span>
           {!state!.connected && <span className="layer-popup-disconnected">未接続</span>}
+          <button
+            className="layer-popup-menu-btn"
+            onClick={onContextMenu}
+            title="設定（不透明度・ミニマップ・テーマ）"
+          >⋮</button>
         </div>
 
         <div className="keyboard-container">
