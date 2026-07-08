@@ -9,4 +9,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('layer-state', listener)
     return () => ipcRenderer.removeListener('layer-state', listener)
   },
+  showPopupMenu: () => ipcRenderer.send('popup-context-menu'),
+  onShowMinimap: (callback) => {
+    const listener = (_event, show) => callback(show)
+    ipcRenderer.on('show-minimap', listener)
+    return () => ipcRenderer.removeListener('show-minimap', listener)
+  },
 })

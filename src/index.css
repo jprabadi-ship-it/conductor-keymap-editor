@@ -836,7 +836,7 @@ input:focus { border-color: var(--accent); }
   width: 100vw; height: 100vh; box-sizing: border-box;
   padding: 10px 16px; display: flex; flex-direction: column; align-items: center; gap: 4px;
   background: var(--bg-primary); color: var(--text-primary);
-  user-select: none; overflow: hidden;
+  user-select: none; overflow: auto;
 }
 .layer-popup-header {
   align-self: flex-start;
@@ -850,3 +850,5 @@ input:focus { border-color: var(--accent); }
 .layer-popup .key-btn { cursor: default; }
 .layer-popup .key-btn:hover { transform: none; box-shadow: none; }
 .layer-popup .layer-dot:hover { background: none; }
+/* Frameless window has no title bar -- drag this region to move it (right-click for opacity). */
+.layer-popup-drag { -webkit-app-region: drag; width: 100%; }

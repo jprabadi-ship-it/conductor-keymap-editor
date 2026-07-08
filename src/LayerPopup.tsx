@@ -44,18 +44,28 @@ function renderHalf(layer: Layer, positions: KeyPosition[], comboMap: Map<string
 
 export function LayerPopup() {
   const [state, setState] = useState<LayerState | null>(null);
+  const [showMinimap, setShowMinimap] = useState(true);
 
   useEffect(() => {
     const api = (window as any).electronAPI;
     return api?.onLayerState?.((s: LayerState) => setState(s));
   }, []);
 
+  useEffect(() => {
+    const api = (window as any).electronAPI;
+    return api?.onShowMinimap?.((show: boolean) => setShowMinimap(show));
+  }, []);
+
   const layer = state?.connected ? state.layers.find(l => l.index === state.highestLayer) ?? state.layers[0] : null;
+
+  // Right-click anywhere in the popup opens the opacity menu (the window is
+  // frameless, so there's no title bar to host it on).
+  const onContextMenu = () => (window as any).electronAPI?.showPopupMenu?.();
 
   if (!layer) {
     return (
-      <div className="layer-popup">
-        <div className="layer-popup-empty">
+      <div className="layer-popup" onContextMenu={onContextMenu}>
+        <div className="layer-popup-empty layer-popup-drag">
           {state?.connected === false ? 'デバイス未接続' : '読み込み中...'}
         </div>
       </div>
@@ -67,8 +77,8 @@ export function LayerPopup() {
   state!.combos.forEach(combo => combo.keyPositions.forEach(pos => comboMap.set(pos, combo.name)));
 
   return (
-    <div className="layer-popup">
-      <div className="layer-popup-header">
+    <div className="layer-popup" onContextMenu={onContextMenu}>
+      <div className="layer-popup-header layer-popup-drag">
         <span className="led-dot" style={{ width: 10, height: 10, borderRadius: '50%', background: LED_CSS_MAP[layer.ledColor] }} />
         <span>{layer.name}</span>
       </div>
@@ -78,14 +88,16 @@ export function LayerPopup() {
         {renderHalf(layer, RIGHT_KEYS, comboMap, state!.amlExcluded, 'right')}
       </div>
 
-      <div className="layer-switcher">
-        {state!.layers.map(l => (
-          <div key={l.index} className={`layer-dot ${l.index === layer.index ? 'active' : ''}`} title={l.name}>
-            <span className="layer-dot-circle" style={{ background: LED_CSS_MAP[l.ledColor] }} />
-            <span className="layer-dot-label">{l.name}</span>
-          </div>
-        ))}
-      </div>
+      {showMinimap && (
+        <div className="layer-switcher">
+          {state!.layers.map(l => (
+            <div key={l.index} className={`layer-dot ${l.index === layer.index ? 'active' : ''}`} title={l.name}>
+              <span className="layer-dot-circle" style={{ background: LED_CSS_MAP[l.ledColor] }} />
+              <span className="layer-dot-label">{l.name}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

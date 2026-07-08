@@ -63,17 +63,27 @@ function toggleWindow() {
 const POPUP_WIDTH = 720
 const POPUP_HEIGHT = 360
 
+// Remembered across toggles/recreations for the rest of this run (not
+// persisted to disk) -- once the user drags or resizes the popup, or picks
+// an opacity, later opens should respect that instead of snapping back.
+let popupOpacity = 1
+let popupUserMoved = false
+let showMinimap = true
+
 function createPopupWindow() {
   popupWin = new BrowserWindow({
     width: POPUP_WIDTH,
     height: POPUP_HEIGHT,
+    minWidth: 320,
+    minHeight: 160,
     show: false,
     frame: false,
-    resizable: false,
-    movable: false,
+    resizable: true,
+    movable: true,
     fullscreenable: false,
     alwaysOnTop: true,
     skipTaskbar: true,
+    opacity: popupOpacity,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -88,6 +98,7 @@ function createPopupWindow() {
     popupWin.loadFile(path.join(__dirname, '..', 'dist', 'index.html'), { hash: '/popup' })
   }
 
+  popupWin.on('moved', () => { popupUserMoved = true })
   popupWin.on('blur', () => popupWin?.hide())
   popupWin.on('closed', () => { popupWin = null })
 
@@ -102,16 +113,45 @@ function positionPopupNearTray() {
   popupWin.setPosition(x, y, false)
 }
 
+const POPUP_OPACITY_LEVELS = [100, 85, 70, 55, 40]
+
+function showPopupContextMenu() {
+  if (!popupWin) return
+  const menu = Menu.buildFromTemplate([
+    ...POPUP_OPACITY_LEVELS.map(pct => ({
+      label: `不透明度 ${pct}%`,
+      type: 'radio',
+      checked: Math.round(popupOpacity * 100) === pct,
+      click: () => {
+        popupOpacity = pct / 100
+        popupWin.setOpacity(popupOpacity)
+      },
+    })),
+    { type: 'separator' },
+    {
+      label: 'ミニマップを表示',
+      type: 'checkbox',
+      checked: showMinimap,
+      click: () => {
+        showMinimap = !showMinimap
+        popupWin.webContents.send('show-minimap', showMinimap)
+      },
+    },
+  ])
+  menu.popup({ window: popupWin })
+}
+
 function togglePopup() {
   if (!popupWin) createPopupWindow()
   if (popupWin.isVisible()) {
     popupWin.hide()
     return
   }
-  positionPopupNearTray()
+  if (!popupUserMoved) positionPopupNearTray()
   popupWin.show()
   popupWin.focus()
   if (latestLayerState) popupWin.webContents.send('layer-state', latestLayerState)
+  popupWin.webContents.send('show-minimap', showMinimap)
 }
 
 function createTray() {
@@ -153,6 +193,8 @@ ipcMain.on('layer-state', (_event, state) => {
   latestLayerState = state
   if (popupWin) popupWin.webContents.send('layer-state', state)
 })
+
+ipcMain.on('popup-context-menu', showPopupContextMenu)
 
 // Web Serial: Electron doesn't show its own port picker, so we must answer
 // navigator.serial.requestPort() ourselves. Auto-select when there's exactly
