@@ -1,11 +1,14 @@
-const { app, BrowserWindow, session, dialog, Tray, Menu, nativeImage } = require('electron')
+const { app, BrowserWindow, session, dialog, Tray, Menu, nativeImage, ipcMain } = require('electron')
 const path = require('node:path')
 
 const isDev = !app.isPackaged
+const preloadPath = path.join(__dirname, 'preload.cjs')
 
 let win = null
 let tray = null
+let popupWin = null
 let isQuitting = false
+let latestLayerState = null
 
 function createWindow() {
   win = new BrowserWindow({
@@ -16,6 +19,7 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      preload: preloadPath,
     },
   })
 
@@ -50,6 +54,63 @@ function toggleWindow() {
   }
 }
 
+// Small frameless window anchored under the tray icon, showing the
+// currently-active layer's key layout. It never quits the app -- losing
+// focus just hides it, same as a native menu-bar popover.
+const POPUP_WIDTH = 380
+const POPUP_HEIGHT = 200
+
+function createPopupWindow() {
+  popupWin = new BrowserWindow({
+    width: POPUP_WIDTH,
+    height: POPUP_HEIGHT,
+    show: false,
+    frame: false,
+    resizable: false,
+    movable: false,
+    fullscreenable: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      preload: preloadPath,
+    },
+  })
+
+  if (isDev) {
+    popupWin.loadURL('http://localhost:5173/conductor-keymap-editor/#/popup')
+  } else {
+    popupWin.loadFile(path.join(__dirname, '..', 'dist', 'index.html'), { hash: '/popup' })
+  }
+
+  popupWin.on('blur', () => popupWin?.hide())
+  popupWin.on('closed', () => { popupWin = null })
+
+  return popupWin
+}
+
+function positionPopupNearTray() {
+  const trayBounds = tray.getBounds()
+  const popupBounds = popupWin.getBounds()
+  const x = Math.round(trayBounds.x + trayBounds.width / 2 - popupBounds.width / 2)
+  const y = Math.round(trayBounds.y + trayBounds.height + 4)
+  popupWin.setPosition(x, y, false)
+}
+
+function togglePopup() {
+  if (!popupWin) createPopupWindow()
+  if (popupWin.isVisible()) {
+    popupWin.hide()
+    return
+  }
+  positionPopupNearTray()
+  popupWin.show()
+  popupWin.focus()
+  if (latestLayerState) popupWin.webContents.send('layer-state', latestLayerState)
+}
+
 function createTray() {
   const iconPath = path.join(__dirname, 'trayIcon.png')
   tray = new Tray(nativeImage.createFromPath(iconPath))
@@ -79,10 +140,16 @@ function createTray() {
 
   // Don't use setContextMenu: on macOS that makes every click (left or
   // right) open the menu, which kills left-click-to-toggle. Show the menu
-  // manually on right-click instead.
-  tray.on('click', toggleWindow)
+  // manually on right-click instead. Left-click shows the layer popup (the
+  // quick-glance action); the full editor stays one right-click menu away.
+  tray.on('click', togglePopup)
   tray.on('right-click', () => tray.popUpContextMenu(menu))
 }
+
+ipcMain.on('layer-state', (_event, state) => {
+  latestLayerState = state
+  if (popupWin) popupWin.webContents.send('layer-state', state)
+})
 
 // Web Serial: Electron doesn't show its own port picker, so we must answer
 // navigator.serial.requestPort() ourselves. Auto-select when there's exactly

@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useKeymapStore } from './store/useKeymapStore';
-import { readKeymap, writeKeymapToDevice, saveChanges, setLayerProps, getDeviceInfo, requestUnlock, isUnlocked, readMacrosFromDevice, onDeviceDisconnect, setKeyboardLayout, getBehaviorDisplayName, getCombosFromDevice, writeCombosToDevice } from './services/usbService';
+import { readKeymap, writeKeymapToDevice, saveChanges, setLayerProps, getDeviceInfo, requestUnlock, isUnlocked, readMacrosFromDevice, onDeviceDisconnect, onActiveLayerChange, getRuntimeState, setKeyboardLayout, getBehaviorDisplayName, getCombosFromDevice, writeCombosToDevice } from './services/usbService';
 import { LED_COLORS } from './types';
 import { debugLog } from './components/DebugConsole';
 import { Header } from './components/Header/Header';
@@ -31,6 +31,7 @@ function App() {
   const [connType, setConnType] = useState<'usb' | 'bluetooth' | null>(null);
   const [unsaved, setUnsaved] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'device' | 'local' | 'error' } | null>(null);
+  const [highestLayer, setHighestLayer] = useState(0);
 
   const showToast = useCallback((message: string, type: 'device' | 'local' | 'error' = 'device') => {
     setToast({ message, type });
@@ -39,8 +40,31 @@ function App() {
 
   useEffect(() => {
     onDeviceDisconnect(() => { setUsbConnected(false); setConnType(null); });
+    onActiveLayerChange(setHighestLayer);
     setKeyboardLayout(store.osLayout);
   }, []);
+
+  // Active layer isn't reliably pushed by every firmware build yet, so poll
+  // as a fallback alongside the layerChanged notification handled above --
+  // whichever arrives first wins, the other just confirms the same value.
+  useEffect(() => {
+    if (!usbConnected) return;
+    let cancelled = false;
+    const poll = async () => {
+      const state = await getRuntimeState();
+      if (!cancelled && state) setHighestLayer(state.highestLayer);
+    };
+    poll();
+    const interval = setInterval(poll, 1000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [usbConnected]);
+
+  // Relays live layer state to the Electron main process, which forwards it
+  // to the menu-bar tray's small popup window (see electron/main.cjs). A
+  // no-op in a plain browser tab, where window.electronAPI doesn't exist.
+  useEffect(() => {
+    (window as any).electronAPI?.sendLayerState?.({ layers: store.layers, highestLayer, connected: usbConnected });
+  }, [store.layers, highestLayer, usbConnected]);
 
   const onResizeLeft = useCallback((delta: number) => {
     setLeftWidth(prev => Math.max(LEFT_MIN, Math.min(LEFT_MAX, prev + delta)));

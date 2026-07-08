@@ -16,6 +16,7 @@ let reader: any = null;
 let writer: any = null;
 let requestId = 0;
 let onDisconnectCallback: (() => void) | null = null;
+let onActiveLayerCallback: ((highestLayer: number) => void) | null = null;
 
 type PendingRequest = {
   resolve: (value: any) => void;
@@ -36,6 +37,12 @@ function resetConnectionState() {
 
 export function onDeviceDisconnect(cb: () => void) {
   onDisconnectCallback = cb;
+}
+
+// Fires on the unsolicited layerChanged/runtimeStateChanged push notification
+// the firmware sends when the active layer changes (zmk.core.Notification).
+export function onActiveLayerChange(cb: (highestLayer: number) => void) {
+  onActiveLayerCallback = cb;
 }
 
 // Protobuf types
@@ -260,6 +267,15 @@ export async function disconnectUsb(): Promise<void> {
 function handleFrame(data: Uint8Array) {
   try {
     const resp = ResponseType.decode(data) as any;
+
+    // Unsolicited pushes (not tied to a pending request) -- currently only
+    // the active-layer change is consumed, the rest is decoded and dropped.
+    const highestLayer = resp.notification?.core?.layerChanged?.highestLayer
+      ?? resp.notification?.core?.runtimeStateChanged?.highestLayer;
+    if (highestLayer !== undefined) {
+      onActiveLayerCallback?.(highestLayer);
+    }
+
     const rr = resp.requestResponse;
     if (!rr) return;
 
@@ -340,6 +356,7 @@ export interface RuntimeBatteryState {
   peripheralR: number | null; // slot 0 -- has the trackball
   peripheralL: number | null; // slot 1
   charging: boolean;
+  highestLayer: number;
 }
 
 const UNKNOWN_BATTERY = 255;
@@ -357,6 +374,7 @@ export async function getRuntimeState(): Promise<RuntimeBatteryState | null> {
       peripheralR: normalizeBattery(rs.batteryPeripheral),
       peripheralL: normalizeBattery(rs.batteryPeripheralL),
       charging: !!rs.charging,
+      highestLayer: rs.highestLayer ?? 0,
     };
   } catch (e: any) {
     debugLog('ERR', 'USB', `getRuntimeState failed: ${e.message}`);

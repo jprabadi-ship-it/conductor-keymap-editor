@@ -830,3 +830,21 @@ input:focus { border-color: var(--accent); }
   border-left: none;
   border-top: 1px solid var(--border);
 }
+
+/* Tray popup: small read-only layer viewer (electron/main.cjs popup window) */
+.layer-popup {
+  width: 100vw; height: 100vh; box-sizing: border-box;
+  padding: 10px 12px; display: flex; flex-direction: column; gap: 8px;
+  background: var(--bg-primary); color: var(--text-primary);
+  user-select: none; overflow: hidden;
+}
+.layer-popup-header {
+  display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600;
+}
+.layer-popup-viewport { overflow: hidden; }
+.layer-popup-empty {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  font-size: 13px; color: var(--text-muted);
+}
+.layer-popup .key-btn { cursor: default; }
+.layer-popup .key-btn:hover { transform: none; box-shadow: none; }
