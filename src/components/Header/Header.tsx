@@ -14,6 +14,11 @@ interface Props {
   onSave: () => void;
 }
 
+// Electron ships its own app -- only the plain web build (GitHub Pages)
+// needs a way to get the desktop one.
+const isElectron = typeof window !== 'undefined' && !!(window as any).electronAPI;
+const MAC_APP_DOWNLOAD_URL = 'https://github.com/jprabadi-ship-it/conductor-keymap-editor/releases/latest/download/ConductorD-Studio-mac-arm64.dmg';
+
 export function Header({ store, showConsole, onToggleConsole, usbConnected, unsaved, onWrite, onRead, onSave }: Props) {
   const [showExport, setShowExport] = useState(false);
   const [showChangelog, setShowChangelog] = useState(false);
@@ -202,6 +207,12 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, unsa
             <span>💾</span> Save
           </button>
         </>
+      )}
+
+      {!isElectron && (
+        <a className="header-action-btn" href={MAC_APP_DOWNLOAD_URL} style={{ textDecoration: 'none' }}>
+          <span>⬇</span> Macアプリダウンロード
+        </a>
       )}
 
       <div className="btn-group">
