@@ -66,7 +66,20 @@ export function LayerPopup() {
     return api?.onShowMinimap?.((show: boolean) => setShowMinimap(show));
   }, []);
 
-  const layer = state?.connected ? state.layers.find(l => l.index === state.highestLayer) ?? state.layers[0] : null;
+  // Picked independently from the main editor window's own toggle (this is
+  // a separate renderer, so it doesn't share React/DOM state with it) --
+  // just applies the attribute the CSS already keys its dark/light rules on.
+  useEffect(() => {
+    const api = (window as any).electronAPI;
+    return api?.onSetTheme?.((theme: 'light' | 'dark') => {
+      document.documentElement.setAttribute('data-theme', theme);
+    });
+  }, []);
+
+  // Shown regardless of connection -- it's a static reference to the local
+  // keymap (last-read or default) even before/without a device attached,
+  // not just a live mirror of the hardware.
+  const layer = state ? state.layers.find(l => l.index === state.highestLayer) ?? state.layers[0] : null;
 
   // Rescale the content to fit whenever the window is resized or the
   // content's own natural size changes (e.g. the minimap being toggled).
@@ -104,9 +117,7 @@ export function LayerPopup() {
   if (!layer) {
     return (
       <div className="layer-popup" onContextMenu={onContextMenu}>
-        <div className="layer-popup-empty layer-popup-drag">
-          {state?.connected === false ? 'デバイス未接続' : '読み込み中...'}
-        </div>
+        <div className="layer-popup-empty layer-popup-drag">読み込み中...</div>
       </div>
     );
   }
@@ -123,6 +134,7 @@ export function LayerPopup() {
         <div className="layer-popup-header layer-popup-drag">
           <span className="led-dot" style={{ width: 10, height: 10, borderRadius: '50%', background: LED_CSS_MAP[layer.ledColor] }} />
           <span>{layer.name}</span>
+          {!state!.connected && <span className="layer-popup-disconnected">未接続</span>}
         </div>
 
         <div className="keyboard-container">

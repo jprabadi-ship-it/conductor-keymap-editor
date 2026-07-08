@@ -71,6 +71,7 @@ const POPUP_HEIGHT = 360
 let popupOpacity = 1
 let popupUserMoved = false
 let showMinimap = true
+let popupTheme = 'light'
 
 function createPopupWindow() {
   popupWin = new BrowserWindow({
@@ -138,6 +139,25 @@ function showPopupContextMenu() {
         popupWin.webContents.send('show-minimap', showMinimap)
       },
     },
+    { type: 'separator' },
+    {
+      label: 'ライトモード',
+      type: 'radio',
+      checked: popupTheme === 'light',
+      click: () => {
+        popupTheme = 'light'
+        popupWin.webContents.send('set-theme', popupTheme)
+      },
+    },
+    {
+      label: 'ダークモード',
+      type: 'radio',
+      checked: popupTheme === 'dark',
+      click: () => {
+        popupTheme = 'dark'
+        popupWin.webContents.send('set-theme', popupTheme)
+      },
+    },
   ])
   menu.popup({ window: popupWin })
 }
@@ -149,6 +169,7 @@ function showPopup() {
   popupWin.focus()
   if (latestLayerState) popupWin.webContents.send('layer-state', latestLayerState)
   popupWin.webContents.send('show-minimap', showMinimap)
+  popupWin.webContents.send('set-theme', popupTheme)
 }
 
 function hidePopup() {

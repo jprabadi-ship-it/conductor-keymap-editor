@@ -15,4 +15,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('show-minimap', listener)
     return () => ipcRenderer.removeListener('show-minimap', listener)
   },
+  onSetTheme: (callback) => {
+    const listener = (_event, theme) => callback(theme)
+    ipcRenderer.on('set-theme', listener)
+    return () => ipcRenderer.removeListener('set-theme', listener)
+  },
 })

@@ -849,6 +849,10 @@ input:focus { border-color: var(--accent); }
   align-self: flex-start;
   display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600;
 }
+.layer-popup-disconnected {
+  font-size: 10px; font-weight: 500; color: var(--text-muted);
+  border: 1px solid var(--border); border-radius: 3px; padding: 1px 5px;
+}
 .layer-popup-empty {
   display: flex; align-items: center; justify-content: center;
   font-size: 13px; color: var(--text-muted);
