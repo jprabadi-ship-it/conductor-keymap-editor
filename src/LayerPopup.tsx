@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { KeyButton } from './components/KeyboardView/KeyButton';
-import { LEFT_KEYS, RIGHT_KEYS, KeyPosition, positionToKeyId } from './data/layout';
-import { Layer, LedColor, Combo } from './types';
+import { LEFT_KEYS, RIGHT_KEYS, KeyPosition, positionToKeyId, positionsToKeyIds } from './data/layout';
+import { Layer, LedColor, Combo, KeyBinding } from './types';
+import {
+  connectUsb, connectBle, requestUnlock, readKeymap, getCombosFromDevice, getAutoLayer, getRuntimeState,
+  onDeviceDisconnect, onActiveLayerChange, onKeyInputEvent, subscribeToInput,
+} from './services/usbService';
 
 const LED_CSS_MAP: Record<LedColor, string> = {
   black: 'var(--led-black)', red: 'var(--led-red)', green: 'var(--led-green)',
@@ -17,6 +21,22 @@ interface LayerState {
   connected: boolean;
   pressedPositions: number[];
 }
+
+// The popup can connect to a device on its own -- independent of whatever
+// the (possibly not even open) main editor window is doing -- since it's
+// just another page in the same app bundle with full access to usbService.
+interface LocalConnection {
+  connected: boolean;
+  layers: Layer[];
+  combos: Combo[];
+  amlExcluded: string[];
+  highestLayer: number;
+  pressedPositions: number[];
+}
+
+const EMPTY_LOCAL_CONNECTION: LocalConnection = {
+  connected: false, layers: [], combos: [], amlExcluded: [], highestLayer: 0, pressedPositions: [],
+};
 
 function renderHalf(layer: Layer, positions: KeyPosition[], comboMap: Map<string, string>, amlExcluded: string[], pressedKeyIds: Set<string>, className: string) {
   const maxCol = Math.max(...positions.map(p => p.col));
@@ -51,6 +71,8 @@ const FIT_MARGIN = 0.94;
 
 export function LayerPopup() {
   const [state, setState] = useState<LayerState | null>(null);
+  const [localConn, setLocalConn] = useState<LocalConnection>(EMPTY_LOCAL_CONNECTION);
+  const [connecting, setConnecting] = useState<'usb' | 'bluetooth' | null>(null);
   const [showMinimap, setShowMinimap] = useState(true);
   const [scale, setScale] = useState(1);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -76,10 +98,68 @@ export function LayerPopup() {
     });
   }, []);
 
-  // Shown regardless of connection -- it's a static reference to the local
-  // keymap (last-read or default) even before/without a device attached,
-  // not just a live mirror of the hardware.
-  const layer = state ? state.layers.find(l => l.index === state.highestLayer) ?? state.layers[0] : null;
+  // Live layer/key-press streaming for a connection made directly from this
+  // popup (see handleConnect below) -- harmless no-ops if never connected.
+  useEffect(() => {
+    onDeviceDisconnect(() => {
+      setLocalConn(c => ({ ...c, connected: false, pressedPositions: [] }));
+    });
+    onActiveLayerChange(highestLayer => {
+      setLocalConn(c => ({ ...c, highestLayer }));
+    });
+    onKeyInputEvent((position, pressed) => {
+      setLocalConn(c => ({
+        ...c,
+        pressedPositions: pressed
+          ? (c.pressedPositions.includes(position) ? c.pressedPositions : [...c.pressedPositions, position])
+          : c.pressedPositions.filter(p => p !== position),
+      }));
+    });
+  }, []);
+
+  const handleConnect = async (type: 'usb' | 'bluetooth') => {
+    setConnecting(type);
+    try {
+      const ok = type === 'usb' ? await connectUsb() : await connectBle();
+      if (!ok) return;
+      await requestUnlock();
+      await subscribeToInput(true);
+
+      const [result, combos, aml, runtime] = await Promise.all([
+        readKeymap(), getCombosFromDevice(), getAutoLayer(), getRuntimeState(),
+      ]);
+      if (!result?.layers) return;
+
+      const layers: Layer[] = result.layers.map((dl: any) => ({
+        name: dl.name,
+        index: dl.id,
+        ledColor: dl.ledColor ?? 'black',
+        isProtected: false,
+        keys: Object.entries(dl.bindings as Record<string, KeyBinding>).map(([id, binding]) => ({ id, binding })),
+      }));
+
+      setLocalConn({
+        connected: true,
+        layers,
+        combos: combos ?? [],
+        amlExcluded: aml ? positionsToKeyIds(aml.excludedPositions) : [],
+        highestLayer: runtime?.highestLayer ?? 0,
+        pressedPositions: [],
+      });
+    } finally {
+      setConnecting(null);
+    }
+  };
+
+  // A connection made directly from the popup takes priority over whatever
+  // the main editor window last reported over IPC -- it's live and local to
+  // this window, whereas `state` may just be the main window's stale/default
+  // keymap if it was never connected either.
+  const effective: LayerState | null = localConn.connected
+    ? { layers: localConn.layers, combos: localConn.combos, amlExcluded: localConn.amlExcluded, highestLayer: localConn.highestLayer, connected: true, pressedPositions: localConn.pressedPositions }
+    : state;
+
+  const layer = effective ? effective.layers.find(l => l.index === effective.highestLayer) ?? effective.layers[0] : null;
 
   // Rescale the content to fit whenever the window is resized or the
   // content's own natural size changes (e.g. the minimap being toggled).
@@ -110,13 +190,19 @@ export function LayerPopup() {
     };
   }, [layer, showMinimap]);
 
-  // Right-click anywhere in the popup opens the opacity menu (the window is
-  // frameless, so there's no title bar to host it on).
+  // Right-click anywhere in the popup opens the opacity/minimap/theme menu
+  // (the window is frameless, so there's no title bar to host it on).
   const onContextMenu = () => (window as any).electronAPI?.showPopupMenu?.();
+
+  // Hidden feature: scroll over the popup to fade it in/out steplessly,
+  // instead of picking from the menu's fixed percentages.
+  const onWheel = (e: React.WheelEvent) => {
+    (window as any).electronAPI?.adjustPopupOpacity?.(-e.deltaY / 800);
+  };
 
   if (!layer) {
     return (
-      <div className="layer-popup" onContextMenu={onContextMenu}>
+      <div className="layer-popup" onContextMenu={onContextMenu} onWheel={onWheel}>
         <div className="layer-popup-empty layer-popup-drag">読み込み中...</div>
       </div>
     );
@@ -124,17 +210,26 @@ export function LayerPopup() {
 
   // Same derivation as KeyboardView/useKeymapStore's comboOverlays.
   const comboMap = new Map<string, string>();
-  state!.combos.forEach(combo => combo.keyPositions.forEach(pos => comboMap.set(pos, combo.name)));
+  effective!.combos.forEach(combo => combo.keyPositions.forEach(pos => comboMap.set(pos, combo.name)));
 
-  const pressedKeyIds = new Set(state!.pressedPositions.map(positionToKeyId).filter((id): id is string => id !== null));
+  const pressedKeyIds = new Set(effective!.pressedPositions.map(positionToKeyId).filter((id): id is string => id !== null));
 
   return (
-    <div className="layer-popup" onContextMenu={onContextMenu} ref={containerRef}>
+    <div className="layer-popup" onContextMenu={onContextMenu} onWheel={onWheel} ref={containerRef}>
       <div className="layer-popup-content" ref={contentRef} style={{ transform: `scale(${scale})` }}>
         <div className="layer-popup-header layer-popup-drag">
           <span className="led-dot" style={{ width: 10, height: 10, borderRadius: '50%', background: LED_CSS_MAP[layer.ledColor] }} />
           <span>{layer.name}</span>
-          {!state!.connected && <span className="layer-popup-disconnected">未接続</span>}
+          {!effective!.connected && (
+            <span className="layer-popup-connect-group">
+              <button className="layer-popup-connect-btn" onClick={() => handleConnect('usb')} disabled={connecting !== null}>
+                {connecting === 'usb' ? '接続中...' : 'USB接続'}
+              </button>
+              <button className="layer-popup-connect-btn" onClick={() => handleConnect('bluetooth')} disabled={connecting !== null}>
+                {connecting === 'bluetooth' ? '接続中...' : 'BT接続'}
+              </button>
+            </span>
+          )}
           <button
             className="layer-popup-menu-btn"
             onClick={onContextMenu}
@@ -143,13 +238,13 @@ export function LayerPopup() {
         </div>
 
         <div className="keyboard-container">
-          {renderHalf(layer, LEFT_KEYS, comboMap, state!.amlExcluded, pressedKeyIds, 'left')}
-          {renderHalf(layer, RIGHT_KEYS, comboMap, state!.amlExcluded, pressedKeyIds, 'right')}
+          {renderHalf(layer, LEFT_KEYS, comboMap, effective!.amlExcluded, pressedKeyIds, 'left')}
+          {renderHalf(layer, RIGHT_KEYS, comboMap, effective!.amlExcluded, pressedKeyIds, 'right')}
         </div>
 
         {showMinimap && (
           <div className="layer-switcher">
-            {state!.layers.map(l => (
+            {effective!.layers.map(l => (
               <div key={l.index} className={`layer-dot ${l.index === layer.index ? 'active' : ''}`} title={l.name}>
                 <span className="layer-dot-circle" style={{ background: LED_CSS_MAP[l.ledColor] }} />
                 <span className="layer-dot-label">{l.name}</span>

@@ -20,4 +20,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('set-theme', listener)
     return () => ipcRenderer.removeListener('set-theme', listener)
   },
+  adjustPopupOpacity: (delta) => ipcRenderer.send('adjust-popup-opacity', delta),
 })

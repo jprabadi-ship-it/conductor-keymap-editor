@@ -849,10 +849,16 @@ input:focus { border-color: var(--accent); }
   align-self: stretch;
   display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600;
 }
-.layer-popup-disconnected {
-  font-size: 10px; font-weight: 500; color: var(--text-muted);
-  border: 1px solid var(--border); border-radius: 3px; padding: 1px 5px;
+.layer-popup-connect-group {
+  display: flex; gap: 4px; -webkit-app-region: no-drag;
 }
+.layer-popup-connect-btn {
+  font-size: 10px; font-weight: 600; color: var(--text-primary);
+  background: var(--bg-tertiary); border: 1px solid var(--border);
+  border-radius: 3px; padding: 2px 7px; cursor: pointer;
+}
+.layer-popup-connect-btn:hover { background: var(--bg-hover); }
+.layer-popup-connect-btn:disabled { opacity: 0.6; cursor: default; }
 .layer-popup-menu-btn {
   margin-left: auto;
   -webkit-app-region: no-drag;

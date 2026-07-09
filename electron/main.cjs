@@ -116,6 +116,7 @@ function positionPopupNearTray() {
 }
 
 const POPUP_OPACITY_LEVELS = [100, 85, 70, 55, 40]
+const POPUP_OPACITY_MIN = 0.15
 
 function showPopupContextMenu() {
   if (!popupWin) return
@@ -226,6 +227,15 @@ ipcMain.on('layer-state', (_event, state) => {
 })
 
 ipcMain.on('popup-context-menu', showPopupContextMenu)
+
+// Hidden feature: scroll over the popup to fade it steplessly, instead of
+// picking from the menu's fixed percentages. Delta is relative so the
+// renderer never needs to know the current opacity.
+ipcMain.on('adjust-popup-opacity', (_event, delta) => {
+  if (!popupWin) return
+  popupOpacity = Math.min(1, Math.max(POPUP_OPACITY_MIN, popupOpacity + delta))
+  popupWin.setOpacity(popupOpacity)
+})
 
 // Web Serial: Electron doesn't show its own port picker, so we must answer
 // navigator.serial.requestPort() ourselves. Auto-select when there's exactly
