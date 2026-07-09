@@ -101,7 +101,13 @@ function createPopupWindow() {
     popupWin.loadFile(path.join(__dirname, '..', 'dist', 'index.html'), { hash: '/popup' })
   }
 
-  popupWin.on('moved', () => { popupUserMoved = true })
+  popupWin.on('moved', () => {
+    popupUserMoved = true
+    // Re-assert alwaysOnTop after every move to fix a macOS bug where dragging
+    // a frameless alwaysOnTop window to a different display desynchronises its
+    // NSWindowLevel, leaving the window stuck and unresponsive to further drags.
+    popupWin.setAlwaysOnTop(true, 'floating')
+  })
   popupWin.on('closed', () => { popupWin = null })
 
   return popupWin
