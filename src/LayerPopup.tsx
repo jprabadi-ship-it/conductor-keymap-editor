@@ -200,10 +200,24 @@ export function LayerPopup() {
     (window as any).electronAPI?.adjustPopupOpacity?.(-e.deltaY / 800);
   };
 
+  const connectButtons = (
+    <span className="layer-popup-connect-group">
+      <button className="layer-popup-connect-btn" onClick={() => handleConnect('usb')} disabled={connecting !== null}>
+        {connecting === 'usb' ? '接続中...' : 'USB接続'}
+      </button>
+      <button className="layer-popup-connect-btn" onClick={() => handleConnect('bluetooth')} disabled={connecting !== null}>
+        {connecting === 'bluetooth' ? '接続中...' : 'BT接続'}
+      </button>
+    </span>
+  );
+
   if (!layer) {
     return (
       <div className="layer-popup" onContextMenu={onContextMenu} onWheel={onWheel}>
-        <div className="layer-popup-empty layer-popup-drag">読み込み中...</div>
+        <div className="layer-popup-empty layer-popup-drag" style={{ flexDirection: 'column', gap: 8 }}>
+          <span>読み込み中...</span>
+          {connectButtons}
+        </div>
       </div>
     );
   }
@@ -220,16 +234,7 @@ export function LayerPopup() {
         <div className="layer-popup-header layer-popup-drag">
           <span className="led-dot" style={{ width: 10, height: 10, borderRadius: '50%', background: LED_CSS_MAP[layer.ledColor] }} />
           <span>{layer.name}</span>
-          {!effective!.connected && (
-            <span className="layer-popup-connect-group">
-              <button className="layer-popup-connect-btn" onClick={() => handleConnect('usb')} disabled={connecting !== null}>
-                {connecting === 'usb' ? '接続中...' : 'USB接続'}
-              </button>
-              <button className="layer-popup-connect-btn" onClick={() => handleConnect('bluetooth')} disabled={connecting !== null}>
-                {connecting === 'bluetooth' ? '接続中...' : 'BT接続'}
-              </button>
-            </span>
-          )}
+          {!effective!.connected && connectButtons}
           <button
             className="layer-popup-menu-btn"
             onClick={onContextMenu}
