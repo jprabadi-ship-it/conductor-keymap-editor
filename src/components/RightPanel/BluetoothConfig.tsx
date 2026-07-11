@@ -39,6 +39,8 @@ export function BluetoothConfig({ store }: Props) {
   const [usbSlots, setUsbSlots] = useState<{ name: string }[]>([]);
   const [usbActiveIndex, setUsbActiveIndex] = useState(0);
   const [usbSlotsLoaded, setUsbSlotsLoaded] = useState(false);
+  const [copyPickerDevice, setCopyPickerDevice] = useState<number | null>(null);
+  const [copyBusy, setCopyBusy] = useState(false);
 
   const {
     gestureHasOverride, setGestureHasOverride, gestureOverrides, setGestureOverrides,
@@ -146,6 +148,7 @@ export function BluetoothConfig({ store }: Props) {
   };
 
   const toggleExpanded = (endpointIndex: number) => {
+    setCopyPickerDevice(null);
     if (expandedDevice === endpointIndex) {
       setExpandedDevice(null);
       setEditingDirection(null);
@@ -223,6 +226,43 @@ export function BluetoothConfig({ store }: Props) {
       return next;
     });
     setEditingDirection(null);
+  };
+
+  // Copies one device's overlay config (keymap overlay + all 4 gesture
+  // overrides) onto another endpoint. Directions without an override on the
+  // source are cleared on the destination so the result is an exact mirror.
+  const copyDeviceConfig = async (src: number, dest: number) => {
+    setCopyBusy(true);
+    try {
+      await setKeymapOverlay(dest, osMap[src] || 0);
+      const directions: Direction[] = ['up', 'down', 'left', 'right'];
+      const applied: { dir: Direction; has: boolean }[] = [];
+      for (const dir of directions) {
+        const srcSlot = overrideSlot(src, dir);
+        const has = !!gestureHasOverride[srcSlot];
+        const ok = has
+          ? await setGestureBinding(dest, DIRECTION_INDEX[dir], false, gestureOverrides[srcSlot])
+          : await setGestureBinding(dest, DIRECTION_INDEX[dir], true);
+        if (ok) applied.push({ dir, has });
+      }
+      if (applied.some(a => a.has)) await setGestureEnabled(true);
+      setGestureHasOverride(prev => {
+        const next = [...prev];
+        for (const a of applied) next[overrideSlot(dest, a.dir)] = a.has;
+        return next;
+      });
+      setGestureOverrides(prev => {
+        const next = [...prev];
+        for (const a of applied) {
+          if (a.has) next[overrideSlot(dest, a.dir)] = gestureOverrides[overrideSlot(src, a.dir)];
+        }
+        return next;
+      });
+      debugLog('INF', 'Device', `Copied device config: endpoint ${src} -> ${dest} (${applied.length}/4 directions)`);
+    } finally {
+      setCopyBusy(false);
+      setCopyPickerDevice(null);
+    }
   };
 
   const devices = buildDeviceEntries(store.bluetoothProfiles, usbActiveIndex);
@@ -366,6 +406,37 @@ export function BluetoothConfig({ store }: Props) {
                         </button>
                       );
                     })}
+                  </div>
+
+                  <div style={{ marginTop: 8 }}>
+                    <button
+                      className={`btn btn-outline ${copyPickerDevice === dev.endpointIndex ? 'btn-active' : ''}`}
+                      style={{ fontSize: 10, padding: '2px 6px' }}
+                      onClick={() => setCopyPickerDevice(copyPickerDevice === dev.endpointIndex ? null : dev.endpointIndex)}
+                    >⧉ この設定を他のデバイスへコピー</button>
+                    {copyPickerDevice === dev.endpointIndex && (
+                      <div style={{ marginTop: 6 }}>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>
+                          コピー先（キーマップオーバーレイとジェスチャ4方向を上書きします）
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(84px, 1fr))', gap: 4 }}>
+                          {devices.filter(d => d.endpointIndex !== dev.endpointIndex).map(d => {
+                            const destName = d.btIndex !== undefined
+                              ? (store.bluetoothProfiles[d.btIndex]?.name || '')
+                              : (usbSlots[d.usbSlot!]?.name || '');
+                            return (
+                              <button
+                                key={d.endpointIndex}
+                                className="btn btn-outline"
+                                style={{ fontSize: 10, padding: '4px 6px' }}
+                                disabled={copyBusy}
+                                onClick={() => copyDeviceConfig(dev.endpointIndex, d.endpointIndex)}
+                              >{d.label}{destName ? ` ${destName}` : ''}</button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {editingDirection && (() => {
