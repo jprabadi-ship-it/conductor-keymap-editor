@@ -878,8 +878,8 @@ input:focus { border-color: var(--accent); }
 /* Frameless window has no title bar -- drag this region to move it (right-click for opacity). */
 .layer-popup-drag { -webkit-app-region: drag; width: 100%; }
 
-/* Battery badges on the tray popup's keyboard: anchored over the 英数(L33)
-   and かな(R31) thumb keys, one per hardware half. */
+/* Battery badges on the tray popup's keyboard: anchored over the inner
+   thumb keys (L35 / R30), one per hardware half. */
 .minimap-batt-anchor { position: relative; }
 .minimap-batt {
   position: absolute;

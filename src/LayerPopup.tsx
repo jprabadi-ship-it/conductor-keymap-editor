@@ -28,12 +28,11 @@ interface BatteryLevels {
   r: number | null;
 }
 
-// Physical anchor keys for the battery badges: the left badge (L half's
-// battery) sits on the 英数/LANG2 thumb key, the right one (R half's) on
-// the かな/LANG1 thumb key. Position-based on purpose -- the badge marks
-// the hardware half, not whatever binding the current layer puts there.
-const BATTERY_ANCHOR_LEFT = 'L33';
-const BATTERY_ANCHOR_RIGHT = 'R31';
+// Physical anchor keys for the battery badges, one per hardware half.
+// Position-based on purpose -- the badge marks the hardware half, not
+// whatever binding the current layer puts there.
+const BATTERY_ANCHOR_LEFT = 'L35';
+const BATTERY_ANCHOR_RIGHT = 'R30';
 
 // The popup can connect to a device on its own -- independent of whatever
 // the (possibly not even open) main editor window is doing -- since it's

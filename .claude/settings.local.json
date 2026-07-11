@@ -33,5 +33,12 @@
       "Bash(sed -i '' 's/\"GetAutoLayerResponse\":{\"fields\":{\"enabled\":{\"type\":\"bool\",\"id\":1},\"requirePriorIdleMs\":{\"type\":\"uint32\",\"id\":2},\"excludedPositions\":{\"rule\":\"repeated\",\"type\":\"uint32\",\"id\":3},\"motionThreshold\":{\"type\":\"uint32\",\"id\":4}}}/\"GetAutoLayerResponse\":{\"fields\":{\"enabled\":{\"type\":\"bool\",\"id\":1},\"requirePriorIdleMs\":{\"type\":\"uint32\",\"id\":2},\"excludedPositions\":{\"rule\":\"repeated\",\"type\":\"uint32\",\"id\":3},\"motionThreshold\":{\"type\":\"uint32\",\"id\":4},\"durationMs\":{\"type\":\"uint32\",\"id\":5}}}/g' src/data/zmk-studio-proto.json)",
       "Bash(sed -i '' 's/\"SetAutoLayerRequest\":{\"fields\":{\"enabled\":{\"type\":\"bool\",\"id\":1},\"requirePriorIdleMs\":{\"type\":\"uint32\",\"id\":2},\"excludedPositions\":{\"rule\":\"repeated\",\"type\":\"uint32\",\"id\":3},\"motionThreshold\":{\"type\":\"uint32\",\"id\":4}}}/\"SetAutoLayerRequest\":{\"fields\":{\"enabled\":{\"type\":\"bool\",\"id\":1},\"requirePriorIdleMs\":{\"type\":\"uint32\",\"id\":2},\"excludedPositions\":{\"rule\":\"repeated\",\"type\":\"uint32\",\"id\":3},\"motionThreshold\":{\"type\":\"uint32\",\"id\":4},\"durationMs\":{\"type\":\"uint32\",\"id\":5}}}/g' src/data/zmk-studio-proto.json)"
     ]
+  },
+  "autoMode": {
+    "allow": [
+      "$defaults",
+      "Bash(git push origin main) in /Users/miyashitakazuya/conductor-keymap-editor is pre-authorized: solo-maintained private repo with no branch protection or PR workflow."
+    ]
   }
 }
+
