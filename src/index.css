@@ -882,6 +882,21 @@ input:focus { border-color: var(--accent); }
 .layer-popup .layer-dot:hover { background: none; }
 /* Frameless window has no title bar -- drag this region to move it (right-click for opacity). */
 .layer-popup-drag { -webkit-app-region: drag; width: 100%; }
+/* Mac-style close: leftmost in the header, disconnects (if this popup owns
+   the connection) and dismisses the minimap. */
+.layer-popup-close {
+  -webkit-app-region: no-drag;
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+  font-size: 9px; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.layer-popup-close:hover { background: var(--danger); color: #fff; border-color: var(--danger); }
+
 /* Visible grip mark showing where the draggable strip is. */
 .layer-popup-grip {
   color: var(--text-muted);

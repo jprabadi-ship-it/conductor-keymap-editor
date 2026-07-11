@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openStudio: () => ipcRenderer.send('open-studio'),
   getPopupPrefs: () => ipcRenderer.invoke('get-popup-prefs'),
   hidePopup: () => ipcRenderer.send('hide-popup'),
+  switchToMinimap: () => ipcRenderer.send('switch-to-minimap'),
   stealPort: () => ipcRenderer.invoke('steal-port'),
   studioReleasedPort: () => ipcRenderer.send('studio-released-port'),
   onReleasePort: (callback) => {

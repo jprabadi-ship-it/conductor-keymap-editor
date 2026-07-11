@@ -284,8 +284,17 @@ ipcMain.on('open-studio', () => {
   }
 })
 
-// Minimap's 切断 button also dismisses the minimap itself.
+// Minimap's ✕ button also dismisses the minimap itself.
 ipcMain.on('hide-popup', () => hidePopup())
+
+// Studio's "ミニマップを起動" button (shown after a Write): bring up the
+// minimap and tuck the Studio window away — back to day-to-day mode. The
+// hidden Studio renderer keeps its connection, so the minimap display
+// continues via the layer-state relay.
+ipcMain.on('switch-to-minimap', () => {
+  showPopup()
+  if (win) win.hide()
+})
 
 // Hidden feature: scroll over the popup to fade it steplessly, instead of
 // picking from the menu's fixed percentages. Delta is relative so the

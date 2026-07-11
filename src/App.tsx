@@ -34,6 +34,9 @@ function App() {
   const [highestLayer, setHighestLayer] = useState(0);
   const [pressedPositions, setPressedPositions] = useState<number[]>([]);
   const [popupBattery, setPopupBattery] = useState<{ l: number | null; r: number | null } | null>(null);
+  // Once a Write lands on the device, offer the "back to the minimap"
+  // shortcut in the header (Electron only).
+  const [wroteToDevice, setWroteToDevice] = useState(false);
 
   const showToast = useCallback((message: string, type: 'device' | 'local' | 'error' = 'device') => {
     setToast({ message, type });
@@ -190,6 +193,7 @@ function App() {
         onToggleConsole={() => setShowConsole(v => !v)}
         usbConnected={usbConnected}
         unsaved={unsaved}
+        wroteToDevice={wroteToDevice}
         onWrite={async () => {
           if (!isUnlocked()) {
             debugLog('WRN', 'Editor', 'Device is locked. Attempting unlock...');
@@ -222,6 +226,7 @@ function App() {
             if (saved) {
               store.clearDirtyKeys();
               setUnsaved(false);
+              setWroteToDevice(true);
               debugLog('INF', 'Editor', 'Keymap written and saved to device flash');
               showToast('実機のFlashに書き込みました', 'device');
             }

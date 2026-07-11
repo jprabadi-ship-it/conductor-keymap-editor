@@ -10,6 +10,7 @@ interface Props {
   usbConnected: boolean;
   unsaved: boolean;
   onWrite: () => void;
+  wroteToDevice?: boolean;
   onRead: () => void;
   onSave: () => void;
 }
@@ -19,7 +20,7 @@ interface Props {
 const isElectron = typeof window !== 'undefined' && !!(window as any).electronAPI;
 const MAC_APP_DOWNLOAD_URL = 'https://github.com/jprabadi-ship-it/conductor-keymap-editor/releases/latest/download/ConductorD-Studio-mac-arm64.dmg';
 
-export function Header({ store, showConsole, onToggleConsole, usbConnected, unsaved, onWrite, onRead, onSave }: Props) {
+export function Header({ store, showConsole, onToggleConsole, usbConnected, unsaved, onWrite, wroteToDevice, onRead, onSave }: Props) {
   const [showExport, setShowExport] = useState(false);
   const [showChangelog, setShowChangelog] = useState(false);
   const [theme, setTheme] = useState(() => localStorage.getItem('conductor-theme') || 'light');
@@ -103,6 +104,7 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, unsa
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {[
+                { v: '0.20.3.0', at: '2026-07-12 JST', changes: ['ミニマップの切断ボタンをmac風の✕ボタン（左上）に変更、未接続時も閉じるボタンとして機能', 'StudioでWrite成功後、ヘッダーに「ミニマップを起動」ボタンを表示（ミニマップを出してStudioを片付ける・接続は維持）'] },
                 { v: '0.20.2.0', at: '2026-07-12 JST', changes: ['ミニマップがダーク設定なのにライトで起動する不具合を修正（初期テーマIPCの取りこぼしを解消）', 'グリップを目立つピル型ハンドルに変更（初期画面にも表示）', '初期表示位置をメインモニター最下段の中央に変更'] },
                 { v: '0.20.1.0', at: '2026-07-12 JST', changes: ['アプリ起動時にStudioではなくミニマップを表示', 'ミニマップに「Editorへ」ボタン（Studioを開く）', 'ミニマップのデフォルトをダークテーマ・不透明度55%に', '切断ボタンでミニマップも閉じる（トレイから再表示可）', 'ドラッグできる位置に⠿グリップマークを表示'] },
                 { v: '0.20.0.0', at: '2026-07-12 JST', changes: ['Studioとミニマップの接続ハンドオフ（アプリ版）: ミニマップ接続中でもStudioのConnectを押すだけで接続を自動で引き継ぎ、Studioを切断するとミニマップ(USB)が自動で取り返す'] },
@@ -257,6 +259,12 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, unsa
           <button className="header-action-btn" onClick={onSave}>
             <span>💾</span> Save
           </button>
+          {isElectron && wroteToDevice && (
+            <button className="header-action-btn" title="ミニマップを表示してStudioを片付ける（接続は維持されます）"
+              onClick={() => (window as any).electronAPI?.switchToMinimap?.()}>
+              <span>🗺</span> ミニマップを起動
+            </button>
+          )}
         </>
       )}
 

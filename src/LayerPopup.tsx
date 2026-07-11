@@ -293,15 +293,15 @@ export function LayerPopup() {
     (window as any).electronAPI?.adjustPopupOpacity?.(-e.deltaY / 800);
   };
 
-  const handleDisconnect = async () => {
+  // The ❌ acts like a window close button: cut this popup's own connection
+  // if it has one, then dismiss the minimap (reopen from the tray menu).
+  const handleClose = async () => {
     if (connType === 'bluetooth') await disconnectBle();
-    else await disconnectUsb();
+    else if (connType === 'usb') await disconnectUsb();
     // onDeviceDisconnect also fires for real unplugs; calling the reset here
     // too keeps the UI immediate even if that callback is delayed.
     setLocalConn(EMPTY_LOCAL_CONNECTION);
     setConnType(null);
-    // Explicitly cutting the connection means "done for now" — dismiss the
-    // minimap too (reopen any time from the tray menu).
     (window as any).electronAPI?.hidePopup?.();
   };
 
@@ -321,7 +321,9 @@ export function LayerPopup() {
   if (!layer) {
     return (
       <div className="layer-popup" onContextMenu={onContextMenu} onWheel={onWheel}>
-        <div className="layer-popup-empty layer-popup-drag" style={{ flexDirection: 'column', gap: 8 }}>
+        <div className="layer-popup-empty layer-popup-drag" style={{ flexDirection: 'column', gap: 8, position: 'relative' }}>
+          <button className="layer-popup-close" style={{ position: 'fixed', top: 8, left: 8 }}
+            onClick={handleClose} title="ミニマップを閉じる">✕</button>
           <span className="layer-popup-grip" title="ここを掴んで移動">⠿</span>
           <span>読み込み中...</span>
           {connectButtons}
@@ -349,15 +351,12 @@ export function LayerPopup() {
     <div className="layer-popup" onContextMenu={onContextMenu} onWheel={onWheel} ref={containerRef}>
       <div className="layer-popup-content" ref={contentRef} style={{ transform: `scale(${scale})` }}>
         <div className="layer-popup-header layer-popup-drag">
+          <button className="layer-popup-close" onClick={handleClose}
+            title={localConn.connected ? '切断してミニマップを閉じる' : 'ミニマップを閉じる'}>✕</button>
           <span className="layer-popup-grip" title="ここを掴んで移動">⠿</span>
           <span className="led-dot" style={{ width: 10, height: 10, borderRadius: '50%', background: LED_CSS_MAP[layer.ledColor] }} />
           <span>{layer.name}</span>
           {!effective!.connected && connectButtons}
-          {localConn.connected && (
-            <button className="layer-popup-connect-btn" onClick={handleDisconnect} title="このミニマップからの接続を切断してミニマップを閉じる">
-              切断
-            </button>
-          )}
           <button className="layer-popup-connect-btn" onClick={openStudio} title="Keymap Editor（Studio）を開く">
             Editorへ
           </button>
