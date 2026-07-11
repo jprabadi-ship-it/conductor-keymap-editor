@@ -61,22 +61,58 @@ export function MacroEditor({ store }: Props) {
   const [pickerCategory, setPickerCategory] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
 
+  // Record press/release separately so held keys (e.g. Cmd held while
+  // tapping C) keep their real semantics; adjacent press+release of the
+  // same key are collapsed into a tap when recording stops.
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (idx === null) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.repeat) return; // OS auto-repeat would flood duplicate steps
+    const macroKey = KEY_EVENT_TO_MACRO[e.code];
+    if (macroKey) {
+      store.addMacroStep(idx, { action: 'macro_press', behavior: 'kp', param: macroKey });
+    }
+  }, [idx, store]);
+
+  const handleKeyUp = useCallback((e: KeyboardEvent) => {
     if (idx === null) return;
     e.preventDefault();
     e.stopPropagation();
     const macroKey = KEY_EVENT_TO_MACRO[e.code];
     if (macroKey) {
-      store.addMacroStep(idx, { action: 'macro_tap', behavior: 'kp', param: macroKey });
+      store.addMacroStep(idx, { action: 'macro_release', behavior: 'kp', param: macroKey });
     }
   }, [idx, store]);
 
   useEffect(() => {
     if (recording) {
       window.addEventListener('keydown', handleKeyDown, true);
-      return () => window.removeEventListener('keydown', handleKeyDown, true);
+      window.addEventListener('keyup', handleKeyUp, true);
+      return () => {
+        window.removeEventListener('keydown', handleKeyDown, true);
+        window.removeEventListener('keyup', handleKeyUp, true);
+      };
     }
-  }, [recording, handleKeyDown]);
+  }, [recording, handleKeyDown, handleKeyUp]);
+
+  const stopRecording = () => {
+    setRecording(false);
+    if (idx === null || macro === null) return;
+    // press immediately followed by release of the same key == a tap
+    const b = macro.bindings;
+    const collapsed: typeof b = [];
+    for (let i = 0; i < b.length; i++) {
+      const cur = b[i], nxt = b[i + 1];
+      if (cur.action === 'macro_press' && nxt?.action === 'macro_release' && nxt.param === cur.param) {
+        collapsed.push({ ...cur, action: 'macro_tap' });
+        i++;
+      } else {
+        collapsed.push(cur);
+      }
+    }
+    if (collapsed.length !== b.length) store.updateMacro(idx, { bindings: collapsed });
+  };
 
   useEffect(() => {
     setRecording(false);
@@ -349,7 +385,7 @@ export function MacroEditor({ store }: Props) {
       <div className="config-section" style={{ marginTop: 16 }}>
         <button
           className="btn"
-          onClick={() => setRecording(r => !r)}
+          onClick={() => recording ? stopRecording() : setRecording(true)}
           style={{
             width: '100%',
             fontSize: 12,
