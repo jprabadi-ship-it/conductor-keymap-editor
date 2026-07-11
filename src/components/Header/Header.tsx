@@ -18,7 +18,12 @@ interface Props {
 // Electron ships its own app -- only the plain web build (GitHub Pages)
 // needs a way to get the desktop one.
 const isElectron = typeof window !== 'undefined' && !!(window as any).electronAPI;
-const MAC_APP_DOWNLOAD_URL = 'https://github.com/jprabadi-ship-it/conductor-keymap-editor/releases/latest/download/ConductorD-Studio-mac-arm64.dmg';
+// Versioned filename so the downloaded file says which release it is. The
+// web build and the app are released in lockstep (same version bump), so
+// the latest release always carries the asset matching this web version.
+// A version-less ConductorD-Studio-mac-arm64.dmg is also uploaded to each
+// release for older links.
+const MAC_APP_DOWNLOAD_URL = `https://github.com/jprabadi-ship-it/conductor-keymap-editor/releases/latest/download/ConductorD-Studio-${version}-mac-arm64.dmg`;
 
 export function Header({ store, showConsole, onToggleConsole, usbConnected, unsaved, onWrite, wroteToDevice, onRead, onSave }: Props) {
   const [showExport, setShowExport] = useState(false);
@@ -104,6 +109,7 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, unsa
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {[
+                { v: '0.20.4.0', at: '2026-07-12 JST', changes: ['ダウンロードされるDMGのファイル名にバージョン番号を含めるように変更'] },
                 { v: '0.20.3.0', at: '2026-07-12 JST', changes: ['ミニマップの切断ボタンをmac風の✕ボタン（左上）に変更、未接続時も閉じるボタンとして機能', 'StudioでWrite成功後、ヘッダーに「ミニマップを起動」ボタンを表示（ミニマップを出してStudioを片付ける・接続は維持）'] },
                 { v: '0.20.2.0', at: '2026-07-12 JST', changes: ['ミニマップがダーク設定なのにライトで起動する不具合を修正（初期テーマIPCの取りこぼしを解消）', 'グリップを目立つピル型ハンドルに変更（初期画面にも表示）', '初期表示位置をメインモニター最下段の中央に変更'] },
                 { v: '0.20.1.0', at: '2026-07-12 JST', changes: ['アプリ起動時にStudioではなくミニマップを表示', 'ミニマップに「Editorへ」ボタン（Studioを開く）', 'ミニマップのデフォルトをダークテーマ・不透明度55%に', '切断ボタンでミニマップも閉じる（トレイから再表示可）', 'ドラッグできる位置に⠿グリップマークを表示'] },
