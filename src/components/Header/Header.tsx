@@ -103,6 +103,7 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, unsa
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {[
+                { v: '0.19.6.0', at: '2026-07-11 JST', changes: ['ミニマップ単体で接続した場合の切断ボタンをヘッダーに追加'] },
                 { v: '0.19.5.0', at: '2026-07-11 JST', changes: ['バッテリーバッジの位置を内側親指キー（BSPC/Enter）上に変更'] },
                 { v: '0.19.4.0', at: '2026-07-11 JST', changes: ['ミニマップ（ポップアップ）の英数/かなキー上に、それぞれL/Rのバッテリー残量バッジを表示'] },
                 { v: '0.19.3.0', at: '2026-07-09 JST', changes: ['ポップアップを別ディスプレイに移動後、移動できなくなる不具合を修正（macOS alwaysOnTop + 複数ディスプレイの既知バグを回避）'] },

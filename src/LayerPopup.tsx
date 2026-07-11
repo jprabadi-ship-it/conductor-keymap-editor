@@ -3,7 +3,7 @@ import { KeyButton } from './components/KeyboardView/KeyButton';
 import { LEFT_KEYS, RIGHT_KEYS, KeyPosition, positionToKeyId, positionsToKeyIds } from './data/layout';
 import { Layer, LedColor, Combo, KeyBinding } from './types';
 import {
-  connectUsb, connectBle, requestUnlock, readKeymap, getCombosFromDevice, getAutoLayer, getRuntimeState,
+  connectUsb, connectBle, disconnectUsb, disconnectBle, requestUnlock, readKeymap, getCombosFromDevice, getAutoLayer, getRuntimeState,
   onDeviceDisconnect, onActiveLayerChange, onKeyInputEvent, subscribeToInput,
 } from './services/usbService';
 
@@ -100,6 +100,9 @@ export function LayerPopup() {
   const [state, setState] = useState<LayerState | null>(null);
   const [localConn, setLocalConn] = useState<LocalConnection>(EMPTY_LOCAL_CONNECTION);
   const [connecting, setConnecting] = useState<'usb' | 'bluetooth' | null>(null);
+  // Which transport the popup's own connection used -- needed to pick the
+  // right disconnect call. null when the popup never connected itself.
+  const [connType, setConnType] = useState<'usb' | 'bluetooth' | null>(null);
   const [showMinimap, setShowMinimap] = useState(true);
   const [scale, setScale] = useState(1);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -130,6 +133,7 @@ export function LayerPopup() {
   useEffect(() => {
     onDeviceDisconnect(() => {
       setLocalConn(c => ({ ...c, connected: false, pressedPositions: [] }));
+      setConnType(null);
     });
     onActiveLayerChange(highestLayer => {
       setLocalConn(c => ({ ...c, highestLayer }));
@@ -188,6 +192,7 @@ export function LayerPopup() {
         pressedPositions: [],
         battery: runtime ? { l: runtime.peripheralL, r: runtime.peripheralR } : null,
       });
+      setConnType(type);
     } finally {
       setConnecting(null);
     }
@@ -242,6 +247,15 @@ export function LayerPopup() {
     (window as any).electronAPI?.adjustPopupOpacity?.(-e.deltaY / 800);
   };
 
+  const handleDisconnect = async () => {
+    if (connType === 'bluetooth') await disconnectBle();
+    else await disconnectUsb();
+    // onDeviceDisconnect also fires for real unplugs; calling the reset here
+    // too keeps the UI immediate even if that callback is delayed.
+    setLocalConn(EMPTY_LOCAL_CONNECTION);
+    setConnType(null);
+  };
+
   const connectButtons = (
     <span className="layer-popup-connect-group">
       <button className="layer-popup-connect-btn" onClick={() => handleConnect('usb')} disabled={connecting !== null}>
@@ -283,6 +297,11 @@ export function LayerPopup() {
           <span className="led-dot" style={{ width: 10, height: 10, borderRadius: '50%', background: LED_CSS_MAP[layer.ledColor] }} />
           <span>{layer.name}</span>
           {!effective!.connected && connectButtons}
+          {localConn.connected && (
+            <button className="layer-popup-connect-btn" onClick={handleDisconnect} title="このミニマップからの接続を切断">
+              切断
+            </button>
+          )}
           <button
             className="layer-popup-menu-btn"
             onClick={onContextMenu}

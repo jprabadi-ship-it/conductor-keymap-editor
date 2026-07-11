@@ -853,6 +853,7 @@ input:focus { border-color: var(--accent); }
   display: flex; gap: 4px; -webkit-app-region: no-drag;
 }
 .layer-popup-connect-btn {
+  -webkit-app-region: no-drag;
   font-size: 10px; font-weight: 600; color: var(--text-primary);
   background: var(--bg-tertiary); border: 1px solid var(--border);
   border-radius: 3px; padding: 2px 7px; cursor: pointer;
