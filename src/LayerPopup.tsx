@@ -162,10 +162,44 @@ export function LayerPopup() {
     return () => clearInterval(interval);
   }, [localConn.connected]);
 
-  const handleConnect = async (type: 'usb' | 'bluetooth') => {
+  // Port handoff with the Studio window: when Studio wants to connect we
+  // release our connection (remembering the transport), and when Studio
+  // disconnects we silently take it back. Refs, not state, because the IPC
+  // listeners below are registered once and must see current values.
+  const connTypeRef = useRef<'usb' | 'bluetooth' | null>(null);
+  const releasedTypeRef = useRef<'usb' | 'bluetooth' | null>(null);
+  useEffect(() => { connTypeRef.current = connType; }, [connType]);
+
+  useEffect(() => {
+    const api = (window as any).electronAPI;
+    const offRelease = api?.onReleasePort?.(async () => {
+      const type = connTypeRef.current;
+      if (!type) {
+        api.portReleased(null);
+        return;
+      }
+      await (type === 'usb' ? disconnectUsb() : disconnectBle());
+      setLocalConn(EMPTY_LOCAL_CONNECTION);
+      setConnType(null);
+      releasedTypeRef.current = type;
+      api.portReleased({ type });
+    });
+    const offReclaim = api?.onReclaimPort?.(() => {
+      const type = releasedTypeRef.current;
+      releasedTypeRef.current = null;
+      // USB can reconnect without a user gesture (the permission is already
+      // granted); BLE requires a click, so the connect button reappears and
+      // one tap restores it.
+      if (type === 'usb') handleConnectRef.current('usb', { silent: true });
+    });
+    return () => { offRelease?.(); offReclaim?.(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleConnect = async (type: 'usb' | 'bluetooth', options?: { silent?: boolean }) => {
     setConnecting(type);
     try {
-      const ok = type === 'usb' ? await connectUsb() : await connectBle();
+      const ok = type === 'usb' ? await connectUsb(options) : await connectBle();
       if (!ok) return;
       await requestUnlock();
       await subscribeToInput(true);
@@ -197,6 +231,10 @@ export function LayerPopup() {
       setConnecting(null);
     }
   };
+  // Keeps the once-registered reclaim IPC listener pointed at the latest
+  // handleConnect (which closes over fresh state setters each render).
+  const handleConnectRef = useRef(handleConnect);
+  useEffect(() => { handleConnectRef.current = handleConnect; });
 
   // A connection made directly from the popup takes priority over whatever
   // the main editor window last reported over IPC -- it's live and local to

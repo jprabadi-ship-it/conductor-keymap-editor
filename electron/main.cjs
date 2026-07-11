@@ -234,6 +234,30 @@ ipcMain.on('layer-state', (_event, state) => {
 
 ipcMain.on('popup-context-menu', showPopupContextMenu)
 
+// Serial-port handoff (the port is exclusive, one renderer at a time):
+// Studio invokes steal-port before connecting; if the popup holds a
+// connection it releases it and answers with what it was using. When
+// Studio disconnects, the popup is told to reclaim what it gave up.
+ipcMain.handle('steal-port', async () => {
+  if (!popupWin) return null
+  const ack = new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      ipcMain.removeAllListeners('port-released')
+      resolve(null)
+    }, 3000)
+    ipcMain.once('port-released', (_event, info) => {
+      clearTimeout(timer)
+      resolve(info)
+    })
+  })
+  popupWin.webContents.send('release-port')
+  return await ack
+})
+
+ipcMain.on('studio-released-port', () => {
+  if (popupWin) popupWin.webContents.send('reclaim-port')
+})
+
 // Hidden feature: scroll over the popup to fade it steplessly, instead of
 // picking from the menu's fixed percentages. Delta is relative so the
 // renderer never needs to know the current opacity.

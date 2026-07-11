@@ -211,15 +211,26 @@ async function bleWriteFrame(frame: Uint8Array): Promise<void> {
 }
 
 // Serial connection
-export async function connectUsb(): Promise<boolean> {
+export async function connectUsb(options?: { silent?: boolean }): Promise<boolean> {
   if (!('serial' in navigator)) {
     debugLog('ERR', 'USB', 'Web Serial API is not supported. Use Chrome or Edge.');
     alert('Web Serial API is not supported. Use Chrome or Edge.');
     return false;
   }
   try {
-    debugLog('INF', 'USB', 'Requesting serial port...');
-    port = await (navigator as any).serial.requestPort({});
+    if (options?.silent) {
+      // No user gesture available (e.g. the popup reclaiming the port after
+      // Studio hands it back) — only previously-granted ports are usable.
+      const granted = await (navigator as any).serial.getPorts();
+      if (!granted.length) {
+        debugLog('WRN', 'USB', 'Silent connect: no previously granted serial port');
+        return false;
+      }
+      port = granted[0];
+    } else {
+      debugLog('INF', 'USB', 'Requesting serial port...');
+      port = await (navigator as any).serial.requestPort({});
+    }
     debugLog('INF', 'USB', 'Port selected, opening...');
     await port!.open({ baudRate: BAUD_RATE });
     if (port!.readable && port!.writable) {

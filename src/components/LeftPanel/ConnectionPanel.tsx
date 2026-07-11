@@ -24,12 +24,19 @@ function BatteryPill({ label, value, charging }: { label: string; value: number 
 export function ConnectionPanel({ connected, connectionType, onConnectionChange }: Props) {
   const [battery, setBattery] = useState<RuntimeBatteryState | null>(null);
 
+  // Electron only: the serial port is exclusive, so if the tray popup holds
+  // its own connection, ask it to let go before Studio connects, and hand
+  // the port back when Studio disconnects (no-ops on the web build).
+  const electronAPI = (window as any).electronAPI;
+
   const handleUsbConnect = async () => {
     if (connected) {
       await (connectionType === 'bluetooth' ? disconnectBle() : disconnectUsb());
       onConnectionChange(false, null);
+      electronAPI?.studioReleasedPort?.();
       return;
     }
+    await electronAPI?.stealPort?.();
     const success = await connectUsb();
     if (success) {
       onConnectionChange(true, 'usb');
@@ -40,8 +47,10 @@ export function ConnectionPanel({ connected, connectionType, onConnectionChange 
     if (connected) {
       await (connectionType === 'bluetooth' ? disconnectBle() : disconnectUsb());
       onConnectionChange(false, null);
+      electronAPI?.studioReleasedPort?.();
       return;
     }
+    await electronAPI?.stealPort?.();
     const success = await connectBle();
     if (success) {
       onConnectionChange(true, 'bluetooth');

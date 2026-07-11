@@ -21,4 +21,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('set-theme', listener)
   },
   adjustPopupOpacity: (delta) => ipcRenderer.send('adjust-popup-opacity', delta),
+
+  // Serial-port handoff between the Studio window and the tray popup: the
+  // port is exclusive, so when Studio wants to connect it asks the popup to
+  // release its own connection first, and hands it back on disconnect.
+  stealPort: () => ipcRenderer.invoke('steal-port'),
+  studioReleasedPort: () => ipcRenderer.send('studio-released-port'),
+  onReleasePort: (callback) => {
+    const listener = () => callback()
+    ipcRenderer.on('release-port', listener)
+    return () => ipcRenderer.removeListener('release-port', listener)
+  },
+  portReleased: (info) => ipcRenderer.send('port-released', info),
+  onReclaimPort: (callback) => {
+    const listener = () => callback()
+    ipcRenderer.on('reclaim-port', listener)
+    return () => ipcRenderer.removeListener('reclaim-port', listener)
+  },
 })
