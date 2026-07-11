@@ -29,6 +29,8 @@
   --led-magenta: #d946ef;
   --led-cyan: #06b6d4;
   --led-white: #e5e5e5;
+  --scrollbar-thumb: #232323;
+  --scrollbar-thumb-hover: #2e2e2e;
   --panel-width: 224px;
   --header-height: 48px;
   --footer-height: 32px;
@@ -60,6 +62,8 @@
   --warning: #d97706;
   --info: #2563eb;
   --led-white: #e5e5e5;
+  --scrollbar-thumb: #ececec;
+  --scrollbar-thumb-hover: #dedede;
   --panel-width: 224px;
   --header-height: 48px;
   --footer-height: 32px;
@@ -111,8 +115,8 @@ input:focus { border-color: var(--accent); }
 
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--bg-tertiary); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--border); }
+::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
 
 /* App layout */
 .app-layout {
