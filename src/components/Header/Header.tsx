@@ -103,6 +103,7 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, unsa
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {[
+                { v: '0.20.1.0', at: '2026-07-12 JST', changes: ['アプリ起動時にStudioではなくミニマップを表示', 'ミニマップに「Editorへ」ボタン（Studioを開く）', 'ミニマップのデフォルトをダークテーマ・不透明度55%に', '切断ボタンでミニマップも閉じる（トレイから再表示可）', 'ドラッグできる位置に⠿グリップマークを表示'] },
                 { v: '0.20.0.0', at: '2026-07-12 JST', changes: ['Studioとミニマップの接続ハンドオフ（アプリ版）: ミニマップ接続中でもStudioのConnectを押すだけで接続を自動で引き継ぎ、Studioを切断するとミニマップ(USB)が自動で取り返す'] },
                 { v: '0.19.9.0', at: '2026-07-11 JST', changes: ['スクロールバーを背景と同系の控えめな色に変更（ライト/ダーク両テーマ）'] },
                 { v: '0.19.8.0', at: '2026-07-11 JST', changes: ['マクロ録画がプレス/リリースを正しく記録するように修正（修飾キー押しっぱなしがPress/Releaseで残り、通常キーはTapに自動圧縮）、オートリピートの重複記録も防止'] },

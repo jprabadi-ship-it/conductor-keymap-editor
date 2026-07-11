@@ -292,7 +292,12 @@ export function LayerPopup() {
     // too keeps the UI immediate even if that callback is delayed.
     setLocalConn(EMPTY_LOCAL_CONNECTION);
     setConnType(null);
+    // Explicitly cutting the connection means "done for now" — dismiss the
+    // minimap too (reopen any time from the tray menu).
+    (window as any).electronAPI?.hidePopup?.();
   };
+
+  const openStudio = () => (window as any).electronAPI?.openStudio?.();
 
   const connectButtons = (
     <span className="layer-popup-connect-group">
@@ -309,8 +314,12 @@ export function LayerPopup() {
     return (
       <div className="layer-popup" onContextMenu={onContextMenu} onWheel={onWheel}>
         <div className="layer-popup-empty layer-popup-drag" style={{ flexDirection: 'column', gap: 8 }}>
+          <span className="layer-popup-grip" title="ここを掴んで移動">⠿</span>
           <span>読み込み中...</span>
           {connectButtons}
+          <button className="layer-popup-connect-btn" onClick={openStudio} title="Keymap Editor（Studio）を開く">
+            Editorへ
+          </button>
         </div>
       </div>
     );
@@ -332,14 +341,18 @@ export function LayerPopup() {
     <div className="layer-popup" onContextMenu={onContextMenu} onWheel={onWheel} ref={containerRef}>
       <div className="layer-popup-content" ref={contentRef} style={{ transform: `scale(${scale})` }}>
         <div className="layer-popup-header layer-popup-drag">
+          <span className="layer-popup-grip" title="ここを掴んで移動">⠿</span>
           <span className="led-dot" style={{ width: 10, height: 10, borderRadius: '50%', background: LED_CSS_MAP[layer.ledColor] }} />
           <span>{layer.name}</span>
           {!effective!.connected && connectButtons}
           {localConn.connected && (
-            <button className="layer-popup-connect-btn" onClick={handleDisconnect} title="このミニマップからの接続を切断">
+            <button className="layer-popup-connect-btn" onClick={handleDisconnect} title="このミニマップからの接続を切断してミニマップを閉じる">
               切断
             </button>
           )}
+          <button className="layer-popup-connect-btn" onClick={openStudio} title="Keymap Editor（Studio）を開く">
+            Editorへ
+          </button>
           <button
             className="layer-popup-menu-btn"
             onClick={onContextMenu}

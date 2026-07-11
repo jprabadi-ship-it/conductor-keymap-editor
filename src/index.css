@@ -882,6 +882,14 @@ input:focus { border-color: var(--accent); }
 .layer-popup .layer-dot:hover { background: none; }
 /* Frameless window has no title bar -- drag this region to move it (right-click for opacity). */
 .layer-popup-drag { -webkit-app-region: drag; width: 100%; }
+/* Visible grip mark showing where the draggable strip is. */
+.layer-popup-grip {
+  color: var(--text-muted);
+  font-size: 13px;
+  letter-spacing: 1px;
+  cursor: grab;
+  user-select: none;
+}
 
 /* Battery badges on the tray popup's keyboard: anchored over the inner
    thumb keys (L35 / R30), one per hardware half. */

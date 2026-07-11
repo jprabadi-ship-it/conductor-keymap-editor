@@ -25,6 +25,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Serial-port handoff between the Studio window and the tray popup: the
   // port is exclusive, so when Studio wants to connect it asks the popup to
   // release its own connection first, and hands it back on disconnect.
+  openStudio: () => ipcRenderer.send('open-studio'),
+  hidePopup: () => ipcRenderer.send('hide-popup'),
   stealPort: () => ipcRenderer.invoke('steal-port'),
   studioReleasedPort: () => ipcRenderer.send('studio-released-port'),
   onReleasePort: (callback) => {

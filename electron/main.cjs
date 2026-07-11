@@ -68,10 +68,10 @@ const POPUP_HEIGHT = 360
 // Remembered across toggles/recreations for the rest of this run (not
 // persisted to disk) -- once the user drags or resizes the popup, or picks
 // an opacity, later opens should respect that instead of snapping back.
-let popupOpacity = 1
+let popupOpacity = 0.55
 let popupUserMoved = false
 let showMinimap = true
-let popupTheme = 'light'
+let popupTheme = 'dark'
 
 function createPopupWindow() {
   popupWin = new BrowserWindow({
@@ -109,6 +109,15 @@ function createPopupWindow() {
     popupWin.setAlwaysOnTop(true, 'floating')
   })
   popupWin.on('closed', () => { popupWin = null })
+
+  // The show-time pushes in showPopup() race against the first page load;
+  // re-send once the renderer is definitely ready so the initial theme and
+  // state always land.
+  popupWin.webContents.on('did-finish-load', () => {
+    popupWin.webContents.send('set-theme', popupTheme)
+    popupWin.webContents.send('show-minimap', showMinimap)
+    if (latestLayerState) popupWin.webContents.send('layer-state', latestLayerState)
+  })
 
   return popupWin
 }
@@ -258,6 +267,19 @@ ipcMain.on('studio-released-port', () => {
   if (popupWin) popupWin.webContents.send('reclaim-port')
 })
 
+// Minimap's "Editorへ" button: open (or focus) the Studio window.
+ipcMain.on('open-studio', () => {
+  if (!win) {
+    createWindow()
+  } else {
+    win.show()
+    win.focus()
+  }
+})
+
+// Minimap's 切断 button also dismisses the minimap itself.
+ipcMain.on('hide-popup', () => hidePopup())
+
 // Hidden feature: scroll over the popup to fade it steplessly, instead of
 // picking from the menu's fixed percentages. Delta is relative so the
 // renderer never needs to know the current opacity.
@@ -341,7 +363,10 @@ app.whenReady().then(() => {
   if (process.platform === 'darwin') app.dock.hide()
 
   createTray()
-  createWindow()
+  // Day-to-day usage is the minimap, not the editor: launch straight into
+  // it. The Studio window is created lazily from the minimap's "Editorへ"
+  // button or the tray menu.
+  showPopup()
 
   app.on('activate', () => toggleWindow())
 })
