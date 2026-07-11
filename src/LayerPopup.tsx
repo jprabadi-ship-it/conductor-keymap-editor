@@ -123,6 +123,14 @@ export function LayerPopup() {
   // just applies the attribute the CSS already keys its dark/light rules on.
   useEffect(() => {
     const api = (window as any).electronAPI;
+    // Pull the initial prefs instead of relying on a push: the show-time
+    // set-theme IPC can fire before this listener exists (lost on launch,
+    // which left the dark default rendering as light).
+    api?.getPopupPrefs?.().then((prefs: { theme: 'light' | 'dark'; showMinimap: boolean } | null) => {
+      if (!prefs) return;
+      document.documentElement.setAttribute('data-theme', prefs.theme);
+      setShowMinimap(prefs.showMinimap);
+    });
     return api?.onSetTheme?.((theme: 'light' | 'dark') => {
       document.documentElement.setAttribute('data-theme', theme);
     });

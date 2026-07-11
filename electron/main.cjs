@@ -1,4 +1,4 @@
-const { app, BrowserWindow, session, dialog, Tray, Menu, nativeImage, ipcMain } = require('electron')
+const { app, BrowserWindow, session, dialog, Tray, Menu, nativeImage, ipcMain, screen } = require('electron')
 const path = require('node:path')
 
 const isDev = !app.isPackaged
@@ -122,11 +122,13 @@ function createPopupWindow() {
   return popupWin
 }
 
-function positionPopupNearTray() {
-  const trayBounds = tray.getBounds()
+// Default resting place: bottom-center of the primary display (just above
+// the Dock/taskbar area), where a keyboard legend naturally lives.
+function positionPopupBottomCenter() {
+  const { workArea } = screen.getPrimaryDisplay()
   const popupBounds = popupWin.getBounds()
-  const x = Math.round(trayBounds.x + trayBounds.width / 2 - popupBounds.width / 2)
-  const y = Math.round(trayBounds.y + trayBounds.height + 4)
+  const x = Math.round(workArea.x + (workArea.width - popupBounds.width) / 2)
+  const y = Math.round(workArea.y + workArea.height - popupBounds.height - 8)
   popupWin.setPosition(x, y, false)
 }
 
@@ -180,7 +182,7 @@ function showPopupContextMenu() {
 
 function showPopup() {
   if (!popupWin) createPopupWindow()
-  if (!popupUserMoved) positionPopupNearTray()
+  if (!popupUserMoved) positionPopupBottomCenter()
   popupWin.show()
   popupWin.focus()
   if (latestLayerState) popupWin.webContents.send('layer-state', latestLayerState)
@@ -266,6 +268,11 @@ ipcMain.handle('steal-port', async () => {
 ipcMain.on('studio-released-port', () => {
   if (popupWin) popupWin.webContents.send('reclaim-port')
 })
+
+// Pulled by the popup renderer on mount. Pushing set-theme at show time
+// races the first page load (the React listener may not be registered yet),
+// which made the dark default silently fall back to light on launch.
+ipcMain.handle('get-popup-prefs', () => ({ theme: popupTheme, showMinimap }))
 
 // Minimap's "Editorへ" button: open (or focus) the Studio window.
 ipcMain.on('open-studio', () => {

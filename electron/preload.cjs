@@ -26,6 +26,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // port is exclusive, so when Studio wants to connect it asks the popup to
   // release its own connection first, and hands it back on disconnect.
   openStudio: () => ipcRenderer.send('open-studio'),
+  getPopupPrefs: () => ipcRenderer.invoke('get-popup-prefs'),
   hidePopup: () => ipcRenderer.send('hide-popup'),
   stealPort: () => ipcRenderer.invoke('steal-port'),
   studioReleasedPort: () => ipcRenderer.send('studio-released-port'),
