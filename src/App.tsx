@@ -33,6 +33,7 @@ function App() {
   const [toast, setToast] = useState<{ message: string; type: 'device' | 'local' | 'error' } | null>(null);
   const [highestLayer, setHighestLayer] = useState(0);
   const [pressedPositions, setPressedPositions] = useState<number[]>([]);
+  const [popupBattery, setPopupBattery] = useState<{ l: number | null; r: number | null } | null>(null);
 
   const showToast = useCallback((message: string, type: 'device' | 'local' | 'error' = 'device') => {
     setToast({ message, type });
@@ -59,11 +60,19 @@ function App() {
     let cancelled = false;
     const poll = async () => {
       const state = await getRuntimeState();
-      if (!cancelled && state) setHighestLayer(state.highestLayer);
+      if (!cancelled && state) {
+        setHighestLayer(state.highestLayer);
+        // Keep the same object reference when values haven't changed, so the
+        // IPC relay effect below doesn't re-fire on every 1s poll tick.
+        setPopupBattery(prev =>
+          prev && prev.l === state.peripheralL && prev.r === state.peripheralR
+            ? prev
+            : { l: state.peripheralL, r: state.peripheralR });
+      }
     };
     poll();
     const interval = setInterval(poll, 1000);
-    return () => { cancelled = true; clearInterval(interval); };
+    return () => { cancelled = true; clearInterval(interval); setPopupBattery(null); };
   }, [usbConnected]);
 
   // Live key-press streaming, for the tray popup's light-up-on-press guide.
@@ -77,9 +86,9 @@ function App() {
   useEffect(() => {
     (window as any).electronAPI?.sendLayerState?.({
       layers: store.layers, combos: store.combos, amlExcluded: store.amlExcluded,
-      highestLayer, connected: usbConnected, pressedPositions,
+      highestLayer, connected: usbConnected, pressedPositions, battery: popupBattery,
     });
-  }, [store.layers, store.combos, store.amlExcluded, highestLayer, usbConnected, pressedPositions]);
+  }, [store.layers, store.combos, store.amlExcluded, highestLayer, usbConnected, pressedPositions, popupBattery]);
 
   const onResizeLeft = useCallback((delta: number) => {
     setLeftWidth(prev => Math.max(LEFT_MIN, Math.min(LEFT_MAX, prev + delta)));

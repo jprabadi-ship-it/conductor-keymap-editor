@@ -20,7 +20,20 @@ interface LayerState {
   highestLayer: number;
   connected: boolean;
   pressedPositions: number[];
+  battery?: BatteryLevels | null;
 }
+
+interface BatteryLevels {
+  l: number | null;
+  r: number | null;
+}
+
+// Physical anchor keys for the battery badges: the left badge (L half's
+// battery) sits on the 英数/LANG2 thumb key, the right one (R half's) on
+// the かな/LANG1 thumb key. Position-based on purpose -- the badge marks
+// the hardware half, not whatever binding the current layer puts there.
+const BATTERY_ANCHOR_LEFT = 'L33';
+const BATTERY_ANCHOR_RIGHT = 'R31';
 
 // The popup can connect to a device on its own -- independent of whatever
 // the (possibly not even open) main editor window is doing -- since it's
@@ -32,13 +45,19 @@ interface LocalConnection {
   amlExcluded: string[];
   highestLayer: number;
   pressedPositions: number[];
+  battery: BatteryLevels | null;
 }
 
 const EMPTY_LOCAL_CONNECTION: LocalConnection = {
-  connected: false, layers: [], combos: [], amlExcluded: [], highestLayer: 0, pressedPositions: [],
+  connected: false, layers: [], combos: [], amlExcluded: [], highestLayer: 0, pressedPositions: [], battery: null,
 };
 
-function renderHalf(layer: Layer, positions: KeyPosition[], comboMap: Map<string, string>, amlExcluded: string[], pressedKeyIds: Set<string>, className: string) {
+function BatteryBadge({ label, value }: { label: string; value: number | null }) {
+  if (value === null) return null;
+  return <span className="minimap-batt">{label} {value}%</span>;
+}
+
+function renderHalf(layer: Layer, positions: KeyPosition[], comboMap: Map<string, string>, amlExcluded: string[], pressedKeyIds: Set<string>, className: string, battMap: Map<string, { label: string; value: number | null }>) {
   const maxCol = Math.max(...positions.map(p => p.col));
   const maxRow = Math.max(...positions.map(p => p.row));
   const cells = [];
@@ -46,18 +65,27 @@ function renderHalf(layer: Layer, positions: KeyPosition[], comboMap: Map<string
     for (let col = 0; col <= maxCol; col++) {
       const pos = positions.find(p => p.row === row && p.col === col);
       const keyConfig = pos && layer.keys.find(k => k.id === pos.id);
+      const batt = pos && battMap.get(pos.id);
+      const button = keyConfig && (
+        <KeyButton
+          key={pos!.id}
+          keyConfig={keyConfig}
+          // Reused as a "currently pressed" glow, not an editing selection --
+          // this popup is read-only, so `selected` never means that here.
+          selected={pressedKeyIds.has(pos!.id)}
+          onClick={() => {}}
+          comboName={comboMap.get(pos!.id)}
+          isAmlExcluded={amlExcluded.includes(pos!.id)}
+        />
+      );
       cells.push(
-        keyConfig
-          ? <KeyButton
-              key={pos!.id}
-              keyConfig={keyConfig}
-              // Reused as a "currently pressed" glow, not an editing selection --
-              // this popup is read-only, so `selected` never means that here.
-              selected={pressedKeyIds.has(pos!.id)}
-              onClick={() => {}}
-              comboName={comboMap.get(pos!.id)}
-              isAmlExcluded={amlExcluded.includes(pos!.id)}
-            />
+        button
+          ? (batt
+              ? <div key={pos!.id} className="minimap-batt-anchor">
+                  {button}
+                  <BatteryBadge label={batt.label} value={batt.value} />
+                </div>
+              : button)
           : <div key={`empty-${className}-${row}-${col}`} />
       );
     }
@@ -117,6 +145,20 @@ export function LayerPopup() {
     });
   }, []);
 
+  // Battery isn't pushed by the device, so refresh it periodically for a
+  // connection made from this popup (the main-window path gets battery via
+  // the relayed layer-state IPC instead).
+  useEffect(() => {
+    if (!localConn.connected) return;
+    const interval = setInterval(async () => {
+      const runtime = await getRuntimeState();
+      if (runtime) {
+        setLocalConn(c => ({ ...c, battery: { l: runtime.peripheralL, r: runtime.peripheralR } }));
+      }
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [localConn.connected]);
+
   const handleConnect = async (type: 'usb' | 'bluetooth') => {
     setConnecting(type);
     try {
@@ -145,6 +187,7 @@ export function LayerPopup() {
         amlExcluded: aml ? positionsToKeyIds(aml.excludedPositions) : [],
         highestLayer: runtime?.highestLayer ?? 0,
         pressedPositions: [],
+        battery: runtime ? { l: runtime.peripheralL, r: runtime.peripheralR } : null,
       });
     } finally {
       setConnecting(null);
@@ -156,7 +199,7 @@ export function LayerPopup() {
   // this window, whereas `state` may just be the main window's stale/default
   // keymap if it was never connected either.
   const effective: LayerState | null = localConn.connected
-    ? { layers: localConn.layers, combos: localConn.combos, amlExcluded: localConn.amlExcluded, highestLayer: localConn.highestLayer, connected: true, pressedPositions: localConn.pressedPositions }
+    ? { layers: localConn.layers, combos: localConn.combos, amlExcluded: localConn.amlExcluded, highestLayer: localConn.highestLayer, connected: true, pressedPositions: localConn.pressedPositions, battery: localConn.battery }
     : state;
 
   const layer = effective ? effective.layers.find(l => l.index === effective.highestLayer) ?? effective.layers[0] : null;
@@ -228,6 +271,12 @@ export function LayerPopup() {
 
   const pressedKeyIds = new Set(effective!.pressedPositions.map(positionToKeyId).filter((id): id is string => id !== null));
 
+  const battMap = new Map<string, { label: string; value: number | null }>();
+  if (effective!.battery) {
+    battMap.set(BATTERY_ANCHOR_LEFT, { label: 'L', value: effective!.battery.l });
+    battMap.set(BATTERY_ANCHOR_RIGHT, { label: 'R', value: effective!.battery.r });
+  }
+
   return (
     <div className="layer-popup" onContextMenu={onContextMenu} onWheel={onWheel} ref={containerRef}>
       <div className="layer-popup-content" ref={contentRef} style={{ transform: `scale(${scale})` }}>
@@ -243,8 +292,8 @@ export function LayerPopup() {
         </div>
 
         <div className="keyboard-container">
-          {renderHalf(layer, LEFT_KEYS, comboMap, effective!.amlExcluded, pressedKeyIds, 'left')}
-          {renderHalf(layer, RIGHT_KEYS, comboMap, effective!.amlExcluded, pressedKeyIds, 'right')}
+          {renderHalf(layer, LEFT_KEYS, comboMap, effective!.amlExcluded, pressedKeyIds, 'left', battMap)}
+          {renderHalf(layer, RIGHT_KEYS, comboMap, effective!.amlExcluded, pressedKeyIds, 'right', battMap)}
         </div>
 
         {showMinimap && (
