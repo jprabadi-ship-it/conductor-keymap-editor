@@ -321,13 +321,18 @@ function wireSerialPermissions(ses) {
     }
 
     const labels = portList.map((p, i) => p.displayName || p.portName || `Port ${i + 1}`)
-    const result = dialog.showMessageBoxSync({
+    // Parent the dialog to the window that asked (minimap or Studio) so it
+    // shows as a sheet on that window's display — unparented, macOS may put
+    // it on whichever display was last active.
+    const parent = BrowserWindow.fromWebContents(webContents) || popupWin || win
+    const opts = {
       type: 'question',
       title: 'Select a serial port',
       message: 'Multiple serial ports were found. Which one is your Conductor device?',
       buttons: [...labels, 'Cancel'],
       cancelId: labels.length,
-    })
+    }
+    const result = parent ? dialog.showMessageBoxSync(parent, opts) : dialog.showMessageBoxSync(opts)
 
     callback(result < labels.length ? portList[result].portId : '')
   })
@@ -350,13 +355,17 @@ function wireBluetoothPermissions(ses) {
     }
 
     const labels = deviceList.map((d, i) => d.deviceName || `Device ${i + 1}`)
-    const result = dialog.showMessageBoxSync({
+    // Same display-pinning as the serial picker: parent to a live window
+    // (this event carries no webContents, so prefer the visible one).
+    const parent = (popupWin && popupWin.isVisible() && popupWin) || (win && win.isVisible() && win) || popupWin || win
+    const opts = {
       type: 'question',
       title: 'Select a Bluetooth device',
       message: 'Multiple Bluetooth devices were found. Which one is your Conductor device?',
       buttons: [...labels, 'Cancel'],
       cancelId: labels.length,
-    })
+    }
+    const result = parent ? dialog.showMessageBoxSync(parent, opts) : dialog.showMessageBoxSync(opts)
 
     callback(result < labels.length ? deviceList[result].deviceId : '')
   })
