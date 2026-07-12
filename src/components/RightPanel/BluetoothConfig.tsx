@@ -163,7 +163,7 @@ export function BluetoothConfig({ store }: Props) {
     // Jump the keyboard canvas to the Gesture layer with this device selected
     // in its toolbar dropdown, so the two views stay in sync (and clicking
     // the arrow key there jumps back here — see KeyboardView.tsx).
-    store.setLeftPanelTab('layers');
+    store.setActiveTab('layers');
     store.setSelectedLayerIndex(SHARED_GESTURE_LAYER);
     store.setSelectedGestureDevice(endpointIndex);
 

@@ -75,8 +75,10 @@ export interface Macro {
 
 export type OsLayout = 'us' | 'jis';
 
-export type RightPanelTab = 'key-config' | 'trackball' | 'timing' | 'bluetooth' | 'diagnostics' | 'macro-edit';
-export type LeftPanelTab = 'layers' | 'combos' | 'macros';
+// Single unified tab bar (below the keyboard) -- only one of these eight is
+// ever showing at a time. 'macros' covers both the macro list and, once a
+// macro is selected (see selectedMacroIndex), its editor.
+export type PanelTab = 'layers' | 'combos' | 'macros' | 'key-config' | 'trackball' | 'timing' | 'bluetooth' | 'diagnostics';
 
 export interface KeymapProject {
   layers: Layer[];

@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
-import type { Layer, KeyBinding, LedColor, Combo, Macro, MacroStep, GestureShortcut, BluetoothProfile, OsLayout, RightPanelTab, LeftPanelTab, KeymapProject } from '../types';
+import type { Layer, KeyBinding, LedColor, Combo, Macro, MacroStep, GestureShortcut, BluetoothProfile, OsLayout, PanelTab, KeymapProject } from '../types';
 import { createDefaultLayers, createDefaultCombos, createDefaultGestures, createDefaultBluetoothProfiles } from '../data/defaultKeymap';
 import { relabelBindings, GestureBindingValue } from '../services/usbService';
 import type { Direction } from '../data/devices';
@@ -51,8 +51,7 @@ export function useKeymapStore() {
   const [dirtyKeys, setDirtyKeys] = useState<Set<string>>(new Set());
   const [selectedLayerIndex, setSelectedLayerIndex] = useState(0);
   const [selectedKeyId, setSelectedKeyId] = useState<string | null>(null);
-  const [rightPanelTab, setRightPanelTab] = useState<RightPanelTab>('key-config');
-  const [leftPanelTab, setLeftPanelTab] = useState<LeftPanelTab>('layers');
+  const [activeTab, setActiveTab] = useState<PanelTab>('layers');
   const [diffMode, setDiffMode] = useState(false);
   const [amlExcluded, setAmlExcluded] = useState<string[]>(['R12', 'R13', 'R14', 'R32']);
   const [trackballResetTick, setTrackballResetTick] = useState(0);
@@ -286,9 +285,9 @@ export function useKeymapStore() {
     layers, combos, macros, osLayout, tappingTerm, gestures, bluetoothProfiles,
     selectedLayerIndex, selectedKeyId, selectedLayer, selectedKey,
     selectedMacroIndex, selectedMacro,
-    rightPanelTab, leftPanelTab, diffMode, amlExcluded, comboOverlays, trackballResetTick,
+    activeTab, diffMode, amlExcluded, comboOverlays, trackballResetTick,
     canUndo, canRedo,
-    setSelectedLayerIndex, setSelectedKeyId, setRightPanelTab, setLeftPanelTab,
+    setSelectedLayerIndex, setSelectedKeyId, setActiveTab,
     setSelectedMacroIndex,
     setDiffMode, setAmlExcluded, setOsLayout, setTappingTerm,
     setGestures, setBluetoothProfiles,

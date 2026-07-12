@@ -33,7 +33,7 @@ export function KeyboardView({ store }: Props) {
   store.comboOverlays.forEach(o => comboMap.set(o.keyId, o.comboName));
 
   // Macro assignment mode
-  const isMacroMode = store.leftPanelTab === 'macros' && store.selectedMacroIndex !== null;
+  const isMacroMode = store.activeTab === 'macros' && store.selectedMacroIndex !== null;
   const selectedMacro = store.selectedMacro;
 
   // Find which keys have macros assigned on this layer
@@ -57,7 +57,7 @@ export function KeyboardView({ store }: Props) {
     if (direction && gestureDevice !== null) {
       // Route to the same per-device gesture editor the デバイス tab uses,
       // instead of the normal Key Config panel.
-      store.setRightPanelTab('bluetooth');
+      store.setActiveTab('bluetooth');
       store.setExpandedDevice(gestureDevice);
       store.setEditingDirection(direction);
       return;
@@ -77,7 +77,7 @@ export function KeyboardView({ store }: Props) {
       }
     } else {
       store.setSelectedKeyId(id);
-      store.setRightPanelTab('key-config');
+      store.setActiveTab('key-config');
     }
   };
 
@@ -130,7 +130,7 @@ export function KeyboardView({ store }: Props) {
       for (let col = 0; col <= maxCol; col++) {
         if (trackball && row === trackball.row && col === trackball.colStart) {
           cells.push(
-            <div key="trackball" className="trackball-placeholder" style={{ gridColumn: `span ${trackball.colSpan}`, cursor: 'pointer' }} onClick={() => store.setRightPanelTab('trackball')} />
+            <div key="trackball" className="trackball-placeholder" style={{ gridColumn: `span ${trackball.colSpan}`, cursor: 'pointer' }} onClick={() => store.setActiveTab('trackball')} />
           );
           continue;
         }

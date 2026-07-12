@@ -193,6 +193,7 @@ export function MacroEditor({ store }: Props) {
     <div>
       {/* Header */}
       <div className="key-info-header">
+        <button className="btn btn-outline" style={{ fontSize: 11, padding: '2px 8px' }} onClick={() => store.setSelectedMacroIndex(null)}>← 一覧</button>
         <span className="key-info-id">&amp;{macro.name}</span>
         <span className="key-info-type">{macro.bindings.length} steps</span>
       </div>

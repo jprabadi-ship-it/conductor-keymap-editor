@@ -12,10 +12,7 @@ export function MacroList({ store }: Props) {
         <span>Macros ({store.macros.length}/16)</span>
         <button
           className="btn"
-          onClick={() => {
-            store.addMacro();
-            store.setRightPanelTab('macro-edit');
-          }}
+          onClick={() => store.addMacro()}
           disabled={store.macros.length >= 16}
           style={{ fontSize: 12 }}
         >+ New</button>
@@ -35,10 +32,7 @@ export function MacroList({ store }: Props) {
             cursor: 'pointer',
             background: store.selectedMacroIndex === i ? 'var(--bg-selected)' : undefined,
           }}
-          onClick={() => {
-            store.setSelectedMacroIndex(i);
-            store.setRightPanelTab('macro-edit');
-          }}
+          onClick={() => store.setSelectedMacroIndex(i)}
         >
           <span className="combo-name">&amp;{macro.name}</span>
           <span className="combo-binding">{macro.bindings.length} steps</span>

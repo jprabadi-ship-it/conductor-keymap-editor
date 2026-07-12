@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useKeymapStore } from './store/useKeymapStore';
 import { readKeymap, writeKeymapToDevice, saveChanges, setLayerProps, getDeviceInfo, requestUnlock, isUnlocked, readMacrosFromDevice, onDeviceDisconnect, onActiveLayerChange, onKeyInputEvent, subscribeToInput, getRuntimeState, setKeyboardLayout, getBehaviorDisplayName, getCombosFromDevice, writeCombosToDevice } from './services/usbService';
 import { isFirmwareVersionSupported, MIN_SUPPORTED_FW_VERSION } from './services/firmwareCompat';
-import { LED_COLORS } from './types';
+import { LED_COLORS, type PanelTab } from './types';
 import { debugLog } from './components/DebugConsole';
 import { Header } from './components/Header/Header';
 import { LayerList } from './components/LeftPanel/LayerList';
@@ -15,18 +15,10 @@ import { BluetoothConfig } from './components/RightPanel/BluetoothConfig';
 import { DiagnosticsPanel } from './components/RightPanel/DiagnosticsPanel';
 import { MacroList } from './components/LeftPanel/MacroList';
 import { MacroEditor } from './components/RightPanel/MacroEditor';
-import { ResizeHandle } from './components/ResizeHandle';
 import { DebugConsole } from './components/DebugConsole';
-
-const LEFT_MIN = 200;
-const LEFT_MAX = 500;
-const RIGHT_MIN = 200;
-const RIGHT_MAX = 800;
 
 function App() {
   const store = useKeymapStore();
-  const [leftWidth, setLeftWidth] = useState(320);
-  const [rightWidth, setRightWidth] = useState(340);
   const [showConsole, setShowConsole] = useState(false);
   const [usbConnected, setUsbConnected] = useState(false); // true for either transport (USB or BLE)
   const [connType, setConnType] = useState<'usb' | 'bluetooth' | null>(null);
@@ -93,14 +85,6 @@ function App() {
       highestLayer, connected: usbConnected, pressedPositions, battery: popupBattery,
     });
   }, [store.layers, store.combos, store.amlExcluded, highestLayer, usbConnected, pressedPositions, popupBattery]);
-
-  const onResizeLeft = useCallback((delta: number) => {
-    setLeftWidth(prev => Math.max(LEFT_MIN, Math.min(LEFT_MAX, prev + delta)));
-  }, []);
-
-  const onResizeRight = useCallback((delta: number) => {
-    setRightWidth(prev => Math.max(RIGHT_MIN, Math.min(RIGHT_MAX, prev + delta)));
-  }, []);
 
   // Auto-save on changes
   useEffect(() => {
@@ -176,46 +160,31 @@ function App() {
     }
   };
 
-  const rightPanelContent = () => {
-    switch (store.rightPanelTab) {
+  // Single unified tab bar below the keyboard -- only one of these eight
+  // panels is ever showing at a time (see PanelTab in types.ts).
+  const TABS: { key: PanelTab; label: string; badge?: number }[] = [
+    { key: 'layers', label: '⚙ Layers' },
+    { key: 'combos', label: '⌨ Combos', badge: store.combos.length },
+    { key: 'macros', label: '⚡ Macros', badge: store.macros.length },
+    { key: 'key-config', label: '⚙ Key Config' },
+    { key: 'trackball', label: '🖲 Trackball' },
+    { key: 'timing', label: '⏱ Timing' },
+    { key: 'bluetooth', label: '📡 デバイス' },
+    { key: 'diagnostics', label: '🩺 診断' },
+  ];
+
+  const panelContent = () => {
+    switch (store.activeTab) {
+      case 'layers': return <LayerList store={store} />;
+      case 'combos': return <ComboList store={store} />;
+      case 'macros': return store.selectedMacroIndex !== null ? <MacroEditor store={store} /> : <MacroList store={store} />;
       case 'key-config': return <KeyConfig store={store} />;
       case 'trackball': return <TrackballConfig store={store} />;
       case 'timing': return <TimingConfig store={store} />;
-      case 'macro-edit': return <MacroEditor store={store} />;
       case 'bluetooth': return <BluetoothConfig store={store} />;
       case 'diagnostics': return <DiagnosticsPanel />;
     }
   };
-
-  const sidePanelContent = (
-    <aside className="side-panel" style={{ width: leftWidth }}>
-      <div className="panel-tabs">
-        <button
-          className={`panel-tab ${store.leftPanelTab === 'layers' ? 'active' : ''}`}
-          onClick={() => store.setLeftPanelTab('layers')}
-        >
-          ⚙ Layers
-        </button>
-        <button
-          className={`panel-tab ${store.leftPanelTab === 'combos' ? 'active' : ''}`}
-          onClick={() => store.setLeftPanelTab('combos')}
-        >
-          ⌨ Combos <span className="badge">{store.combos.length}</span>
-        </button>
-        <button
-          className={`panel-tab ${store.leftPanelTab === 'macros' ? 'active' : ''}`}
-          onClick={() => store.setLeftPanelTab('macros')}
-        >
-          ⚡ Macros <span className="badge">{store.macros.length}</span>
-        </button>
-      </div>
-      <div className="panel-content">
-        {store.leftPanelTab === 'layers' ? <LayerList store={store} />
-          : store.leftPanelTab === 'combos' ? <ComboList store={store} />
-          : <MacroList store={store} />}
-      </div>
-    </aside>
-  );
 
   return (
     <>
@@ -294,53 +263,24 @@ function App() {
 
       <div className="app-layout">
         <div className="center-column">
-          {store.leftPanelTab === 'macros' ? (
-            <>
-              {/* Macro mode: editor in center, keyboard on right */}
-              {sidePanelContent}
-              <ResizeHandle side="left" onResize={onResizeLeft} />
-              <div className="macro-center-panel" style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
-                <MacroEditor store={store} />
-              </div>
-              <ResizeHandle side="right" onResize={onResizeRight} />
-              <aside className="right-panel" style={{ width: RIGHT_MAX, overflow: 'hidden' }}>
-                <div style={{
-                  transform: `scale(${Math.min(1, RIGHT_MAX / 700)})`,
-                  transformOrigin: 'top left',
-                  width: `${100 / Math.min(1, RIGHT_MAX / 700)}%`,
-                }}>
-                  <KeyboardView store={store} />
-                </div>
-              </aside>
-            </>
-          ) : (
-            <>
-              {/* Normal mode: keyboard in center, config on right */}
-              <KeyboardView store={store} />
-              <ResizeHandle side="left" onResize={onResizeLeft} />
-              {sidePanelContent}
-              <ResizeHandle side="right" onResize={onResizeRight} />
-              <aside className="right-panel" style={{ width: rightWidth }}>
-                <div className="right-panel-tabs">
-                  {(['key-config', 'trackball', 'timing', 'bluetooth', 'diagnostics'] as const).map(tab => (
-                    <button
-                      key={tab}
-                      className={`right-panel-tab ${store.rightPanelTab === tab ? 'active' : ''}`}
-                      onClick={() => store.setRightPanelTab(tab)}
-                    >
-                      {tab === 'key-config' ? '⚙ Key Config' :
-                       tab === 'trackball' ? '🖲 Trackball' :
-                       tab === 'timing' ? '⏱ Timing' :
-                       tab === 'bluetooth' ? '📡 デバイス' : '🩺 診断'}
-                    </button>
-                  ))}
-                </div>
-                <div className="right-panel-content">
-                  {rightPanelContent()}
-                </div>
-              </aside>
-            </>
-          )}
+          <KeyboardView store={store} />
+          <div className="tab-panel">
+            <div className="panel-tabs">
+              {TABS.map(tab => (
+                <button
+                  key={tab.key}
+                  className={`panel-tab ${store.activeTab === tab.key ? 'active' : ''}`}
+                  onClick={() => store.setActiveTab(tab.key)}
+                >
+                  {tab.label}
+                  {tab.badge !== undefined && <span className="badge">{tab.badge}</span>}
+                </button>
+              ))}
+            </div>
+            <div className="panel-content">
+              {panelContent()}
+            </div>
+          </div>
         </div>
       </div>
 

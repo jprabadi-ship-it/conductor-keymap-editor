@@ -541,7 +541,7 @@ export function TrackballConfig({ store }: Props) {
         <button
           className="btn"
           style={{ width: '100%', fontSize: 11, marginTop: 8, padding: '6px', color: 'var(--accent)', border: '1px solid var(--accent)', background: 'transparent' }}
-          onClick={() => { store.setLeftPanelTab('combos'); setTimeout(() => window.dispatchEvent(new CustomEvent('open-aml-edit')), 50); }}
+          onClick={() => { store.setActiveTab('combos'); setTimeout(() => window.dispatchEvent(new CustomEvent('open-aml-edit')), 50); }}
         >⚙ Combos タブで詳細設定を開く →</button>
       </div>
 
