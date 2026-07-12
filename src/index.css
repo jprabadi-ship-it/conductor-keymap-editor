@@ -141,16 +141,30 @@ input:focus { border-color: var(--accent); }
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
+  overflow: hidden;
   max-width: 820px;
   width: 100%;
   margin: 0 auto;
 }
 
-.center-column .keyboard-area,
-.center-column .tab-panel {
+/* The keyboard is fixed-height (never scrolls out of view); .tab-panel
+   takes the rest of the column's height and scrolls its own content
+   (.panel-content already has overflow-y: auto) internally. Scrolling at
+   this inner level, rather than on .center-column itself, keeps any
+   scrollbar from eating into one side of the outer centered box -- that
+   made the keyboard render a few px off-center whenever the tab content
+   was tall enough to need scrolling. */
+.center-column .keyboard-area {
   flex: none;
+  width: 100%;
+  max-width: 100%;
+  align-self: stretch;
+  box-sizing: border-box;
+  overflow-x: hidden;
+}
+.center-column .tab-panel {
+  flex: 1;
+  min-height: 0;
   width: 100%;
   max-width: 100%;
   align-self: stretch;
