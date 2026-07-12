@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useKeymapStore } from './store/useKeymapStore';
 import { readKeymap, writeKeymapToDevice, saveChanges, setLayerProps, getDeviceInfo, requestUnlock, isUnlocked, readMacrosFromDevice, onDeviceDisconnect, onActiveLayerChange, onKeyInputEvent, subscribeToInput, getRuntimeState, setKeyboardLayout, getBehaviorDisplayName, getCombosFromDevice, writeCombosToDevice } from './services/usbService';
+import { isFirmwareVersionSupported, MIN_SUPPORTED_FW_VERSION } from './services/firmwareCompat';
 import { LED_COLORS } from './types';
 import { debugLog } from './components/DebugConsole';
 import { Header } from './components/Header/Header';
@@ -231,6 +232,10 @@ function App() {
             const info = await getDeviceInfo();
             if (info) {
               debugLog('INF', 'USB', `Device: ${info.name} (FW: ${info.firmwareVersion})`);
+              if (isFirmwareVersionSupported(info.firmwareVersion) === false) {
+                debugLog('WRN', 'USB', `Firmware ${info.firmwareVersion} is older than the minimum supported ${MIN_SUPPORTED_FW_VERSION} -- some RPCs (device slot switching, peripheral connection status, etc.) may silently fail or time out.`);
+                alert(`接続中のファームウェア (${info.firmwareVersion}) は、このStudioが前提とする最小バージョン (${MIN_SUPPORTED_FW_VERSION}) より古いです。\n\n一部の機能（デバイス設定バックアップ、接続状態表示など）が動作しない、または反応が遅くなることがあります。ファームウェアの更新をおすすめします。`);
+              }
             }
             const ok = await requestUnlock();
             if (!ok) {

@@ -392,6 +392,14 @@ export interface RuntimeBatteryState {
   activeOs?: number;
   osProfileEnabled?: boolean;
   activeLayersBitmask?: number;
+  // Always decode to a real boolean (proto3 default is false), even on
+  // firmware older than 0.6.12 that doesn't send these fields at all --
+  // there's no wire-level way to tell "false" from "field absent" here.
+  // Callers MUST cross-check the connected device's firmware version
+  // (see firmwareCompat.ts) before trusting these as real connection
+  // state; on unsupported firmware they'll misleadingly read as false.
+  peripheralRConnected: boolean;
+  peripheralLConnected: boolean;
 }
 
 const UNKNOWN_BATTERY = 255;
@@ -413,6 +421,8 @@ export async function getRuntimeState(): Promise<RuntimeBatteryState | null> {
       activeOs: rs.activeOs ?? 0,
       osProfileEnabled: !!rs.osProfileEnabled,
       activeLayersBitmask: rs.activeLayersBitmask ?? 0,
+      peripheralRConnected: rs.peripheralRConnected,
+      peripheralLConnected: rs.peripheralLConnected,
     };
   } catch (e: any) {
     debugLog('ERR', 'USB', `getRuntimeState failed: ${e.message}`);

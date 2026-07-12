@@ -14,6 +14,7 @@ import {
   isConnected,
   type RuntimeBatteryState,
 } from '../../services/usbService';
+import { isFirmwareVersionSupported } from '../../services/firmwareCompat';
 import { debugLog } from '../DebugConsole';
 
 type DiagnosticsData = {
@@ -47,10 +48,20 @@ function batteryText(v: number | null | undefined) {
   return v === null || v === undefined ? '--' : `${v}%`;
 }
 
+// Firmware older than 0.6.12 doesn't report peripheralRConnected/
+// peripheralLConnected (they decode to a misleading `false`, not
+// undefined, when absent) -- fall back to inferring from battery presence
+// on those, same as before the fields existed, and say so plainly.
+function linkText(batteryValue: number | null | undefined, connectedFlag: boolean | undefined, fwSupportsConnectedFlags: boolean) {
+  if (fwSupportsConnectedFlags) return connectedFlag ? 'online' : 'offline';
+  return (batteryValue !== null && batteryValue !== undefined) ? 'online (推測)' : 'offline (推測)';
+}
+
 // Plain-text mirror of the Row entries below, grouped the same way, so
 // "copy" produces something pasteable into a bug report or chat rather
 // than a wall of raw JSON.
 function buildDiagnosticsText(data: DiagnosticsData): string {
+  const fwSupportsConnectedFlags = isFirmwareVersionSupported(data.device?.firmwareVersion) === true;
   const lines: string[] = [];
   lines.push(`ConductorD Studio diagnostics (${new Date().toISOString()})`);
   lines.push('');
@@ -64,8 +75,8 @@ function buildDiagnosticsText(data: DiagnosticsData): string {
   lines.push('');
   lines.push('## Battery / Link');
   lines.push(`Dongle: ${batteryText(data.runtime?.central)}${data.runtime?.charging ? ' charging' : ''}`);
-  lines.push(`R: ${batteryText(data.runtime?.peripheralR)}`);
-  lines.push(`L: ${batteryText(data.runtime?.peripheralL)}`);
+  lines.push(`R: ${batteryText(data.runtime?.peripheralR)} (${linkText(data.runtime?.peripheralR, data.runtime?.peripheralRConnected, fwSupportsConnectedFlags)})`);
+  lines.push(`L: ${batteryText(data.runtime?.peripheralL)} (${linkText(data.runtime?.peripheralL, data.runtime?.peripheralLConnected, fwSupportsConnectedFlags)})`);
   lines.push(`BLE Active: ${data.bleProfiles?.activeIndex ?? '--'}`);
   lines.push(`USB Active: ${data.usbSlots?.activeIndex ?? '--'}`);
   lines.push('');
@@ -170,6 +181,8 @@ export function DiagnosticsPanel() {
     );
   }
 
+  const fwSupportsConnectedFlags = isFirmwareVersionSupported(data?.device?.firmwareVersion) === true;
+
   return (
     <div>
       <div className="config-section">
@@ -204,8 +217,8 @@ export function DiagnosticsPanel() {
           <div className="config-section">
             <div className="config-label">Battery / Link</div>
             <Row label="Dongle" value={`${batteryText(data.runtime?.central)}${data.runtime?.charging ? ' charging' : ''}`} />
-            <Row label="R" value={batteryText(data.runtime?.peripheralR)} />
-            <Row label="L" value={batteryText(data.runtime?.peripheralL)} />
+            <Row label="R" value={`${batteryText(data.runtime?.peripheralR)} (${linkText(data.runtime?.peripheralR, data.runtime?.peripheralRConnected, fwSupportsConnectedFlags)})`} />
+            <Row label="L" value={`${batteryText(data.runtime?.peripheralL)} (${linkText(data.runtime?.peripheralL, data.runtime?.peripheralLConnected, fwSupportsConnectedFlags)})`} />
             <Row label="BLE Active" value={String(data.bleProfiles?.activeIndex ?? '--')} />
             <Row label="USB Active" value={String(data.usbSlots?.activeIndex ?? '--')} />
           </div>

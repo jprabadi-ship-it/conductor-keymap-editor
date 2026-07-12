@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { connectUsb, disconnectUsb, connectBle, disconnectBle, getRuntimeState, RuntimeBatteryState, getBleProfiles, getUsbSlots, getOsConfig, getDeviceInfo } from '../../services/usbService';
+import { isFirmwareVersionSupported } from '../../services/firmwareCompat';
 
 interface Props {
   connected: boolean;
@@ -104,7 +105,13 @@ export function ConnectionPanel({ connected, connectionType, onConnectionChange,
     return () => { cancelled = true; clearInterval(interval); };
   }, [connected]);
 
-  const statusText = (value: number | null) => value === null ? 'offline' : 'online';
+  // Firmware older than 0.6.12 doesn't report peripheralRConnected/
+  // peripheralLConnected at all, and those fields decode to a misleading
+  // `false` (not undefined) when absent -- fall back to inferring from
+  // battery presence in that case, same as before this field existed.
+  const fwSupportsConnectedFlags = isFirmwareVersionSupported(health?.firmwareVersion) === true;
+  const statusText = (batteryValue: number | null, connectedFlag: boolean) =>
+    (fwSupportsConnectedFlags ? connectedFlag : batteryValue !== null) ? 'online' : 'offline';
   const slotText = (kind: 'BLE' | 'USB', index: number | null, name: string | null) =>
     index === null ? '--' : `${kind}${index}${name ? ` (${name})` : ''}`;
 
@@ -186,7 +193,7 @@ export function ConnectionPanel({ connected, connectionType, onConnectionChange,
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
               <span>Peripherals</span>
               <span style={{ color: 'var(--text-primary)', textAlign: 'right' }}>
-                L {statusText(health.runtime.peripheralL)} / R {statusText(health.runtime.peripheralR)}
+                L {statusText(health.runtime.peripheralL, health.runtime.peripheralLConnected)} / R {statusText(health.runtime.peripheralR, health.runtime.peripheralRConnected)}
               </span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
@@ -202,7 +209,9 @@ export function ConnectionPanel({ connected, connectionType, onConnectionChange,
               </span>
             </div>
             <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
-              last-received と peripheralごとの layer sync は、現行 firmware ではまだ Studio へ露出していません。
+              {fwSupportsConnectedFlags
+                ? 'Peripheralsの接続状態は実際の接続状態(FW 0.6.12+)です。last-received と per-peripheral の layer 同期状況は、現行 firmware ではまだ露出していません。'
+                : `ファームウェア (${health.firmwareVersion || '不明'}) が古いため、Peripheralsの接続状態はバッテリー値の有無から推測した参考値です。最新化すると実際の接続状態が表示されます。`}
             </div>
           </div>
         </div>
