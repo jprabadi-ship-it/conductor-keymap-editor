@@ -3,6 +3,7 @@ import { KeymapStore } from '../../store/useKeymapStore';
 import { Combo } from '../../types';
 import { KEYBOARD_LAYOUT, keyIdsToPositions, positionsToKeyIds } from '../../data/layout';
 import { getAutoLayer, isConnected, isUnlocked, requestUnlock, setAutoLayer } from '../../services/usbService';
+import { KEY_CATEGORIES, searchKeyCodes } from '../../data/keycodes';
 import { debugLog } from '../DebugConsole';
 
 interface Props {
@@ -61,19 +62,29 @@ function MiniKeyboard({ selected, onToggle }: { selected: string[]; onToggle: (i
   );
 }
 
+// `category`, when present, is a shortcut: selecting this tile also jumps
+// the OUTPUT KEY picker below to that keycode category, since "Mouse
+// Button" / "デバイス機能" aren't separate binding mechanisms (both still
+// produce a plain 'basic' key-press binding) -- just a faster path to the
+// right part of the keycode list than picking "Key Press" and then
+// hunting for the category manually.
 const BINDING_TYPES = [
-  { value: 'basic', label: 'Key Press', icon: '⌨', desc: 'キー押下' },
-  { value: 'momentary', label: 'MO(layer)', icon: '↕', desc: 'レイヤー一時切替' },
-  { value: 'layer-tap', label: 'LT(layer,key)', icon: '↕↓', desc: 'ホールドでレイヤー/タップでキー' },
-  { value: 'mod-tap', label: 'MT(mod,key)', icon: '⌥', desc: 'ホールドでMod/タップでキー' },
-  { value: 'toggle', label: 'TG(layer)', icon: '⊞', desc: 'レイヤートグル' },
-];
+  { id: 'basic', value: 'basic', label: 'Key Press', icon: '⌨', desc: 'キー押下', category: 'Letters' },
+  { id: 'momentary', value: 'momentary', label: 'MO(layer)', icon: '↕', desc: 'レイヤー一時切替', category: null },
+  { id: 'layer-tap', value: 'layer-tap', label: 'LT(layer,key)', icon: '↕↓', desc: 'ホールドでレイヤー/タップでキー', category: null },
+  { id: 'mod-tap', value: 'mod-tap', label: 'MT(mod,key)', icon: '⌥', desc: 'ホールドでMod/タップでキー', category: null },
+  { id: 'mouse', value: 'basic', label: 'Mouse Button', icon: '🖱', desc: 'マウスボタン', category: 'Mouse' },
+  { id: 'toggle', value: 'toggle', label: 'TG(layer)', icon: '⊞', desc: 'レイヤートグル', category: null },
+  { id: 'device', value: 'basic', label: 'デバイス機能', icon: '⚙', desc: '出力先・BT/USBスロット切替', category: 'Device' },
+] as const;
 
 export function ComboList({ store }: Props) {
   const { setAmlExcluded } = store;
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<Partial<Combo>>({});
+  const [outputKeySearch, setOutputKeySearch] = useState('');
+  const [outputKeyCategory, setOutputKeyCategory] = useState<string | null>('Letters');
   const [amlExpanded, setAmlExpanded] = useState(false);
   const [amlEditing, setAmlEditing] = useState(false);
   const [amlEnabled, setAmlEnabled] = useState(true);
@@ -105,6 +116,8 @@ export function ComboList({ store }: Props) {
   const startEdit = (combo: Combo) => {
     setEditingId(combo.id);
     setEditDraft({ ...combo });
+    setOutputKeySearch('');
+    setOutputKeyCategory('Letters');
   };
 
   const cancelEdit = () => {
@@ -358,17 +371,25 @@ export function ComboList({ store }: Props) {
                 <label className="combo-edit-label">BINDING TYPE</label>
                 <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 3 }}>コンボ発火時に実行するアクションの種類</div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 3 }}>
-                  {BINDING_TYPES.map(bt => (
-                    <button
-                      key={bt.value}
-                      className={`type-btn ${editDraft.binding?.type === bt.value ? 'selected' : ''}`}
-                      style={{ fontSize: 10, padding: '6px 4px', textAlign: 'center' }}
-                      onClick={() => setEditDraft({ ...editDraft, binding: { ...editDraft.binding!, type: bt.value as any } })}
-                    >
-                      <div>{bt.icon}</div>
-                      <div>{bt.label}</div>
-                    </button>
-                  ))}
+                  {BINDING_TYPES.map(bt => {
+                    const selected = bt.value === 'basic'
+                      ? editDraft.binding?.type === 'basic' && outputKeyCategory === bt.category
+                      : editDraft.binding?.type === bt.value;
+                    return (
+                      <button
+                        key={bt.id}
+                        className={`type-btn ${selected ? 'selected' : ''}`}
+                        style={{ fontSize: 10, padding: '6px 4px', textAlign: 'center' }}
+                        onClick={() => {
+                          setEditDraft({ ...editDraft, binding: { ...editDraft.binding!, type: bt.value as any } });
+                          if (bt.category) { setOutputKeyCategory(bt.category); setOutputKeySearch(''); }
+                        }}
+                      >
+                        <div>{bt.icon}</div>
+                        <div>{bt.label}</div>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -378,10 +399,29 @@ export function ComboList({ store }: Props) {
                 <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 3 }}>発火時に出力されるキーコードまたはアクション</div>
                 <input
                   type="text"
-                  value={editDraft.binding?.keyCode || ''}
-                  onChange={e => setEditDraft({ ...editDraft, binding: { ...editDraft.binding!, keyCode: e.target.value, label: e.target.value } })}
-                  style={{ width: '100%' }}
+                  className="keycode-search"
+                  placeholder="Search..."
+                  value={outputKeySearch}
+                  onChange={e => setOutputKeySearch(e.target.value)}
                 />
+                <div className="keycode-categories">
+                  {KEY_CATEGORIES.map(cat => (
+                    <button
+                      key={cat}
+                      className={`category-btn ${outputKeyCategory === cat ? 'selected' : ''}`}
+                      onClick={() => setOutputKeyCategory(outputKeyCategory === cat ? null : cat)}
+                    >{cat}</button>
+                  ))}
+                </div>
+                <div className="keycode-grid">
+                  {searchKeyCodes(outputKeySearch, outputKeyCategory || undefined).slice(0, 60).map(kc => (
+                    <button
+                      key={kc.code}
+                      className={`keycode-btn ${editDraft.binding?.keyCode === kc.code || editDraft.binding?.label === kc.label ? 'selected' : ''}`}
+                      onClick={() => setEditDraft({ ...editDraft, binding: { ...editDraft.binding!, keyCode: kc.code, label: kc.label } })}
+                    >{kc.label}</button>
+                  ))}
+                </div>
               </div>
 
               {/* Layer (for MO/LT/TG) */}

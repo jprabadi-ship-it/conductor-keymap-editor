@@ -127,6 +127,7 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, conn
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {[
+                { v: '0.25.0.0', at: '2026-07-12 JST', changes: ['コンボ編集画面を強化。BINDING TYPEに「Mouse Button」「デバイス機能」を追加（クリックでOUTPUT KEYのカテゴリ欄も自動でジャンプ）、OUTPUT KEYを単純なテキスト入力からカテゴリ別キーコードピッカー（検索・Letters/Numbers/Mouse/Deviceなど全カテゴリ表示）に変更'] },
                 { v: '0.24.3.0', at: '2026-07-12 JST', changes: ['キーボード左右の隙間が不自然に広かった不具合を修正。可変グリッド設定がCSSの詳細度不足で固定48pxグリッドに上書きされ、各半分の箱の中でキーが左寄せになり右端に余白ができていたのが原因'] },
                 { v: '0.24.2.0', at: '2026-07-12 JST', changes: ['キーボードが左右均等にセンタリングされていなかった不具合を修正。縦スクロールバーを画面全体ではなくタブ内容の領域だけに持たせるよう変更し、スクロールバー分の幅のズレが解消'] },
                 { v: '0.24.1.0', at: '2026-07-12 JST', changes: ['統合タブバーの幅を672px→820pxに拡大し、「診断」タブが2行目に折り返されていたのを修正（8タブ全てが1行に収まるように）'] },
