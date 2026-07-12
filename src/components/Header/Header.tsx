@@ -127,6 +127,7 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, conn
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {[
+                { v: '0.21.0.0', at: '2026-07-12 JST', changes: ['デバイス(BT/USB)設定コピーを複数選択・一括適用に対応。コピー先を個別にチェック、または「すべて選択」で全デバイスへ一度に、キーマップオーバーレイとジェスチャ4方向をコピーできるように変更'] },
                 { v: '0.20.9.0', at: '2026-07-12 JST', changes: ['実機設定バックアップの安全性を修正: Export/トラックボール比較が確認なしに全スロットの出力先を切り替えていた挙動に確認ダイアログを追加、比較表がタブを開くだけで自動巡回していた不具合を修正、ロック中のExportが空データを黙って出力していた問題を修正、複数スロット走査後の出力先復元が不明な場合に0番へ誤って固定されていた不具合を修正、復元不能なcursor比率のバックアップ項目を削除'] },
                 { v: '0.20.8.0', at: '2026-07-12 JST', changes: ['接続パネルに dongle connection health 表示を追加。active output、L/R online 状態、battery、layer state、OS profile を接続直下で確認可能にし、未露出の last-received / layer sync は未対応と明示'] },
                 { v: '0.20.7.0', at: '2026-07-12 JST', changes: ['右ペインに「診断」タブを追加。接続中の実機から device info、レイヤー状態、バッテリー、AML、トラックボール設定、BT/USBスロット、デバイス別キーマップ/ジェスチャ設定を一覧表示'] },

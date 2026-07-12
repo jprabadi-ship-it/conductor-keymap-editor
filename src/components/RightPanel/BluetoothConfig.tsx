@@ -40,6 +40,7 @@ export function BluetoothConfig({ store }: Props) {
   const [usbActiveIndex, setUsbActiveIndex] = useState(0);
   const [usbSlotsLoaded, setUsbSlotsLoaded] = useState(false);
   const [copyPickerDevice, setCopyPickerDevice] = useState<number | null>(null);
+  const [copyDestinations, setCopyDestinations] = useState<Set<number>>(new Set());
   const [copyBusy, setCopyBusy] = useState(false);
 
   const {
@@ -231,37 +232,49 @@ export function BluetoothConfig({ store }: Props) {
   // Copies one device's overlay config (keymap overlay + all 4 gesture
   // overrides) onto another endpoint. Directions without an override on the
   // source are cleared on the destination so the result is an exact mirror.
+  // Caller is responsible for busy/picker state -- see copyDeviceConfigToMany.
   const copyDeviceConfig = async (src: number, dest: number) => {
+    await setKeymapOverlay(dest, osMap[src] || 0);
+    const directions: Direction[] = ['up', 'down', 'left', 'right'];
+    const applied: { dir: Direction; has: boolean }[] = [];
+    for (const dir of directions) {
+      const srcSlot = overrideSlot(src, dir);
+      const has = !!gestureHasOverride[srcSlot];
+      const ok = has
+        ? await setGestureBinding(dest, DIRECTION_INDEX[dir], false, gestureOverrides[srcSlot])
+        : await setGestureBinding(dest, DIRECTION_INDEX[dir], true);
+      if (ok) applied.push({ dir, has });
+    }
+    if (applied.some(a => a.has)) await setGestureEnabled(true);
+    setGestureHasOverride(prev => {
+      const next = [...prev];
+      for (const a of applied) next[overrideSlot(dest, a.dir)] = a.has;
+      return next;
+    });
+    setGestureOverrides(prev => {
+      const next = [...prev];
+      for (const a of applied) {
+        if (a.has) next[overrideSlot(dest, a.dir)] = gestureOverrides[overrideSlot(src, a.dir)];
+      }
+      return next;
+    });
+    debugLog('INF', 'Device', `Copied device config: endpoint ${src} -> ${dest} (${applied.length}/4 directions)`);
+  };
+
+  // Applies copyDeviceConfig to every selected destination in turn. Awaited
+  // sequentially (not Promise.all) since each copy is itself a sequence of
+  // RPC calls and the device only has one RPC channel to serve them on.
+  const copyDeviceConfigToMany = async (src: number, dests: number[]) => {
     setCopyBusy(true);
     try {
-      await setKeymapOverlay(dest, osMap[src] || 0);
-      const directions: Direction[] = ['up', 'down', 'left', 'right'];
-      const applied: { dir: Direction; has: boolean }[] = [];
-      for (const dir of directions) {
-        const srcSlot = overrideSlot(src, dir);
-        const has = !!gestureHasOverride[srcSlot];
-        const ok = has
-          ? await setGestureBinding(dest, DIRECTION_INDEX[dir], false, gestureOverrides[srcSlot])
-          : await setGestureBinding(dest, DIRECTION_INDEX[dir], true);
-        if (ok) applied.push({ dir, has });
+      for (const dest of dests) {
+        await copyDeviceConfig(src, dest);
       }
-      if (applied.some(a => a.has)) await setGestureEnabled(true);
-      setGestureHasOverride(prev => {
-        const next = [...prev];
-        for (const a of applied) next[overrideSlot(dest, a.dir)] = a.has;
-        return next;
-      });
-      setGestureOverrides(prev => {
-        const next = [...prev];
-        for (const a of applied) {
-          if (a.has) next[overrideSlot(dest, a.dir)] = gestureOverrides[overrideSlot(src, a.dir)];
-        }
-        return next;
-      });
-      debugLog('INF', 'Device', `Copied device config: endpoint ${src} -> ${dest} (${applied.length}/4 directions)`);
+      debugLog('INF', 'Device', `Copied device config: endpoint ${src} -> ${dests.length} device(s)`);
     } finally {
       setCopyBusy(false);
       setCopyPickerDevice(null);
+      setCopyDestinations(new Set());
     }
   };
 
@@ -412,31 +425,60 @@ export function BluetoothConfig({ store }: Props) {
                     <button
                       className={`btn btn-outline ${copyPickerDevice === dev.endpointIndex ? 'btn-active' : ''}`}
                       style={{ fontSize: 10, padding: '2px 6px' }}
-                      onClick={() => setCopyPickerDevice(copyPickerDevice === dev.endpointIndex ? null : dev.endpointIndex)}
+                      onClick={() => {
+                        setCopyDestinations(new Set());
+                        setCopyPickerDevice(copyPickerDevice === dev.endpointIndex ? null : dev.endpointIndex);
+                      }}
                     >⧉ この設定を他のデバイスへコピー</button>
-                    {copyPickerDevice === dev.endpointIndex && (
-                      <div style={{ marginTop: 6 }}>
-                        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>
-                          コピー先（キーマップオーバーレイとジェスチャ4方向を上書きします）
+                    {copyPickerDevice === dev.endpointIndex && (() => {
+                      const otherDevices = devices.filter(d => d.endpointIndex !== dev.endpointIndex);
+                      const allSelected = otherDevices.length > 0 && otherDevices.every(d => copyDestinations.has(d.endpointIndex));
+                      const toggleDestination = (endpointIndex: number) => {
+                        setCopyDestinations(prev => {
+                          const next = new Set(prev);
+                          if (next.has(endpointIndex)) next.delete(endpointIndex); else next.add(endpointIndex);
+                          return next;
+                        });
+                      };
+                      return (
+                        <div style={{ marginTop: 6 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                            <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                              コピー先を選択（キーマップオーバーレイとジェスチャ4方向を上書きします）
+                            </span>
+                            <button
+                              className="btn btn-outline"
+                              style={{ fontSize: 9, padding: '1px 6px' }}
+                              disabled={copyBusy}
+                              onClick={() => setCopyDestinations(allSelected ? new Set() : new Set(otherDevices.map(d => d.endpointIndex)))}
+                            >{allSelected ? 'すべて解除' : 'すべて選択'}</button>
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(84px, 1fr))', gap: 4 }}>
+                            {otherDevices.map(d => {
+                              const destName = d.btIndex !== undefined
+                                ? (store.bluetoothProfiles[d.btIndex]?.name || '')
+                                : (usbSlots[d.usbSlot!]?.name || '');
+                              const selected = copyDestinations.has(d.endpointIndex);
+                              return (
+                                <button
+                                  key={d.endpointIndex}
+                                  className={`btn btn-outline ${selected ? 'btn-active' : ''}`}
+                                  style={{ fontSize: 10, padding: '4px 6px' }}
+                                  disabled={copyBusy}
+                                  onClick={() => toggleDestination(d.endpointIndex)}
+                                >{selected ? '✓ ' : ''}{d.label}{destName ? ` ${destName}` : ''}</button>
+                              );
+                            })}
+                          </div>
+                          <button
+                            className="btn btn-primary"
+                            style={{ fontSize: 11, padding: '4px 8px', marginTop: 6, width: '100%' }}
+                            disabled={copyBusy || copyDestinations.size === 0}
+                            onClick={() => copyDeviceConfigToMany(dev.endpointIndex, [...copyDestinations])}
+                          >{copyBusy ? 'コピー中…' : `${copyDestinations.size}件へコピーを実行`}</button>
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(84px, 1fr))', gap: 4 }}>
-                          {devices.filter(d => d.endpointIndex !== dev.endpointIndex).map(d => {
-                            const destName = d.btIndex !== undefined
-                              ? (store.bluetoothProfiles[d.btIndex]?.name || '')
-                              : (usbSlots[d.usbSlot!]?.name || '');
-                            return (
-                              <button
-                                key={d.endpointIndex}
-                                className="btn btn-outline"
-                                style={{ fontSize: 10, padding: '4px 6px' }}
-                                disabled={copyBusy}
-                                onClick={() => copyDeviceConfig(dev.endpointIndex, d.endpointIndex)}
-                              >{d.label}{destName ? ` ${destName}` : ''}</button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
+                      );
+                    })()}
                   </div>
 
                   {editingDirection && (() => {
