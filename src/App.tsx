@@ -215,41 +215,52 @@ function App() {
         unsaved={unsaved}
         wroteToDevice={wroteToDevice}
         onWrite={async () => {
-          if (!isUnlocked()) {
-            debugLog('WRN', 'Editor', 'Device is locked. Attempting unlock...');
-            const unlocked = await requestUnlock();
-            if (!unlocked) {
-              debugLog('ERR', 'Editor', 'Cannot write: device is locked. Press studio_unlock combo on keyboard.');
-              alert('デバイスがロックされています。キーボードのstudio_unlockコンボを押してからもう一度試してください。');
+          try {
+            if (!isUnlocked()) {
+              debugLog('WRN', 'Editor', 'Device is locked. Attempting unlock...');
+              const unlocked = await requestUnlock();
+              if (!unlocked) {
+                debugLog('ERR', 'Editor', 'Cannot write: device is locked. Press studio_unlock combo on keyboard.');
+                alert('デバイスがロックされています。キーボードのstudio_unlockコンボを押してからもう一度試してください。');
+                return;
+              }
+            }
+            debugLog('INF', 'Editor', `Writing keymap to device... (${store.dirtyKeys.size} keys modified)`);
+            // Write layer names + LED colors
+            for (const layer of store.layers) {
+              await setLayerProps(layer.index, layer.name, LED_COLORS.indexOf(layer.ledColor));
+            }
+            debugLog('INF', 'Editor', `Layer names and LED colors written (${store.layers.length} layers)`);
+            // Write key bindings
+            const ok = await writeKeymapToDevice(store.layers, store.dirtyKeys);
+            // Combos persist themselves per-RPC (no separate save step, unlike
+            // the keymap subsystem's saveChanges() below) -- write regardless
+            // of keymap dirty-key tracking, same as layer names/colors above.
+            const combosOk = await writeCombosToDevice(store.combos);
+            if (!combosOk) {
+              debugLog('WRN', 'Editor', 'Some combos failed to write -- check the console for details');
+            } else {
+              debugLog('INF', 'Editor', `Combos written (${store.combos.length})`);
+            }
+            if (!ok) {
+              debugLog('ERR', 'Editor', 'Write failed: device not connected');
+              showToast('書き込みに失敗しました（未接続）', 'error');
               return;
             }
-          }
-          debugLog('INF', 'Editor', `Writing keymap to device... (${store.dirtyKeys.size} keys modified)`);
-          // Write layer names + LED colors
-          for (const layer of store.layers) {
-            await setLayerProps(layer.index, layer.name, LED_COLORS.indexOf(layer.ledColor));
-          }
-          debugLog('INF', 'Editor', `Layer names and LED colors written (${store.layers.length} layers)`);
-          // Write key bindings
-          const ok = await writeKeymapToDevice(store.layers, store.dirtyKeys);
-          // Combos persist themselves per-RPC (no separate save step, unlike
-          // the keymap subsystem's saveChanges() below) -- write regardless
-          // of keymap dirty-key tracking, same as layer names/colors above.
-          const combosOk = await writeCombosToDevice(store.combos);
-          if (!combosOk) {
-            debugLog('WRN', 'Editor', 'Some combos failed to write -- check the console for details');
-          } else {
-            debugLog('INF', 'Editor', `Combos written (${store.combos.length})`);
-          }
-          if (ok) {
             const saved = await saveChanges();
-            if (saved) {
-              store.clearDirtyKeys();
-              setUnsaved(false);
-              setWroteToDevice(true);
-              debugLog('INF', 'Editor', 'Keymap written and saved to device flash');
-              showToast('実機のFlashに書き込みました', 'device');
+            if (!saved) {
+              debugLog('ERR', 'Editor', 'Write failed: could not save to device flash -- check the console for details');
+              showToast('書き込みに失敗しました（Flash保存エラー）', 'error');
+              return;
             }
+            store.clearDirtyKeys();
+            setUnsaved(false);
+            setWroteToDevice(true);
+            debugLog('INF', 'Editor', 'Keymap written and saved to device flash');
+            showToast('実機のFlashに書き込みました', 'device');
+          } catch (e: any) {
+            debugLog('ERR', 'Editor', `Write failed: ${e.message}`);
+            showToast(`書き込みに失敗しました: ${e.message}`, 'error');
           }
         }}
         onRead={handleRead}
