@@ -96,6 +96,16 @@ export interface GestureBindingSnapshot {
   param2: number;
 }
 
+// Cursor ratio is intentionally omitted: the app always sends 1/1 for it
+// (see setSensitivity in usbService.ts) and there's no UI to change it, so
+// it can't diverge from the device default and isn't worth round-tripping.
+export interface SensitivitySnapshot {
+  cpi: number;
+  scrollNum: number;
+  scrollDen: number;
+  scrollInverted: boolean;
+}
+
 export interface DeviceSettingsSnapshot {
   schemaVersion: 1;
   exportedAt: string;
@@ -113,14 +123,7 @@ export interface DeviceSettingsSnapshot {
     activeIndex?: number;
   };
   trackball?: {
-    sensitivity?: {
-      cpi: number;
-      cursorNum: number;
-      cursorDen: number;
-      scrollNum: number;
-      scrollDen: number;
-      scrollInverted: boolean;
-    };
+    sensitivity?: SensitivitySnapshot;
     autoLayer?: {
       enabled: boolean;
       requirePriorIdleMs: number;
@@ -152,14 +155,7 @@ export interface DeviceSettingsSnapshot {
   trackballProfiles?: {
     conductorSlotCount: number;
     profiles: Array<{
-      sensitivity?: {
-        cpi: number;
-        cursorNum: number;
-        cursorDen: number;
-        scrollNum: number;
-        scrollDen: number;
-        scrollInverted: boolean;
-      };
+      sensitivity?: SensitivitySnapshot;
       precisionScale?: {
         numerator: number;
         denominator: number;

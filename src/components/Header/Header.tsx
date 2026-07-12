@@ -37,7 +37,15 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, conn
   const handleExport = async () => {
     const data = store.exportProject();
     if (usbConnected) {
-      data.deviceSettings = await collectDeviceSettingsSnapshot();
+      // Backing up every USB slot / BLE profile's trackball settings means
+      // briefly cycling the device's active output through all of them
+      // (real transport switches, not just reads) — surface that before
+      // doing it rather than silently changing what host the keyboard is
+      // talking to.
+      const includeAllSlotProfiles = window.confirm(
+        '全スロット分のトラックボール設定もバックアップするには、実機の出力先を一時的に順番に切り替えます（BLE接続の場合、切断されることがあります）。続行しますか？\n\n「キャンセル」を選ぶと、現在のスロットの設定のみバックアップします。'
+      );
+      data.deviceSettings = await collectDeviceSettingsSnapshot({ includeAllSlotProfiles });
     }
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -119,6 +127,7 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, conn
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {[
+                { v: '0.20.9.0', at: '2026-07-12 JST', changes: ['実機設定バックアップの安全性を修正: Export/トラックボール比較が確認なしに全スロットの出力先を切り替えていた挙動に確認ダイアログを追加、比較表がタブを開くだけで自動巡回していた不具合を修正、ロック中のExportが空データを黙って出力していた問題を修正、複数スロット走査後の出力先復元が不明な場合に0番へ誤って固定されていた不具合を修正、復元不能なcursor比率のバックアップ項目を削除'] },
                 { v: '0.20.8.0', at: '2026-07-12 JST', changes: ['接続パネルに dongle connection health 表示を追加。active output、L/R online 状態、battery、layer state、OS profile を接続直下で確認可能にし、未露出の last-received / layer sync は未対応と明示'] },
                 { v: '0.20.7.0', at: '2026-07-12 JST', changes: ['右ペインに「診断」タブを追加。接続中の実機から device info、レイヤー状態、バッテリー、AML、トラックボール設定、BT/USBスロット、デバイス別キーマップ/ジェスチャ設定を一覧表示'] },
                 { v: '0.20.6.0', at: '2026-07-12 JST', changes: ['Export .json / Import .json が、接続中の実機設定（トラックボール、AML、デバイス別キーマップ、デバイス別ジェスチャ、BT/USB名など）もバックアップ・復元するように変更'] },

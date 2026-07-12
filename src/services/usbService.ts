@@ -2,7 +2,7 @@ import protobuf from 'protobufjs';
 import { debugLog } from '../components/DebugConsole';
 import protoJson from '../data/zmk-studio-proto.json';
 import { keyIdsToPositions, positionsToKeyIds } from '../data/layout';
-import type { DeviceSettingsSnapshot, KeyBinding, Layer } from '../types';
+import type { DeviceSettingsSnapshot, KeyBinding, Layer, SensitivitySnapshot } from '../types';
 import { LED_COLORS } from '../types';
 
 const SOF = 171;
@@ -1340,7 +1340,31 @@ export async function setOsConfig(enabled: boolean, osMap: number[]): Promise<bo
   }
 }
 
-export async function collectDeviceSettingsSnapshot(): Promise<DeviceSettingsSnapshot> {
+function stripCursor(sensitivity: { cpi: number; cursorNum: number; cursorDen: number; scrollNum: number; scrollDen: number; scrollInverted: boolean }): SensitivitySnapshot {
+  return { cpi: sensitivity.cpi, scrollNum: sensitivity.scrollNum, scrollDen: sensitivity.scrollDen, scrollInverted: sensitivity.scrollInverted };
+}
+
+export async function collectDeviceSettingsSnapshot(options?: { includeAllSlotProfiles?: boolean }): Promise<DeviceSettingsSnapshot> {
+  const snapshot: DeviceSettingsSnapshot = {
+    schemaVersion: 1,
+    exportedAt: new Date().toISOString(),
+  };
+
+  if (!isConnected()) {
+    debugLog('WRN', 'USB', 'Device settings snapshot skipped: no device connected');
+    return snapshot;
+  }
+
+  // Per-slot cycling below requires secured RPCs (set_active_usb_slot /
+  // set_active_ble_profile); if the device can't be unlocked, every switch
+  // would silently fail and leave the snapshot full of empty {} entries
+  // that look like "no per-slot config" instead of "couldn't read this".
+  let includeAllSlotProfiles = options?.includeAllSlotProfiles ?? true;
+  if (includeAllSlotProfiles && !isUnlocked() && !(await requestUnlock())) {
+    debugLog('WRN', 'USB', 'Device is locked: skipping per-slot trackball backup, exporting current slot only');
+    includeAllSlotProfiles = false;
+  }
+
   const [
     device,
     tappingTerm,
@@ -1369,18 +1393,13 @@ export async function collectDeviceSettingsSnapshot(): Promise<DeviceSettingsSna
     getGestureConfig(),
   ]);
 
-  const snapshot: DeviceSettingsSnapshot = {
-    schemaVersion: 1,
-    exportedAt: new Date().toISOString(),
-  };
-
   if (device) snapshot.device = device;
   if (tappingTerm !== null) snapshot.tappingTerm = tappingTerm;
   if (bluetoothProfiles) snapshot.bluetoothProfiles = bluetoothProfiles;
   if (usbSlots) snapshot.usbSlots = usbSlots;
   if (sensitivity || autoLayer || precisionScale || accel || inertia || dragScale) {
     snapshot.trackball = {};
-    if (sensitivity && !(usbSlots || bluetoothProfiles)) snapshot.trackball.sensitivity = sensitivity;
+    if (sensitivity && !(usbSlots || bluetoothProfiles)) snapshot.trackball.sensitivity = stripCursor(sensitivity);
     if (autoLayer) snapshot.trackball.autoLayer = autoLayer;
     if (precisionScale && !(usbSlots || bluetoothProfiles)) snapshot.trackball.precisionScale = precisionScale;
     if (accel && !(usbSlots || bluetoothProfiles)) snapshot.trackball.accel = accel;
@@ -1388,12 +1407,18 @@ export async function collectDeviceSettingsSnapshot(): Promise<DeviceSettingsSna
     if (dragScale && !(usbSlots || bluetoothProfiles)) snapshot.trackball.dragScale = dragScale;
   }
 
-  if (usbSlots || bluetoothProfiles) {
+  if (includeAllSlotProfiles && (usbSlots || bluetoothProfiles)) {
     const usbCount = usbSlots?.slots?.length ?? 0;
     const btCount = bluetoothProfiles?.profiles?.length ?? 0;
     const total = usbCount + btCount;
     const profiles: NonNullable<DeviceSettingsSnapshot['trackballProfiles']>['profiles'] = [];
-    const originalEndpoint = osConfig?.activeEndpoint ?? gestureConfig?.activeEndpoint ?? 0;
+    // osConfig/gestureConfig's activeEndpoint is the only source that knows
+    // which of the 10 conductor slots is truly active right now (USB's and
+    // BLE's own activeIndex are tracked independently of each other and of
+    // which transport is actually selected). If neither is available, there
+    // is no safe guess — skip the restore below rather than silently
+    // defaulting to slot 0.
+    const originalEndpoint = osConfig?.activeEndpoint ?? gestureConfig?.activeEndpoint;
 
     for (let slotIndex = 0; slotIndex < total; slotIndex++) {
       const selected = slotIndex < usbCount
@@ -1411,14 +1436,16 @@ export async function collectDeviceSettingsSnapshot(): Promise<DeviceSettingsSna
         getDragScale(),
       ]);
       profiles[slotIndex] = {};
-      if (slotSensitivity) profiles[slotIndex].sensitivity = slotSensitivity;
+      if (slotSensitivity) profiles[slotIndex].sensitivity = stripCursor(slotSensitivity);
       if (slotPrecisionScale) profiles[slotIndex].precisionScale = slotPrecisionScale;
       if (slotAccel) profiles[slotIndex].accel = slotAccel;
       if (slotInertia) profiles[slotIndex].inertia = slotInertia;
       if (slotDragScale) profiles[slotIndex].dragScale = slotDragScale;
     }
 
-    if (originalEndpoint < usbCount) {
+    if (originalEndpoint === undefined) {
+      debugLog('ERR', 'USB', 'Could not determine the original active output; left on the last scanned slot. Check the active USB slot / BLE profile on the device.');
+    } else if (originalEndpoint < usbCount) {
       await setActiveUsbSlot(originalEndpoint);
     } else if (originalEndpoint < total) {
       await setActiveBleProfile(originalEndpoint - usbCount);
@@ -1510,7 +1537,7 @@ export async function applyDeviceSettingsSnapshot(snapshot: DeviceSettingsSnapsh
     const usbCount = snapshot.usbSlots?.slots?.length ?? 0;
     const btCount = snapshot.bluetoothProfiles?.profiles?.length ?? 0;
     const total = Math.min(trackballProfiles.profiles.length, usbCount + btCount);
-    const originalEndpoint = snapshot.osConfig?.activeEndpoint ?? snapshot.gestureConfig?.activeEndpoint ?? 0;
+    const originalEndpoint = snapshot.osConfig?.activeEndpoint ?? snapshot.gestureConfig?.activeEndpoint;
 
     for (let slotIndex = 0; slotIndex < total; slotIndex++) {
       const selected = slotIndex < usbCount
@@ -1541,7 +1568,9 @@ export async function applyDeviceSettingsSnapshot(snapshot: DeviceSettingsSnapsh
       await remember(`save pointing ${slotIndex}`, saveChanges());
     }
 
-    if (originalEndpoint < usbCount) {
+    if (originalEndpoint === undefined) {
+      debugLog('ERR', 'USB', 'Could not determine the original active output; left on the last restored slot. Check the active USB slot / BLE profile on the device.');
+    } else if (originalEndpoint < usbCount) {
       await remember('restore active USB slot', setActiveUsbSlot(originalEndpoint));
     } else if (originalEndpoint < usbCount + btCount) {
       await remember('restore active BT profile', setActiveBleProfile(originalEndpoint - usbCount));

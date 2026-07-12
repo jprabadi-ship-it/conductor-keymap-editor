@@ -122,6 +122,11 @@ export function TrackballConfig({ store }: Props) {
   const [loaded, setLoaded] = useState(false);
   const [slotEntries, setSlotEntries] = useState<ReturnType<typeof buildDeviceEntries>>([]);
   const [selectedEndpoint, setSelectedEndpoint] = useState(0);
+  // Kept in sync with selectedEndpoint via effect below so reloadSlotSummaries
+  // always reads the latest value even if it's invoked from a stale closure
+  // (e.g. captured by an effect before a state update has flushed).
+  const selectedEndpointRef = useRef(selectedEndpoint);
+  useEffect(() => { selectedEndpointRef.current = selectedEndpoint; }, [selectedEndpoint]);
   const [profileTargetLabel, setProfileTargetLabel] = useState<string>('現在の出力先');
   const [loadingSlot, setLoadingSlot] = useState(false);
   const [slotSummaries, setSlotSummaries] = useState<SlotSummary[]>([]);
@@ -228,6 +233,9 @@ export function TrackballConfig({ store }: Props) {
 
   const reloadSlotSummaries = useCallback(async () => {
     if (!isConnected()) return;
+    if (!window.confirm('全スロット比較のため、実機の出力先を一時的に順番に切り替えます（BLE接続の場合、切断されることがあります）。続行しますか？')) {
+      return;
+    }
     setLoadingSummary(true);
     const [bleProfiles, usbSlots, osConfig, gestureConfig] = await Promise.all([
       getBleProfiles(),
@@ -250,7 +258,7 @@ export function TrackballConfig({ store }: Props) {
     const entries = buildDeviceEntries(bluetoothProfiles as any, usbSlots.activeIndex);
     setSlotEntries(entries);
 
-    const originalEndpoint = selectedEndpoint ?? osConfig?.activeEndpoint ?? gestureConfig?.activeEndpoint ?? 0;
+    const originalEndpoint = selectedEndpointRef.current ?? osConfig?.activeEndpoint ?? gestureConfig?.activeEndpoint;
     const summaries: SlotSummary[] = [];
     for (const entry of entries) {
       const selected = entry.usbSlot !== undefined
@@ -283,26 +291,37 @@ export function TrackballConfig({ store }: Props) {
       });
     }
 
-    const restoreEntry = entries.find(entry => entry.endpointIndex === originalEndpoint) ?? entries[0];
-    if (restoreEntry?.usbSlot !== undefined) {
-      await setActiveUsbSlot(restoreEntry.usbSlot);
-    } else if (restoreEntry?.btIndex !== undefined) {
-      await setActiveBleProfile(restoreEntry.btIndex);
+    if (originalEndpoint === undefined) {
+      debugLog('ERR', 'Trackball', '元の active output を特定できなかったため復元をスキップしました。現在の出力先を確認してください。');
+    } else {
+      const restoreEntry = entries.find(entry => entry.endpointIndex === originalEndpoint);
+      if (restoreEntry?.usbSlot !== undefined) {
+        await setActiveUsbSlot(restoreEntry.usbSlot);
+      } else if (restoreEntry?.btIndex !== undefined) {
+        await setActiveBleProfile(restoreEntry.btIndex);
+      } else {
+        debugLog('ERR', 'Trackball', '元の active output に一致するスロットが見つからず復元をスキップしました。');
+      }
     }
     setSlotSummaries(summaries);
     setLoadingSummary(false);
-  }, [formatEntryLabel, selectedEndpoint]);
+  }, [formatEntryLabel]);
 
-  // Load settings from device on mount if connected
+  // Load settings from device on mount if connected. This only reads the
+  // currently active slot (preserveDeviceSelection: true) — it must NOT
+  // trigger reloadSlotSummaries here, since that cycles the device through
+  // every USB slot / BLE profile (real transport switches, secured RPCs) and
+  // opening this tab should never have that side effect on its own. The
+  // slot comparison table is populated only when the user explicitly clicks
+  // "比較を更新".
   useEffect(() => {
     if (!isConnected() || loaded) return;
     (async () => {
       const [osConfig, gestureConfig] = await Promise.all([getOsConfig(), getGestureConfig()]);
       const initialEndpoint = osConfig?.activeEndpoint ?? gestureConfig?.activeEndpoint ?? 0;
       await loadSlotPointingSettings(initialEndpoint, { preserveDeviceSelection: true });
-      await reloadSlotSummaries();
     })();
-  }, [loaded, loadSlotPointingSettings, reloadSlotSummaries]);
+  }, [loaded, loadSlotPointingSettings]);
 
   // Header "⟳ Reset" bumps trackballResetTick — bring mouse acceleration back to its default (弱)
   const trackballResetTickRef = useRef(trackballResetTick);
