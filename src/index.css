@@ -691,22 +691,6 @@ input:focus { border-color: var(--accent); }
   display: flex; gap: 2px; justify-content: center; flex-wrap: nowrap;
   padding: 12px 16px 20px;
 }
-
-/* Main editor's version splits into two equal-width groups (one per
-   keyboard half), matching .keyboard-container's own left/right gap, so
-   the split between groups lines up with the physical L/R keyboard split
-   above regardless of layer count or label lengths -- distinct from
-   .layer-switcher (still used as-is, single flat row, by the tray
-   popup/minimap in LayerPopup.tsx). */
-.layer-switcher-groups {
-  display: flex; gap: 22px;
-  padding: 12px 16px 20px;
-  width: 100%;
-  box-sizing: border-box;
-}
-.layer-switcher-group {
-  display: flex; gap: 2px; justify-content: center; flex-wrap: nowrap; flex: 1; min-width: 0;
-}
 .layer-dot {
   display: flex; flex-direction: column; align-items: center; gap: 3px;
   padding: 4px 6px; border-radius: var(--radius-sm);
