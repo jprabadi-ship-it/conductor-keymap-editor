@@ -823,71 +823,76 @@ input:focus { border-color: var(--accent); }
 .debug-log-source { color: var(--text-secondary); }
 .debug-log-msg { color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; }
 
-/* Always stack the right sidebar below the keyboard instead of beside it
-   (regardless of orientation), capped to and centered on the keyboard's own
-   natural width so both blocks line up as one centered column. The keyboard
-   grid uses a fluid 1fr layout so it still shrinks to fit (no horizontal
-   scrolling) on viewports narrower than that natural width; on anything
-   wider it settles back to ~48px keys since the column itself stops growing
-   past the cap. Placed last in the file so it wins cascade ties against the
-   equal-specificity .keyboard-half.left/.right and .right-panel rules
-   defined earlier. */
-.center-column {
-  flex-direction: column;
-  max-width: 672px;
-  margin: 0 auto;
-  overflow-x: hidden;
-  overflow-y: auto;
-}
-.center-column > .resize-handle-right {
-  display: none;
-}
-.center-column .keyboard-area,
-.center-column .side-panel,
-.center-column .macro-center-panel,
-.center-column .right-panel {
-  flex: none;
-  width: 100% !important;
-  max-width: 100%;
-  align-self: stretch;
-  box-sizing: border-box;
-  overflow-x: hidden;
-}
-.center-column .keyboard-container {
-  width: 100%;
-  box-sizing: border-box;
-  gap: 22px;
-}
-.center-column .keyboard-half {
-  grid-template-columns: repeat(6, 1fr);
-  grid-template-rows: repeat(4, 1fr);
-  gap: 3px;
-  flex: 1;
-  min-width: 0;
-}
-.center-column .key-btn {
-  width: auto;
-  height: auto;
-  aspect-ratio: 1;
-}
-.center-column .trackball-placeholder {
-  /* width/height auto with no content would collapse to ~0 (no definite
-     size for aspect-ratio to resolve against) -- stretch to the row's
-     height instead so it renders as a normal-looking circle. */
-  width: auto;
-  height: 100%;
-  aspect-ratio: 1;
-  align-self: stretch;
-}
-.center-column .right-panel {
-  height: auto;
-  border-left: none;
-  border-top: 1px solid var(--border);
-}
-.center-column .side-panel {
-  width: 100% !important;
-  border-right: none;
-  border-top: 1px solid var(--border);
+/* Portrait orientation (any width, not just tablet-sized): stack the right
+   sidebar and the layers/combos/macros panel below the keyboard instead of
+   beside it, capped to and centered on the keyboard's own natural width so
+   all three blocks line up as one centered column. The keyboard grid uses
+   a fluid 1fr layout so it still shrinks to fit (no horizontal scrolling)
+   on viewports narrower than that natural width; on anything wider it
+   settles back to ~48px keys since the column itself stops growing past
+   the cap. In landscape (the normal desktop case), .center-column's base
+   rule (flex, no explicit direction -- see top of file) lays keyboard /
+   side panel / right panel out side by side instead. Placed last in the
+   file so it wins cascade ties against the equal-specificity
+   .keyboard-half.left/.right and .right-panel rules defined earlier. */
+@media (orientation: portrait) {
+  .center-column {
+    flex-direction: column;
+    max-width: 672px;
+    margin: 0 auto;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+  .center-column > .resize-handle-right {
+    display: none;
+  }
+  .center-column .keyboard-area,
+  .center-column .side-panel,
+  .center-column .macro-center-panel,
+  .center-column .right-panel {
+    flex: none;
+    width: 100% !important;
+    max-width: 100%;
+    align-self: stretch;
+    box-sizing: border-box;
+    overflow-x: hidden;
+  }
+  .center-column .keyboard-container {
+    width: 100%;
+    box-sizing: border-box;
+    gap: 22px;
+  }
+  .center-column .keyboard-half {
+    grid-template-columns: repeat(6, 1fr);
+    grid-template-rows: repeat(4, 1fr);
+    gap: 3px;
+    flex: 1;
+    min-width: 0;
+  }
+  .center-column .key-btn {
+    width: auto;
+    height: auto;
+    aspect-ratio: 1;
+  }
+  .center-column .trackball-placeholder {
+    /* width/height auto with no content would collapse to ~0 (no definite
+       size for aspect-ratio to resolve against) -- stretch to the row's
+       height instead so it renders as a normal-looking circle. */
+    width: auto;
+    height: 100%;
+    aspect-ratio: 1;
+    align-self: stretch;
+  }
+  .center-column .right-panel {
+    height: auto;
+    border-left: none;
+    border-top: 1px solid var(--border);
+  }
+  .center-column .side-panel {
+    width: 100% !important;
+    border-right: none;
+    border-top: 1px solid var(--border);
+  }
 }
 
 /* Tray popup: read-only layer viewer (electron/main.cjs popup window) */
