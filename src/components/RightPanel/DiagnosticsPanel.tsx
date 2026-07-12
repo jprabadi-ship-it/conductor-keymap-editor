@@ -14,6 +14,7 @@ import {
   isConnected,
   type RuntimeBatteryState,
 } from '../../services/usbService';
+import { debugLog } from '../DebugConsole';
 
 type DiagnosticsData = {
   device: Awaited<ReturnType<typeof getDeviceInfo>>;
@@ -46,10 +47,62 @@ function batteryText(v: number | null | undefined) {
   return v === null || v === undefined ? '--' : `${v}%`;
 }
 
+// Plain-text mirror of the Row entries below, grouped the same way, so
+// "copy" produces something pasteable into a bug report or chat rather
+// than a wall of raw JSON.
+function buildDiagnosticsText(data: DiagnosticsData): string {
+  const lines: string[] = [];
+  lines.push(`ConductorD Studio diagnostics (${new Date().toISOString()})`);
+  lines.push('');
+  lines.push('## Device');
+  lines.push(`Name: ${data.device?.name || '--'}`);
+  lines.push(`Firmware: ${data.device?.firmwareVersion || '--'}`);
+  lines.push(`Highest Layer: ${data.runtime?.highestLayer ?? '--'}`);
+  lines.push(`Layers Bitmask: ${data.runtime?.activeLayersBitmask !== undefined ? `0x${data.runtime.activeLayersBitmask.toString(16)}` : '--'}`);
+  lines.push(`Active OS: ${data.runtime?.activeOs ?? '--'}`);
+  lines.push(`OS Profile: ${boolText(data.runtime?.osProfileEnabled)}`);
+  lines.push('');
+  lines.push('## Battery / Link');
+  lines.push(`Dongle: ${batteryText(data.runtime?.central)}${data.runtime?.charging ? ' charging' : ''}`);
+  lines.push(`R: ${batteryText(data.runtime?.peripheralR)}`);
+  lines.push(`L: ${batteryText(data.runtime?.peripheralL)}`);
+  lines.push(`BLE Active: ${data.bleProfiles?.activeIndex ?? '--'}`);
+  lines.push(`USB Active: ${data.usbSlots?.activeIndex ?? '--'}`);
+  lines.push('');
+  lines.push('## Trackball');
+  lines.push(`CPI: ${data.sensitivity?.cpi ?? '--'}`);
+  lines.push(`Scroll: ${data.sensitivity ? `${data.sensitivity.scrollNum}/${data.sensitivity.scrollDen}${data.sensitivity.scrollInverted ? ' inverted' : ''}` : '--'}`);
+  lines.push(`AML: ${data.autoLayer ? `${boolText(data.autoLayer.enabled)} idle=${data.autoLayer.requirePriorIdleMs}ms motion=${data.autoLayer.motionThreshold} duration=${data.autoLayer.durationMs}ms` : '--'}`);
+  lines.push(`AML Excluded: ${data.autoLayer ? `[${data.autoLayer.excludedPositions.join(', ')}]` : '--'}`);
+  lines.push(`Accel: ${data.accel ? `${boolText(data.accel.enabled)} max=${(data.accel.maxMilli / 1000).toFixed(1)}x start=${data.accel.threshold} ramp=${data.accel.range}` : '--'}`);
+  lines.push(`Inertia: ${data.inertia ? `${boolText(data.inertia.enabled)} decay=${data.inertia.decayMilli} start=${data.inertia.startSpeed}` : '--'}`);
+  lines.push(`Drag Scale: ${data.dragScale ? `${boolText(data.dragScale.enabled)} ${data.dragScale.numerator}/${data.dragScale.denominator}` : '--'}`);
+  lines.push('');
+  lines.push('## Profiles');
+  lines.push(`BLE Slots: ${data.bleProfiles ? data.bleProfiles.profiles.map((p, i) => `${i}:${p.name}${p.connected ? '*' : ''}`).join('  ') || '--' : '--'}`);
+  lines.push(`USB Slots: ${data.usbSlots ? data.usbSlots.slots.map((s, i) => `${i}:${s.name}`).join('  ') || '--' : '--'}`);
+  lines.push(`OS Overlay: ${data.osConfig ? `${boolText(data.osConfig.enabled)} map=[${data.osConfig.osMap.join(', ')}] activeEndpoint=${data.osConfig.activeEndpoint}` : '--'}`);
+  lines.push(`Gesture Override: ${data.gestureConfig ? `${boolText(data.gestureConfig.enabled)} overrides=${data.gestureConfig.hasOverride.filter(Boolean).length} activeEndpoint=${data.gestureConfig.activeEndpoint}` : '--'}`);
+  return lines.join('\n');
+}
+
 export function DiagnosticsPanel() {
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [data, setData] = useState<DiagnosticsData | null>(null);
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
+
+  const handleCopy = async () => {
+    if (!data) return;
+    try {
+      await navigator.clipboard.writeText(buildDiagnosticsText(data));
+      setCopyStatus('copied');
+    } catch (e: any) {
+      debugLog('ERR', 'Diagnostics', `Copy to clipboard failed: ${e.message}`);
+      setCopyStatus('failed');
+    }
+    setTimeout(() => setCopyStatus('idle'), 1500);
+  };
 
   const load = async () => {
     if (!isConnected()) {
@@ -125,9 +178,14 @@ export function DiagnosticsPanel() {
             <div className="config-label">実機診断</div>
             <div className="config-description">現在の runtime 状態と保存済み設定をまとめて表示します。</div>
           </div>
-          <button className="btn btn-outline" style={{ fontSize: 11 }} onClick={() => setLoaded(false)} disabled={loading}>
-            {loading ? '読込中...' : '再読込'}
-          </button>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button className="btn btn-outline" style={{ fontSize: 11 }} onClick={handleCopy} disabled={!data}>
+              {copyStatus === 'copied' ? '✓ コピーしました' : copyStatus === 'failed' ? '❌ コピー失敗' : '📋 コピー'}
+            </button>
+            <button className="btn btn-outline" style={{ fontSize: 11 }} onClick={() => setLoaded(false)} disabled={loading}>
+              {loading ? '読込中...' : '再読込'}
+            </button>
+          </div>
         </div>
       </div>
 
