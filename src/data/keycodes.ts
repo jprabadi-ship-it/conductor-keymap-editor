@@ -154,6 +154,7 @@ export const KEYCODES: KeyCodeEntry[] = [
   { code: 'USB_SEL_2', label: 'USB 2', category: 'Device' },
   { code: 'USB_SEL_3', label: 'USB 3', category: 'Device' },
   { code: 'USB_SEL_4', label: 'USB 4', category: 'Device' },
+  { code: 'AML_TOG', label: 'AML Tog', category: 'Device' },
 
   // System
   { code: 'QK_BOOT', label: 'Boot', category: 'System' },

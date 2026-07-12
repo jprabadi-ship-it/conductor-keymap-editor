@@ -2251,6 +2251,8 @@ export async function writeKeymapToDevice(layers: Layer[], dirtyKeys?: Set<strin
             behaviorId = behByType["out"] ?? 0; param1 = 0;
           } else if (binding.keyCode === 'BOOTLOADER') {
             behaviorId = behByType["boot"] ?? 0;
+          } else if (binding.keyCode === 'AML_TOG') {
+            behaviorId = behByType["aml_tog"] ?? 0;
           } else if (binding.keyCode?.startsWith('mkp') || binding.keyCode?.startsWith('KC_BTN') ||
                      binding.label?.startsWith('MB') || binding.label === 'Click' || binding.label === 'R Click' || binding.label === 'M Click') {
             behaviorId = behByType["mkp"] ?? 0;
