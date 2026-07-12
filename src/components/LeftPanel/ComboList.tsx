@@ -83,16 +83,18 @@ const BINDING_TYPES = [
 
 // Special device-level behaviors, distinct from plain keycodes -- shown as
 // their own list (not the keycode grid) when the デバイス機能 tile is
-// selected. Only AML toggle is wired up to real firmware right now:
+// selected.
 // - AML toggle: &aml_tog, already compiled into every Conductor build
 //   (display-name "Toggle AML"), just needed editor-side exposure.
-// - Pinch zoom: no such firmware behavior exists yet (ZMK core or this
-//   project) -- would need new firmware development, not just a UI hookup.
+// - Pinch zoom: &pinch_zm, new firmware behavior (display-name "Pinch Zoom")
+//   that holds Ctrl and momentarily activates the existing scroll layer
+//   (layer 5) -- untested on real hardware yet, see CHANGELOG.
 // - Sleep (power off): ZMK core has &soft_off, but this project doesn't
 //   reference it anywhere so it's compiled out (/omit-if-no-ref/), and it
-//   has no display-name set yet -- needs a small firmware change first.
+//   has no display-name set yet. Deliberately deprioritized until the
+//   upstream ZMK deep-sleep issues (zmkfirmware/zmk#3195, #3207) resolve.
 const DEVICE_FUNCTIONS = [
-  { id: 'pinch-zoom', label: 'ピンチズーム', keyCode: null as string | null, displayLabel: null as string | null, available: false },
+  { id: 'pinch-zoom', label: 'ピンチズーム', keyCode: 'PINCH_ZOOM', displayLabel: 'Pinch Zoom', available: true },
   { id: 'aml-toggle', label: 'AML切替', keyCode: 'AML_TOG', displayLabel: 'AML Tog', available: true },
   { id: 'sleep', label: 'スリープ (電源オフ)', keyCode: null as string | null, displayLabel: null as string | null, available: false },
 ] as const;
@@ -137,7 +139,7 @@ export function ComboList({ store }: Props) {
   // doesn't always dump you back on "Letters" regardless of what it's set
   // to.
   const guessOutputCategory = (keyCode: string | undefined, label: string | undefined): string => {
-    if (keyCode === 'AML_TOG') return 'DeviceFunction';
+    if (keyCode === 'AML_TOG' || keyCode === 'PINCH_ZOOM') return 'DeviceFunction';
     if (keyCode?.startsWith('KC_BTN') || keyCode?.startsWith('KC_MS_') || keyCode?.startsWith('KC_WH_') ||
         label === 'Click' || label === 'R Click' || label === 'M Click') return 'Mouse';
     if (keyCode?.startsWith('BT_SEL') || keyCode?.startsWith('USB_SEL') || keyCode === 'BT_CLR' ||

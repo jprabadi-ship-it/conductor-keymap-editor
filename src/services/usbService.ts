@@ -710,7 +710,7 @@ const STANDARD_BEHAVIORS = new Set([
   'sticky key', 'momentary layer', 'sticky layer', 'studio unlock',
   'reset', 'to layer', 'bluetooth', 'bootloader',
   'layer-tap', 'mod-tap', 'toggle layer', 'toggle scroll invert',
-  'enc_key_press', 'toggle aml', 'usb slot select',
+  'enc_key_press', 'toggle aml', 'usb slot select', 'pinch zoom',
 ]);
 
 function computeMacroBehaviorIds(): Set<number> {
@@ -783,6 +783,8 @@ function decodeBinding(binding: { behaviorId: number; param1: number; param2: nu
     // Must be checked before the generic "Toggle" (layer toggle) branch
     // below, since "Toggle AML" contains that substring too.
     type = 'basic'; label = 'AML Tog'; keyCode = 'AML_TOG';
+  } else if (behName.toLowerCase() === 'pinch zoom' || behName === 'pinch_zm') {
+    type = 'basic'; label = 'Pinch Zoom'; keyCode = 'PINCH_ZOOM';
   } else if (behName.includes('Mouse Key Press') || behName === 'mkp' || behName.includes('mkp')) {
     type = 'basic';
     const mouseLabel: Record<number, string> = { 1: 'Click', 2: 'R Click', 4: 'M Click', 8: 'MB4', 16: 'MB5' };
@@ -1922,6 +1924,7 @@ function computeBehByType(): Record<string, number> {
     if (!behByType['usb_sel'] && n === 'usb slot select') behByType['usb_sel'] = id;
     if (!behByType['out'] && (n === 'output selection' || n === 'out')) behByType['out'] = id;
     if (!behByType['aml_tog'] && (n === 'toggle aml' || n === 'aml_tog')) behByType['aml_tog'] = id;
+    if (!behByType['pinch_zm'] && (n === 'pinch zoom' || n === 'pinch_zm')) behByType['pinch_zm'] = id;
   }
   return behByType;
 }
@@ -1981,6 +1984,10 @@ export async function resolveKeyBindingRpc(binding: KeyBinding): Promise<{ behav
     if (binding.keyCode === 'AML_TOG') {
       if (behByType['aml_tog'] === undefined) return null;
       return { behaviorId: behByType['aml_tog'], param1: 0, param2: 0 };
+    }
+    if (binding.keyCode === 'PINCH_ZOOM') {
+      if (behByType['pinch_zm'] === undefined) return null;
+      return { behaviorId: behByType['pinch_zm'], param1: 0, param2: 0 };
     }
     if (binding.keyCode?.startsWith('mkp') || binding.keyCode?.startsWith('KC_BTN') ||
         binding.label?.startsWith('MB') || binding.label === 'Click' || binding.label === 'R Click' || binding.label === 'M Click') {
@@ -2171,6 +2178,7 @@ export async function writeKeymapToDevice(layers: Layer[], dirtyKeys?: Set<strin
     if (!behByType['usb_sel'] && n === 'usb slot select') behByType['usb_sel'] = id;
     if (!behByType['out'] && (n === 'output selection' || n === 'out')) behByType['out'] = id;
     if (!behByType['aml_tog'] && (n === 'toggle aml' || n === 'aml_tog')) behByType['aml_tog'] = id;
+    if (!behByType['pinch_zm'] && (n === 'pinch zoom' || n === 'pinch_zm')) behByType['pinch_zm'] = id;
   };
   // From raw bindings first (most reliable)
   for (const [, raw] of Object.entries(rawBindings)) {
@@ -2253,6 +2261,8 @@ export async function writeKeymapToDevice(layers: Layer[], dirtyKeys?: Set<strin
             behaviorId = behByType["boot"] ?? 0;
           } else if (binding.keyCode === 'AML_TOG') {
             behaviorId = behByType["aml_tog"] ?? 0;
+          } else if (binding.keyCode === 'PINCH_ZOOM') {
+            behaviorId = behByType["pinch_zm"] ?? 0;
           } else if (binding.keyCode?.startsWith('mkp') || binding.keyCode?.startsWith('KC_BTN') ||
                      binding.label?.startsWith('MB') || binding.label === 'Click' || binding.label === 'R Click' || binding.label === 'M Click') {
             behaviorId = behByType["mkp"] ?? 0;

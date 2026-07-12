@@ -127,6 +127,7 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, conn
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {[
+                { v: '0.26.0.0', at: '2026-07-13 JST', changes: ['ピンチズームを実際に使えるように対応。firmwareに専用behavior「&pinch_zm」(display-name: Pinch Zoom)を新規実装（押下でCtrl保持+scrollレイヤーを一時有効化、離すと両方解除）し、コンボの「デバイス機能」リストおよび通常のKey ConfigのDeviceカテゴリから選択・保存可能に。スリープ(電源オフ)は上流ZMKのdeep sleep issue解決待ちのため引き続き未対応。実機での動作確認はまだ'] },
                 { v: '0.25.2.0', at: '2026-07-13 JST', changes: ['通常のキー設定（Key Config）でも「AML Tog」をDeviceカテゴリから選択できるように対応。コンボ限定だった&aml_togバインドが、普通のキーにも割り当て可能に'] },
                 { v: '0.25.1.0', at: '2026-07-13 JST', changes: ['「デバイス機能」を専用リスト（ピンチズーム・AML切替・スリープ）に変更し、AML切替を実際に選択・保存できるように対応（firmwareの&aml_togに接続）。ピンチズーム・スリープは現行firmwareで未実装のため選択不可表示。あわせて、前バージョンで追加したMouse/DeviceカテゴリのキーコードがWrite時に正しいbehaviorへ解決されていなかった不具合を修正'] },
                 { v: '0.25.0.0', at: '2026-07-12 JST', changes: ['コンボ編集画面を強化。BINDING TYPEに「Mouse Button」「デバイス機能」を追加（クリックでOUTPUT KEYのカテゴリ欄も自動でジャンプ）、OUTPUT KEYを単純なテキスト入力からカテゴリ別キーコードピッカー（検索・Letters/Numbers/Mouse/Deviceなど全カテゴリ表示）に変更'] },
