@@ -177,7 +177,15 @@ input:focus { border-color: var(--accent); }
   box-sizing: border-box;
   gap: 22px;
 }
-.center-column .keyboard-half {
+/* .keyboard-half.left/.right (below, for the fixed-size tray-popup
+   minimap in LayerPopup.tsx) sets fixed 48px columns/rows at equal
+   specificity (0,2,0) -- matching its .left/.right qualifiers here so
+   this fluid override always wins regardless of source order, instead of
+   silently losing the cascade and leaving each half's grid short of its
+   flex:1 container width (which read as a too-wide gap between the two
+   halves, not a too-narrow grid). */
+.center-column .keyboard-half.left,
+.center-column .keyboard-half.right {
   grid-template-columns: repeat(6, 1fr);
   grid-template-rows: repeat(4, 1fr);
   gap: 3px;
