@@ -27,6 +27,13 @@ const isElectron = typeof window !== 'undefined' && !!(window as any).electronAP
 // A version-less ConductorD-Studio-mac-arm64.dmg is also uploaded to each
 // release for older links.
 const MAC_APP_DOWNLOAD_URL = `https://github.com/jprabadi-ship-it/conductor-keymap-editor/releases/latest/download/ConductorD-Studio-${version}-mac-arm64.dmg`;
+// Firmware is a separate repo/artifact from Studio itself, so unlike the Mac
+// app link above this isn't gated on !isElectron -- both builds need it.
+// The "firmware-latest" release is republished in place by conductor-dongle's
+// CI on every green push to a release/conductor-* branch (see build.yml's
+// "Publish Firmware Release" job), so this URL always points at the newest
+// build without needing a version number here.
+const FIRMWARE_DOWNLOAD_URL = 'https://github.com/jprabadi-ship-it/conductor/releases/latest/download/ConductorD-firmware-latest.zip';
 
 export function Header({ store, showConsole, onToggleConsole, usbConnected, connectionType, onConnectionChange, unsaved, onWrite, wroteToDevice, onRead, onSave }: Props) {
   const [showExport, setShowExport] = useState(false);
@@ -127,6 +134,7 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, conn
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {[
+                { v: '0.26.3.0', at: '2026-07-13 JST', changes: ['ヘッダーに「FWダウンロード」ボタンを追加。conductor-dongle側のCIがrelease/conductor-*ブランチへのpush毎に自動更新するfirmware-latest（dongle/L/R/settings_reset一式のzip）へのリンク。Macアプリダウンロードと違い、Web版・Electron版どちらでも常時表示'] },
                 { v: '0.26.2.0', at: '2026-07-13 JST', changes: ['Write時に「Save failed: Response timeout」でFlash保存が失敗して見える不具合を修正。firmware側のsaveChangesは変更したキー1つずつを直列でsettings保存するため、変更点が多いとUSB接続時の5秒タイムアウトを実際の保存時間が超えることがあった（デバイス側は正常に保存し続けているのに、クライアントが先に諦めていた）。該当RPCのタイムアウトを20秒に延長'] },
                 { v: '0.26.1.0', at: '2026-07-13 JST', changes: ['Write失敗時にトーストが一切出ず無反応に見えていた不具合を修正。デバイス書き込み・Flash保存が失敗、または例外が発生した場合にエラートーストを表示するように変更（従来は成功時のトーストのみで、失敗時は完全に無音だった）。詳細はヘッダーの「>_」デバッグコンソールで確認可能'] },
                 { v: '0.26.0.0', at: '2026-07-13 JST', changes: ['ピンチズームを実際に使えるように対応。firmwareに専用behavior「&pinch_zm」(display-name: Pinch Zoom)を新規実装（押下でCtrl保持+scrollレイヤーを一時有効化、離すと両方解除）し、コンボの「デバイス機能」リストおよび通常のKey ConfigのDeviceカテゴリから選択・保存可能に。スリープ(電源オフ)は上流ZMKのdeep sleep issue解決待ちのため引き続き未対応。実機での動作確認はまだ'] },
@@ -323,6 +331,11 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, conn
           <span>⬇</span> Macアプリダウンロード
         </a>
       )}
+
+      <a className="header-action-btn" href={FIRMWARE_DOWNLOAD_URL} style={{ textDecoration: 'none' }}
+        title="最新のFW一式（dongle/L/R/settings_reset）をzipでダウンロード">
+        <span>⬇</span> FWダウンロード
+      </a>
 
       <div className="btn-group">
         <button
