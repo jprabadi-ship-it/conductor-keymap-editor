@@ -127,6 +127,7 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, conn
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {[
+                { v: '0.26.2.0', at: '2026-07-13 JST', changes: ['Write時に「Save failed: Response timeout」でFlash保存が失敗して見える不具合を修正。firmware側のsaveChangesは変更したキー1つずつを直列でsettings保存するため、変更点が多いとUSB接続時の5秒タイムアウトを実際の保存時間が超えることがあった（デバイス側は正常に保存し続けているのに、クライアントが先に諦めていた）。該当RPCのタイムアウトを20秒に延長'] },
                 { v: '0.26.1.0', at: '2026-07-13 JST', changes: ['Write失敗時にトーストが一切出ず無反応に見えていた不具合を修正。デバイス書き込み・Flash保存が失敗、または例外が発生した場合にエラートーストを表示するように変更（従来は成功時のトーストのみで、失敗時は完全に無音だった）。詳細はヘッダーの「>_」デバッグコンソールで確認可能'] },
                 { v: '0.26.0.0', at: '2026-07-13 JST', changes: ['ピンチズームを実際に使えるように対応。firmwareに専用behavior「&pinch_zm」(display-name: Pinch Zoom)を新規実装（押下でCtrl保持+scrollレイヤーを一時有効化、離すと両方解除）し、コンボの「デバイス機能」リストおよび通常のKey ConfigのDeviceカテゴリから選択・保存可能に。スリープ(電源オフ)は上流ZMKのdeep sleep issue解決待ちのため引き続き未対応。実機での動作確認はまだ'] },
                 { v: '0.25.2.0', at: '2026-07-13 JST', changes: ['通常のキー設定（Key Config）でも「AML Tog」をDeviceカテゴリから選択できるように対応。コンボ限定だった&aml_togバインドが、普通のキーにも割り当て可能に'] },

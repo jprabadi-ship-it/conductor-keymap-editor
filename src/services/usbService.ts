@@ -335,7 +335,7 @@ function handleFrame(data: Uint8Array) {
   }
 }
 
-async function sendRequest(payload: Record<string, unknown>): Promise<any> {
+async function sendRequest(payload: Record<string, unknown>, minTimeoutMs?: number): Promise<any> {
   const viaBle = bleChar !== null;
   if (!writer && !viaBle) throw new Error('Not connected');
   initProto();
@@ -347,8 +347,10 @@ async function sendRequest(payload: Record<string, unknown>): Promise<any> {
 
   // BLE responses arrive as ~27-byte GATT indications (each acked per conn
   // interval), so large replies like getKeymap take seconds -- give BLE a
-  // much longer deadline than the serial transport.
-  const timeoutMs = viaBle ? 30000 : 5000;
+  // much longer deadline than the serial transport. minTimeoutMs raises the
+  // floor further for RPCs known to be slow on the firmware side (e.g.
+  // saveChanges, which does one blocking settings_save_one() per dirty key).
+  const timeoutMs = Math.max(viaBle ? 30000 : 5000, minTimeoutMs ?? 0);
 
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
@@ -957,7 +959,12 @@ export async function setLayerProps(layerId: number, name: string, colorIndex?: 
 export async function saveChanges(): Promise<boolean> {
   try {
     debugLog('INF', 'USB', 'Saving changes to device flash...');
-    const resp = await sendRequest({ keymap: { saveChanges: true } });
+    // Firmware writes one settings_save_one() per dirty key, fully serially
+    // (see zmk/app/src/keymap.c's save_bindings()) -- a large diff can easily
+    // exceed the default 5s serial timeout even though the device is still
+    // working, not stuck. 20s floor gives that room without weakening BLE's
+    // already-larger default.
+    const resp = await sendRequest({ keymap: { saveChanges: true } }, 20000);
     const saveResp = resp.keymap?.saveChanges;
     if (saveResp?.err !== undefined && saveResp?.err !== null && saveResp.err !== 0) {
       const errNames: Record<number, string> = { 1: 'GENERIC', 2: 'NOT_SUPPORTED', 3: 'NO_SPACE' };
