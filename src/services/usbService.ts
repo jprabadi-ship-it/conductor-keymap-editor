@@ -2,6 +2,8 @@ import protobuf from 'protobufjs';
 import { debugLog } from '../components/DebugConsole';
 import protoJson from '../data/zmk-studio-proto.json';
 import { keyIdsToPositions, positionsToKeyIds } from '../data/layout';
+import type { DeviceSettingsSnapshot, KeyBinding, Layer } from '../types';
+import { LED_COLORS } from '../types';
 
 const SOF = 171;
 const EOF = 173;
@@ -387,6 +389,9 @@ export interface RuntimeBatteryState {
   peripheralL: number | null; // slot 1
   charging: boolean;
   highestLayer: number;
+  activeOs?: number;
+  osProfileEnabled?: boolean;
+  activeLayersBitmask?: number;
 }
 
 const UNKNOWN_BATTERY = 255;
@@ -405,6 +410,9 @@ export async function getRuntimeState(): Promise<RuntimeBatteryState | null> {
       peripheralL: normalizeBattery(rs.batteryPeripheralL),
       charging: !!rs.charging,
       highestLayer: rs.highestLayer ?? 0,
+      activeOs: rs.activeOs ?? 0,
+      osProfileEnabled: !!rs.osProfileEnabled,
+      activeLayersBitmask: rs.activeLayersBitmask ?? 0,
     };
   } catch (e: any) {
     debugLog('ERR', 'USB', `getRuntimeState failed: ${e.message}`);
@@ -1011,6 +1019,17 @@ export async function setBleProfileName(profileIndex: number, name: string): Pro
   }
 }
 
+export async function setActiveBleProfile(profileIndex: number): Promise<boolean> {
+  try {
+    await sendRequest({ core: { setActiveBleProfile: { profileIndex } } });
+    debugLog('INF', 'USB', `Active BT profile set to ${profileIndex}`);
+    return true;
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `setActiveBleProfile failed: ${e.message}`);
+    return false;
+  }
+}
+
 // USB has no ZMK-native "profile" concept (unlike BLE), so it gets 5
 // software-selected virtual slots (see conductor_usb_slot.h on the firmware
 // side) mirroring the 5 BLE profiles, switched on-device via &usb_sel.
@@ -1039,7 +1058,16 @@ export async function setUsbSlotName(slotIndex: number, name: string): Promise<b
   }
 }
 
-import { Layer, KeyBinding, LED_COLORS } from '../types';
+export async function setActiveUsbSlot(slotIndex: number): Promise<boolean> {
+  try {
+    await sendRequest({ core: { setActiveUsbSlot: { slotIndex } } });
+    debugLog('INF', 'USB', `Active USB slot set to ${slotIndex}`);
+    return true;
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `setActiveUsbSlot failed: ${e.message}`);
+    return false;
+  }
+}
 
 // Pointing (trackball) APIs
 export async function getSensitivity(): Promise<{ cpi: number; cursorNum: number; cursorDen: number; scrollNum: number; scrollDen: number; scrollInverted: boolean } | null> {
@@ -1310,6 +1338,246 @@ export async function setOsConfig(enabled: boolean, osMap: number[]): Promise<bo
     debugLog('ERR', 'USB', `setOsConfig failed: ${e.message}`);
     return false;
   }
+}
+
+export async function collectDeviceSettingsSnapshot(): Promise<DeviceSettingsSnapshot> {
+  const [
+    device,
+    tappingTerm,
+    bluetoothProfiles,
+    usbSlots,
+    sensitivity,
+    autoLayer,
+    precisionScale,
+    accel,
+    inertia,
+    dragScale,
+    osConfig,
+    gestureConfig,
+  ] = await Promise.all([
+    getDeviceInfo(),
+    getTappingTerm(),
+    getBleProfiles(),
+    getUsbSlots(),
+    getSensitivity(),
+    getAutoLayer(),
+    getPrecisionScale(),
+    getAccel(),
+    getInertia(),
+    getDragScale(),
+    getOsConfig(),
+    getGestureConfig(),
+  ]);
+
+  const snapshot: DeviceSettingsSnapshot = {
+    schemaVersion: 1,
+    exportedAt: new Date().toISOString(),
+  };
+
+  if (device) snapshot.device = device;
+  if (tappingTerm !== null) snapshot.tappingTerm = tappingTerm;
+  if (bluetoothProfiles) snapshot.bluetoothProfiles = bluetoothProfiles;
+  if (usbSlots) snapshot.usbSlots = usbSlots;
+  if (sensitivity || autoLayer || precisionScale || accel || inertia || dragScale) {
+    snapshot.trackball = {};
+    if (sensitivity && !(usbSlots || bluetoothProfiles)) snapshot.trackball.sensitivity = sensitivity;
+    if (autoLayer) snapshot.trackball.autoLayer = autoLayer;
+    if (precisionScale && !(usbSlots || bluetoothProfiles)) snapshot.trackball.precisionScale = precisionScale;
+    if (accel && !(usbSlots || bluetoothProfiles)) snapshot.trackball.accel = accel;
+    if (inertia && !(usbSlots || bluetoothProfiles)) snapshot.trackball.inertia = inertia;
+    if (dragScale && !(usbSlots || bluetoothProfiles)) snapshot.trackball.dragScale = dragScale;
+  }
+
+  if (usbSlots || bluetoothProfiles) {
+    const usbCount = usbSlots?.slots?.length ?? 0;
+    const btCount = bluetoothProfiles?.profiles?.length ?? 0;
+    const total = usbCount + btCount;
+    const profiles: NonNullable<DeviceSettingsSnapshot['trackballProfiles']>['profiles'] = [];
+    const originalEndpoint = osConfig?.activeEndpoint ?? gestureConfig?.activeEndpoint ?? 0;
+
+    for (let slotIndex = 0; slotIndex < total; slotIndex++) {
+      const selected = slotIndex < usbCount
+        ? await setActiveUsbSlot(slotIndex)
+        : await setActiveBleProfile(slotIndex - usbCount);
+      if (!selected) {
+        profiles[slotIndex] = {};
+        continue;
+      }
+      const [slotSensitivity, slotPrecisionScale, slotAccel, slotInertia, slotDragScale] = await Promise.all([
+        getSensitivity(),
+        getPrecisionScale(),
+        getAccel(),
+        getInertia(),
+        getDragScale(),
+      ]);
+      profiles[slotIndex] = {};
+      if (slotSensitivity) profiles[slotIndex].sensitivity = slotSensitivity;
+      if (slotPrecisionScale) profiles[slotIndex].precisionScale = slotPrecisionScale;
+      if (slotAccel) profiles[slotIndex].accel = slotAccel;
+      if (slotInertia) profiles[slotIndex].inertia = slotInertia;
+      if (slotDragScale) profiles[slotIndex].dragScale = slotDragScale;
+    }
+
+    if (originalEndpoint < usbCount) {
+      await setActiveUsbSlot(originalEndpoint);
+    } else if (originalEndpoint < total) {
+      await setActiveBleProfile(originalEndpoint - usbCount);
+    }
+
+    snapshot.trackballProfiles = {
+      conductorSlotCount: total,
+      profiles,
+    };
+  }
+
+  if (osConfig) snapshot.osConfig = osConfig;
+  if (gestureConfig) snapshot.gestureConfig = gestureConfig;
+
+  debugLog('INF', 'USB', 'Device settings snapshot collected');
+  return snapshot;
+}
+
+export async function applyDeviceSettingsSnapshot(snapshot: DeviceSettingsSnapshot): Promise<boolean> {
+  if (!isConnected()) {
+    debugLog('WRN', 'USB', 'Device settings import skipped: no device connected');
+    return false;
+  }
+  if (!isUnlocked() && !(await requestUnlock())) {
+    debugLog('ERR', 'USB', 'Device settings import failed: device is locked');
+    return false;
+  }
+
+  let ok = true;
+  const remember = async (label: string, action: Promise<boolean>) => {
+    const result = await action;
+    if (!result) {
+      ok = false;
+      debugLog('WRN', 'USB', `Device settings import step failed: ${label}`);
+    }
+    return result;
+  };
+
+  if (snapshot.tappingTerm !== undefined) {
+    await remember('tapping term', setTappingTerm(snapshot.tappingTerm));
+  }
+
+  if (snapshot.bluetoothProfiles?.profiles) {
+    for (let i = 0; i < snapshot.bluetoothProfiles.profiles.length; i++) {
+      const name = snapshot.bluetoothProfiles.profiles[i]?.name;
+      if (name !== undefined) await remember(`BT profile ${i} name`, setBleProfileName(i, name));
+    }
+  }
+
+  if (snapshot.usbSlots?.slots) {
+    for (let i = 0; i < snapshot.usbSlots.slots.length; i++) {
+      const name = snapshot.usbSlots.slots[i]?.name;
+      if (name !== undefined) await remember(`USB slot ${i} name`, setUsbSlotName(i, name));
+    }
+    if (snapshot.usbSlots.activeIndex !== undefined) {
+      debugLog('WRN', 'USB', 'USB active slot is recorded in the JSON, but current firmware has no RPC to restore it');
+    }
+  }
+
+  const trackball = snapshot.trackball;
+  const trackballProfiles = snapshot.trackballProfiles;
+  const hasTrackballProfiles = !!trackballProfiles?.profiles?.length;
+  if (!hasTrackballProfiles && trackball?.sensitivity) {
+    const s = trackball.sensitivity;
+    await remember('trackball sensitivity', setSensitivity(s.cpi, s.scrollNum, s.scrollDen, s.scrollInverted));
+  }
+  if (trackball?.autoLayer) {
+    const a = trackball.autoLayer;
+    await remember('AML', setAutoLayer(a.enabled, a.requirePriorIdleMs, a.excludedPositions, a.motionThreshold, a.durationMs));
+  }
+  if (!hasTrackballProfiles && trackball?.precisionScale) {
+    const p = trackball.precisionScale;
+    await remember('precision scale', setPrecisionScale(p.numerator, p.denominator));
+  }
+  if (!hasTrackballProfiles && trackball?.accel) {
+    const a = trackball.accel;
+    await remember('accel', setAccel(a.enabled, a.maxMilli, a.threshold, a.range));
+  }
+  if (!hasTrackballProfiles && trackball?.inertia) {
+    const i = trackball.inertia;
+    await remember('inertia', setInertia(i.enabled, i.decayMilli, i.startSpeed));
+  }
+  if (!hasTrackballProfiles && trackball?.dragScale) {
+    const d = trackball.dragScale;
+    await remember('drag scale', setDragScale(d.enabled, d.numerator, d.denominator));
+  }
+
+  if (trackballProfiles?.profiles?.length) {
+    const usbCount = snapshot.usbSlots?.slots?.length ?? 0;
+    const btCount = snapshot.bluetoothProfiles?.profiles?.length ?? 0;
+    const total = Math.min(trackballProfiles.profiles.length, usbCount + btCount);
+    const originalEndpoint = snapshot.osConfig?.activeEndpoint ?? snapshot.gestureConfig?.activeEndpoint ?? 0;
+
+    for (let slotIndex = 0; slotIndex < total; slotIndex++) {
+      const selected = slotIndex < usbCount
+        ? await remember(`select USB slot ${slotIndex}`, setActiveUsbSlot(slotIndex))
+        : await remember(`select BT profile ${slotIndex - usbCount}`, setActiveBleProfile(slotIndex - usbCount));
+      if (!selected) continue;
+      const profile = trackballProfiles.profiles[slotIndex];
+      if (profile?.sensitivity) {
+        const s = profile.sensitivity;
+        await remember(`trackball sensitivity ${slotIndex}`, setSensitivity(s.cpi, s.scrollNum, s.scrollDen, s.scrollInverted));
+      }
+      if (profile?.precisionScale) {
+        const p = profile.precisionScale;
+        await remember(`precision scale ${slotIndex}`, setPrecisionScale(p.numerator, p.denominator));
+      }
+      if (profile?.accel) {
+        const a = profile.accel;
+        await remember(`accel ${slotIndex}`, setAccel(a.enabled, a.maxMilli, a.threshold, a.range));
+      }
+      if (profile?.inertia) {
+        const i = profile.inertia;
+        await remember(`inertia ${slotIndex}`, setInertia(i.enabled, i.decayMilli, i.startSpeed));
+      }
+      if (profile?.dragScale) {
+        const d = profile.dragScale;
+        await remember(`drag scale ${slotIndex}`, setDragScale(d.enabled, d.numerator, d.denominator));
+      }
+      await remember(`save pointing ${slotIndex}`, saveChanges());
+    }
+
+    if (originalEndpoint < usbCount) {
+      await remember('restore active USB slot', setActiveUsbSlot(originalEndpoint));
+    } else if (originalEndpoint < usbCount + btCount) {
+      await remember('restore active BT profile', setActiveBleProfile(originalEndpoint - usbCount));
+    }
+  }
+
+  if (snapshot.osConfig) {
+    await remember('per-device keymap overlay', setOsConfig(snapshot.osConfig.enabled, snapshot.osConfig.osMap));
+  }
+
+  if (snapshot.gestureConfig) {
+    await remember('gesture enabled', setGestureEnabled(snapshot.gestureConfig.enabled));
+    const directions = 4;
+    for (let i = 0; i < snapshot.gestureConfig.hasOverride.length; i++) {
+      const endpointIndex = Math.floor(i / directions);
+      const direction = i % directions;
+      const hasOverride = snapshot.gestureConfig.hasOverride[i];
+      const binding = snapshot.gestureConfig.overrides[i];
+      if (hasOverride && binding) {
+        await remember(`gesture ${endpointIndex}:${direction}`, setGestureBinding(endpointIndex, direction, false, binding));
+      } else {
+        await remember(`gesture ${endpointIndex}:${direction}`, setGestureBinding(endpointIndex, direction, true));
+      }
+    }
+  }
+
+  if (
+    snapshot.tappingTerm !== undefined ||
+    trackball?.autoLayer ||
+    (!hasTrackballProfiles && (trackball?.sensitivity || trackball?.precisionScale || trackball?.accel || trackball?.inertia || trackball?.dragScale))
+  ) {
+    await remember('save changes', saveChanges());
+  }
+
+  debugLog(ok ? 'INF' : 'WRN', 'USB', ok ? 'Device settings imported' : 'Device settings import completed with warnings');
+  return ok;
 }
 
 // --- Macro RPC ---

@@ -1,13 +1,26 @@
 import { useEffect, useState } from 'react';
-import { connectUsb, disconnectUsb, connectBle, disconnectBle, getRuntimeState, RuntimeBatteryState } from '../../services/usbService';
+import { connectUsb, disconnectUsb, connectBle, disconnectBle, getRuntimeState, RuntimeBatteryState, getBleProfiles, getUsbSlots, getOsConfig, getDeviceInfo } from '../../services/usbService';
 
 interface Props {
   connected: boolean;
   connectionType: 'usb' | 'bluetooth' | null;
   onConnectionChange: (connected: boolean, type: 'usb' | 'bluetooth' | null) => void;
+  compact?: boolean;
 }
 
 const BATTERY_POLL_MS = 30000;
+
+type HealthState = {
+  deviceName: string | null;
+  firmwareVersion: string | null;
+  runtime: RuntimeBatteryState | null;
+  bleActiveIndex: number | null;
+  bleActiveName: string | null;
+  usbActiveIndex: number | null;
+  usbActiveName: string | null;
+  osProfileEnabled: boolean | null;
+  activeOs: number | null;
+};
 
 function BatteryPill({ label, value, charging }: { label: string; value: number | null; charging?: boolean }) {
   const color = value === null ? 'var(--text-muted)' : value <= 20 ? 'var(--danger)' : 'var(--text-secondary)';
@@ -21,8 +34,8 @@ function BatteryPill({ label, value, charging }: { label: string; value: number 
   );
 }
 
-export function ConnectionPanel({ connected, connectionType, onConnectionChange }: Props) {
-  const [battery, setBattery] = useState<RuntimeBatteryState | null>(null);
+export function ConnectionPanel({ connected, connectionType, onConnectionChange, compact = false }: Props) {
+  const [health, setHealth] = useState<HealthState | null>(null);
 
   // Electron only: the serial port is exclusive, so if the tray popup holds
   // its own connection, ask it to let go before Studio connects, and hand
@@ -61,18 +74,83 @@ export function ConnectionPanel({ connected, connectionType, onConnectionChange 
   // read on connect plus a slow refresh is enough for a comfort indicator.
   useEffect(() => {
     if (!connected) {
-      setBattery(null);
+      setHealth(null);
       return;
     }
     let cancelled = false;
     const poll = async () => {
-      const state = await getRuntimeState();
-      if (!cancelled && state) setBattery(state);
+      const [device, runtime, bleProfiles, usbSlots, osConfig] = await Promise.all([
+        getDeviceInfo(),
+        getRuntimeState(),
+        getBleProfiles(),
+        getUsbSlots(),
+        getOsConfig(),
+      ]);
+      if (cancelled) return;
+      setHealth({
+        deviceName: device?.name ?? null,
+        firmwareVersion: device?.firmwareVersion ?? null,
+        runtime,
+        bleActiveIndex: bleProfiles?.activeIndex ?? null,
+        bleActiveName: bleProfiles?.activeIndex !== undefined ? (bleProfiles.profiles[bleProfiles.activeIndex]?.name ?? null) : null,
+        usbActiveIndex: usbSlots?.activeIndex ?? null,
+        usbActiveName: usbSlots?.activeIndex !== undefined ? (usbSlots.slots[usbSlots.activeIndex]?.name ?? null) : null,
+        osProfileEnabled: osConfig?.enabled ?? runtime?.osProfileEnabled ?? null,
+        activeOs: osConfig?.activeOs ?? runtime?.activeOs ?? null,
+      });
     };
     poll();
     const interval = setInterval(poll, BATTERY_POLL_MS);
     return () => { cancelled = true; clearInterval(interval); };
   }, [connected]);
+
+  const statusText = (value: number | null) => value === null ? 'offline' : 'online';
+  const slotText = (kind: 'BLE' | 'USB', index: number | null, name: string | null) =>
+    index === null ? '--' : `${kind}${index}${name ? ` (${name})` : ''}`;
+
+  if (compact) {
+    return (
+      <div className="connection-panel connection-panel-compact">
+        <div className="connection-status" style={{ marginBottom: 0 }}>
+          <span className={`status-dot ${connected ? 'connected' : ''}`} />
+          <span>{connected ? `${connectionType === 'bluetooth' ? 'BLE' : 'USB'} Connected` : 'Disconnected'}</span>
+        </div>
+
+        {connected && health?.runtime && (
+          <div className="connection-compact-health">
+            <BatteryPill label="L" value={health.runtime.peripheralL} />
+            <BatteryPill label="D" value={health.runtime.central} charging={health.runtime.charging} />
+            <BatteryPill label="R" value={health.runtime.peripheralR} />
+            <div className="connection-compact-meta">
+              <div>{health.deviceName || 'Conductor'}{health.firmwareVersion ? ` / ${health.firmwareVersion}` : ''}</div>
+              <div>
+                {connectionType === 'bluetooth'
+                  ? slotText('BLE', health.bleActiveIndex, health.bleActiveName)
+                  : slotText('USB', health.usbActiveIndex, health.usbActiveName)}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="connection-compact-actions">
+          {(!connected || connectionType === 'usb') && (
+            <button className="connect-btn connect-btn-usb" onClick={handleUsbConnect}>
+              ⚡ {connected && connectionType === 'usb' ? 'Disconnect USB' : 'Connect USB'}
+            </button>
+          )}
+          {(!connected || connectionType === 'bluetooth') && (
+            <button
+              className="connect-btn connect-btn-usb"
+              onClick={handleBleConnect}
+              style={{ background: 'var(--info)' }}
+            >
+              ᛒ {connected && connectionType === 'bluetooth' ? 'Disconnect BLE' : 'Connect BLE'}
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="connection-panel">
@@ -85,11 +163,48 @@ export function ConnectionPanel({ connected, connectionType, onConnectionChange 
         <span>{connected ? `Connected (${connectionType === 'bluetooth' ? 'BLE' : 'USB'})` : 'Disconnected'}</span>
       </div>
 
-      {connected && battery && (
-        <div style={{ display: 'flex', justifyContent: 'space-around', margin: '8px 0', padding: '8px 0', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
-          <BatteryPill label="L" value={battery.peripheralL} />
-          <BatteryPill label="Dongle" value={battery.central} charging={battery.charging} />
-          <BatteryPill label="R" value={battery.peripheralR} />
+      {connected && health?.runtime && (
+        <div style={{ margin: '8px 0', padding: '8px 0', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-around', marginBottom: 8 }}>
+            <BatteryPill label="L" value={health.runtime.peripheralL} />
+            <BatteryPill label="Dongle" value={health.runtime.central} charging={health.runtime.charging} />
+            <BatteryPill label="R" value={health.runtime.peripheralR} />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 11, color: 'var(--text-secondary)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+              <span>Device</span>
+              <span style={{ color: 'var(--text-primary)', textAlign: 'right' }}>{health.deviceName || 'Conductor'}{health.firmwareVersion ? ` / ${health.firmwareVersion}` : ''}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+              <span>Active Output</span>
+              <span style={{ color: 'var(--text-primary)', textAlign: 'right' }}>
+                {connectionType === 'bluetooth'
+                  ? slotText('BLE', health.bleActiveIndex, health.bleActiveName)
+                  : slotText('USB', health.usbActiveIndex, health.usbActiveName)}
+              </span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+              <span>Peripherals</span>
+              <span style={{ color: 'var(--text-primary)', textAlign: 'right' }}>
+                L {statusText(health.runtime.peripheralL)} / R {statusText(health.runtime.peripheralR)}
+              </span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+              <span>Layer State</span>
+              <span style={{ color: 'var(--text-primary)', textAlign: 'right' }}>
+                highest={health.runtime.highestLayer} mask=0x{(health.runtime.activeLayersBitmask ?? 0).toString(16)}
+              </span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+              <span>OS Profile</span>
+              <span style={{ color: 'var(--text-primary)', textAlign: 'right' }}>
+                {(health.osProfileEnabled ? 'ON' : 'OFF')}{health.activeOs !== null ? ` / active=${health.activeOs}` : ''}
+              </span>
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
+              last-received と peripheralごとの layer sync は、現行 firmware ではまだ Studio へ露出していません。
+            </div>
+          </div>
         </div>
       )}
 

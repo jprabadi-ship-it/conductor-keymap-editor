@@ -1,13 +1,16 @@
 import { useState, useRef } from 'react';
 import { version } from '../../../package.json';
 import { KeymapStore } from '../../store/useKeymapStore';
-import { setKeyboardLayout } from '../../services/usbService';
+import { applyDeviceSettingsSnapshot, collectDeviceSettingsSnapshot, setKeyboardLayout } from '../../services/usbService';
+import { ConnectionPanel } from '../LeftPanel/ConnectionPanel';
 
 interface Props {
   store: KeymapStore;
   showConsole: boolean;
   onToggleConsole: () => void;
   usbConnected: boolean;
+  connectionType: 'usb' | 'bluetooth' | null;
+  onConnectionChange: (connected: boolean, type: 'usb' | 'bluetooth' | null) => void;
   unsaved: boolean;
   onWrite: () => void;
   wroteToDevice?: boolean;
@@ -25,14 +28,17 @@ const isElectron = typeof window !== 'undefined' && !!(window as any).electronAP
 // release for older links.
 const MAC_APP_DOWNLOAD_URL = `https://github.com/jprabadi-ship-it/conductor-keymap-editor/releases/latest/download/ConductorD-Studio-${version}-mac-arm64.dmg`;
 
-export function Header({ store, showConsole, onToggleConsole, usbConnected, unsaved, onWrite, wroteToDevice, onRead, onSave }: Props) {
+export function Header({ store, showConsole, onToggleConsole, usbConnected, connectionType, onConnectionChange, unsaved, onWrite, wroteToDevice, onRead, onSave }: Props) {
   const [showExport, setShowExport] = useState(false);
   const [showChangelog, setShowChangelog] = useState(false);
   const [theme, setTheme] = useState(() => localStorage.getItem('conductor-theme') || 'light');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleExport = () => {
+  const handleExport = async () => {
     const data = store.exportProject();
+    if (usbConnected) {
+      data.deviceSettings = await collectDeviceSettingsSnapshot();
+    }
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -52,7 +58,7 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, unsa
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (ev) => {
+    reader.onload = async (ev) => {
       try {
         const data = JSON.parse(ev.target?.result as string);
         if (data.version === 2 && data.layers && Array.isArray(data.layers)) {
@@ -82,6 +88,10 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, unsa
         } else if (data.layers) {
           store.importProject(data);
           if (data.osLayout) setKeyboardLayout(data.osLayout);
+          if (data.deviceSettings && usbConnected) {
+            const ok = await applyDeviceSettingsSnapshot(data.deviceSettings);
+            if (!ok) alert('一部の実機設定を復元できませんでした。Debug Consoleを確認してください。');
+          }
         }
       } catch (err) {
         console.error('Import failed:', err);
@@ -109,6 +119,9 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, unsa
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {[
+                { v: '0.20.8.0', at: '2026-07-12 JST', changes: ['接続パネルに dongle connection health 表示を追加。active output、L/R online 状態、battery、layer state、OS profile を接続直下で確認可能にし、未露出の last-received / layer sync は未対応と明示'] },
+                { v: '0.20.7.0', at: '2026-07-12 JST', changes: ['右ペインに「診断」タブを追加。接続中の実機から device info、レイヤー状態、バッテリー、AML、トラックボール設定、BT/USBスロット、デバイス別キーマップ/ジェスチャ設定を一覧表示'] },
+                { v: '0.20.6.0', at: '2026-07-12 JST', changes: ['Export .json / Import .json が、接続中の実機設定（トラックボール、AML、デバイス別キーマップ、デバイス別ジェスチャ、BT/USB名など）もバックアップ・復元するように変更'] },
                 { v: '0.20.5.0', at: '2026-07-12 JST', changes: ['シリアル/Bluetoothのポート選択ダイアログを、接続操作をしたウィンドウ（ミニマップ等）にシート表示するように変更（別ディスプレイに出る問題を解消）'] },
                 { v: '0.20.4.0', at: '2026-07-12 JST', changes: ['ダウンロードされるDMGのファイル名にバージョン番号を含めるように変更'] },
                 { v: '0.20.3.0', at: '2026-07-12 JST', changes: ['ミニマップの切断ボタンをmac風の✕ボタン（左上）に変更、未接続時も閉じるボタンとして機能', 'StudioでWrite成功後、ヘッダーに「ミニマップを起動」ボタンを表示（ミニマップを出してStudioを片付ける・接続は維持）'] },
@@ -243,6 +256,13 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, unsa
 
       <div className="header-spacer" />
 
+      <ConnectionPanel
+        connected={usbConnected}
+        connectionType={connectionType}
+        onConnectionChange={onConnectionChange}
+        compact
+      />
+
       {/* USB connection status & device actions */}
       {usbConnected && (
         <>
@@ -328,11 +348,11 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, unsa
           <div className="export-dropdown">
             <button className="export-item" onClick={handleExport}>
               <span className="export-item-title">Export .json</span>
-              <span className="export-item-desc">Full project (layers + combos + macros)</span>
+              <span className="export-item-desc">Full project + device settings</span>
             </button>
             <button className="export-item" onClick={handleImport}>
               <span className="export-item-title">Import .json</span>
-              <span className="export-item-desc">Load saved project file</span>
+              <span className="export-item-desc">Load project and restore device settings</span>
             </button>
           </div>
         )}

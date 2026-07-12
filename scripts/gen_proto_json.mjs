@@ -1,7 +1,7 @@
 import protobuf from 'protobufjs';
 import path from 'path';
 
-const protoDir = '/Users/miyashitakazuya/zmk-studio-messages/proto/zmk';
+const protoDir = '/Users/miyashitakazuya/conductor-dongle/modules/msgs/zmk-studio-messages/proto/zmk';
 const root = new protobuf.Root();
 root.resolvePath = (origin, target) => {
   if (path.isAbsolute(target)) return target;

@@ -75,7 +75,7 @@ export interface Macro {
 
 export type OsLayout = 'us' | 'jis';
 
-export type RightPanelTab = 'key-config' | 'trackball' | 'timing' | 'bluetooth' | 'macro-edit';
+export type RightPanelTab = 'key-config' | 'trackball' | 'timing' | 'bluetooth' | 'diagnostics' | 'macro-edit';
 export type LeftPanelTab = 'layers' | 'combos' | 'macros';
 
 export interface KeymapProject {
@@ -87,4 +87,113 @@ export interface KeymapProject {
   gestures: GestureShortcut[];
   bluetoothProfiles: BluetoothProfile[];
   amlExcluded?: string[];
+  deviceSettings?: DeviceSettingsSnapshot;
+}
+
+export interface GestureBindingSnapshot {
+  behaviorId: number;
+  param1: number;
+  param2: number;
+}
+
+export interface DeviceSettingsSnapshot {
+  schemaVersion: 1;
+  exportedAt: string;
+  device?: {
+    name?: string;
+    firmwareVersion?: string;
+  };
+  tappingTerm?: number;
+  bluetoothProfiles?: {
+    profiles: { name: string; connected?: boolean }[];
+    activeIndex?: number;
+  };
+  usbSlots?: {
+    slots: { name: string }[];
+    activeIndex?: number;
+  };
+  trackball?: {
+    sensitivity?: {
+      cpi: number;
+      cursorNum: number;
+      cursorDen: number;
+      scrollNum: number;
+      scrollDen: number;
+      scrollInverted: boolean;
+    };
+    autoLayer?: {
+      enabled: boolean;
+      requirePriorIdleMs: number;
+      excludedPositions: number[];
+      motionThreshold: number;
+      durationMs: number;
+    };
+    precisionScale?: {
+      numerator: number;
+      denominator: number;
+    };
+    accel?: {
+      enabled: boolean;
+      maxMilli: number;
+      threshold: number;
+      range: number;
+    };
+    inertia?: {
+      enabled: boolean;
+      decayMilli: number;
+      startSpeed: number;
+    };
+    dragScale?: {
+      enabled: boolean;
+      numerator: number;
+      denominator: number;
+    };
+  };
+  trackballProfiles?: {
+    conductorSlotCount: number;
+    profiles: Array<{
+      sensitivity?: {
+        cpi: number;
+        cursorNum: number;
+        cursorDen: number;
+        scrollNum: number;
+        scrollDen: number;
+        scrollInverted: boolean;
+      };
+      precisionScale?: {
+        numerator: number;
+        denominator: number;
+      };
+      accel?: {
+        enabled: boolean;
+        maxMilli: number;
+        threshold: number;
+        range: number;
+      };
+      inertia?: {
+        enabled: boolean;
+        decayMilli: number;
+        startSpeed: number;
+      };
+      dragScale?: {
+        enabled: boolean;
+        numerator: number;
+        denominator: number;
+      };
+    }>;
+  };
+  osConfig?: {
+    enabled: boolean;
+    osMap: number[];
+    endpointCount?: number;
+    activeEndpoint?: number;
+    activeOs?: number;
+  };
+  gestureConfig?: {
+    enabled: boolean;
+    hasOverride: boolean[];
+    overrides: GestureBindingSnapshot[];
+    endpointCount?: number;
+    activeEndpoint?: number;
+  };
 }

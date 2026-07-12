@@ -137,11 +137,12 @@ input:focus { border-color: var(--accent); }
 .header {
   display: flex;
   align-items: center;
-  height: var(--header-height);
+  min-height: var(--header-height);
   padding: 0 12px;
   border-bottom: 1px solid var(--border);
   gap: 8px;
   background: var(--bg-primary);
+  flex-wrap: wrap;
 }
 
 .header-title {
@@ -231,7 +232,8 @@ input:focus { border-color: var(--accent); }
 .btn-group .btn { border-radius: 3px; padding: 4px 10px; }
 
 /* Left Panel */
-.left-panel {
+.left-panel,
+.side-panel {
   border-right: 1px solid var(--border);
   display: flex; flex-direction: column;
   background: var(--bg-primary);
@@ -326,6 +328,53 @@ input:focus { border-color: var(--accent); }
 
 /* Connection panel */
 .connection-panel { padding: 8px; border-top: 1px solid var(--border); }
+.connection-panel-compact {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  border-top: none;
+  min-width: 0;
+}
+.connection-compact-health {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-secondary);
+  min-width: 0;
+}
+.connection-compact-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+.connection-compact-meta > div {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+}
+.connection-compact-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.connection-panel-compact .connect-btn {
+  width: auto;
+  margin-bottom: 0;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+.connection-panel-compact .connection-status {
+  margin-bottom: 0;
+  white-space: nowrap;
+}
 .connection-status {
   display: flex; align-items: center; gap: 6px;
   font-size: 12px; color: var(--text-secondary); margin-bottom: 8px;
@@ -794,6 +843,7 @@ input:focus { border-color: var(--accent); }
   display: none;
 }
 .center-column .keyboard-area,
+.center-column .side-panel,
 .center-column .macro-center-panel,
 .center-column .right-panel {
   flex: none;
@@ -832,6 +882,11 @@ input:focus { border-color: var(--accent); }
 .center-column .right-panel {
   height: auto;
   border-left: none;
+  border-top: 1px solid var(--border);
+}
+.center-column .side-panel {
+  width: 100% !important;
+  border-right: none;
   border-top: 1px solid var(--border);
 }
 

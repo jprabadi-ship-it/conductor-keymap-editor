@@ -1,13 +1,25 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { KeymapStore } from '../../store/useKeymapStore';
-import { isConnected, isUnlocked, requestUnlock, setSensitivity, setAutoLayer, setPrecisionScale, setAccel, getSensitivity, getAutoLayer, getPrecisionScale, getAccel, getInertia, setInertia, getDragScale, setDragScale, saveChanges as savePointingChanges } from '../../services/usbService';
+import { isConnected, isUnlocked, requestUnlock, setSensitivity, setAutoLayer, setPrecisionScale, setAccel, getSensitivity, getAutoLayer, getPrecisionScale, getAccel, getInertia, setInertia, getDragScale, setDragScale, saveChanges as savePointingChanges, getBleProfiles, getUsbSlots, setActiveBleProfile, setActiveUsbSlot, getOsConfig, getGestureConfig } from '../../services/usbService';
 import { KEY_CATEGORIES, KEYCODES, searchKeyCodes } from '../../data/keycodes';
 import { debugLog } from '../DebugConsole';
 import { KEYBOARD_LAYOUT, keyIdsToPositions, positionsToKeyIds } from '../../data/layout';
+import { buildDeviceEntries } from '../../data/devices';
 
 interface Props {
   store: KeymapStore;
 }
+
+type SlotSummary = {
+  endpointIndex: number;
+  label: string;
+  detail: string;
+  cpi?: number;
+  precision?: string;
+  accel?: string;
+  inertia?: string;
+  drag?: string;
+};
 
 const CPI_PRESETS = [200, 400, 600, 800, 1200, 1600, 2400, 3200];
 const SCROLL_PRESETS = [0.25, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0];
@@ -108,56 +120,189 @@ export function TrackballConfig({ store }: Props) {
   const [dragScaleNum, setDragScaleNum] = useState(1);
   const [dragScaleDen, setDragScaleDen] = useState(2);
   const [loaded, setLoaded] = useState(false);
+  const [slotEntries, setSlotEntries] = useState<ReturnType<typeof buildDeviceEntries>>([]);
+  const [selectedEndpoint, setSelectedEndpoint] = useState(0);
+  const [profileTargetLabel, setProfileTargetLabel] = useState<string>('現在の出力先');
+  const [loadingSlot, setLoadingSlot] = useState(false);
+  const [slotSummaries, setSlotSummaries] = useState<SlotSummary[]>([]);
+  const [loadingSummary, setLoadingSummary] = useState(false);
   const [trackballTab, setTrackballTab] = useState<'aml' | 'gesture' | 'cursor' | 'inertia'>('aml');
+
+  const formatEntryLabel = useCallback((entry: ReturnType<typeof buildDeviceEntries>[number], bleProfiles?: Awaited<ReturnType<typeof getBleProfiles>>, usbSlots?: Awaited<ReturnType<typeof getUsbSlots>>) => {
+    const renamed = entry.usbSlot !== undefined
+      ? usbSlots?.slots[entry.usbSlot]?.name?.trim()
+      : entry.btIndex !== undefined
+        ? bleProfiles?.profiles[entry.btIndex]?.name?.trim()
+        : '';
+    return renamed ? `${entry.label} - ${renamed}` : entry.label;
+  }, []);
+
+  const loadSlotPointingSettings = useCallback(async (endpointIndex: number, options?: { preserveDeviceSelection?: boolean }) => {
+    if (!isConnected()) return;
+    setLoadingSlot(true);
+    const [bleProfiles, usbSlots, osConfig, gestureConfig] = await Promise.all([
+      getBleProfiles(),
+      getUsbSlots(),
+      getOsConfig(),
+      getGestureConfig(),
+    ]);
+
+    if (!bleProfiles || !usbSlots) {
+      setLoadingSlot(false);
+      return;
+    }
+
+    const bluetoothProfiles = bleProfiles.profiles.map((profile, index) => ({
+      index,
+      name: profile.name || `BT ${index}`,
+      ledColor: (['red', 'green', 'blue', 'yellow', 'magenta'] as const)[index] ?? 'white',
+      connected: !!profile.connected,
+      active: index === bleProfiles.activeIndex,
+    }));
+    const entries = buildDeviceEntries(bluetoothProfiles as any, usbSlots.activeIndex);
+    setSlotEntries(entries);
+
+    const entry = entries.find(item => item.endpointIndex === endpointIndex) ?? entries[0];
+    if (!entry) {
+      setLoadingSlot(false);
+      return;
+    }
+
+    if (!options?.preserveDeviceSelection) {
+      if (entry.usbSlot !== undefined) {
+        await setActiveUsbSlot(entry.usbSlot);
+      } else if (entry.btIndex !== undefined) {
+        await setActiveBleProfile(entry.btIndex);
+      }
+    }
+
+    const [sens, aml, prec, acc, inertia, dragScale] = await Promise.all([
+      getSensitivity(),
+      getAutoLayer(),
+      getPrecisionScale(),
+      getAccel(),
+      getInertia(),
+      getDragScale(),
+    ]);
+
+    if (sens) {
+      setCpi(sens.cpi);
+      if (sens.scrollDen > 0) setScrollSensitivity(sens.scrollNum / sens.scrollDen);
+      setScrollDirection(sens.scrollInverted ? 'inverted' : 'normal');
+    }
+    if (aml) {
+      setAmlEnabled(aml.enabled);
+      setAmlTimeout(aml.requirePriorIdleMs);
+      setAmlDuration(aml.durationMs);
+      setAmlMinDistance(aml.motionThreshold);
+      setAmlExcluded(positionsToKeyIds(aml.excludedPositions));
+    }
+    if (prec && prec.denominator > 0) {
+      setPrecisionSensitivity(prec.numerator / prec.denominator);
+    }
+    if (acc) {
+      setAccelMode(acc.enabled ? 1 : 0);
+      setAccelMaxRatio(acc.maxMilli / 1000);
+      setAccelStartSpeed(acc.threshold);
+      setAccelRampWidth(acc.range);
+    }
+    if (inertia) {
+      setInertiaEnabled(inertia.enabled);
+      if (inertia.decayMilli > 0) setInertiaDecay(inertia.decayMilli);
+      if (inertia.startSpeed > 0) setInertiaStartSpeed(inertia.startSpeed);
+    }
+    if (dragScale) {
+      setDragScaleEnabled(dragScale.enabled);
+      if (dragScale.numerator > 0) setDragScaleNum(dragScale.numerator);
+      if (dragScale.denominator > 0) setDragScaleDen(dragScale.denominator);
+    }
+
+    setSelectedEndpoint(entry.endpointIndex);
+    setProfileTargetLabel(formatEntryLabel(entry, bleProfiles, usbSlots));
+    setLoaded(true);
+    setLoadingSlot(false);
+
+    const activeEndpoint = osConfig?.activeEndpoint ?? gestureConfig?.activeEndpoint ?? entry.endpointIndex;
+    debugLog('INF', 'Trackball', `Loaded slot ${entry.label} (device active endpoint ${activeEndpoint})`);
+  }, [formatEntryLabel, setAmlExcluded]);
+
+  const reloadSlotSummaries = useCallback(async () => {
+    if (!isConnected()) return;
+    setLoadingSummary(true);
+    const [bleProfiles, usbSlots, osConfig, gestureConfig] = await Promise.all([
+      getBleProfiles(),
+      getUsbSlots(),
+      getOsConfig(),
+      getGestureConfig(),
+    ]);
+    if (!bleProfiles || !usbSlots) {
+      setLoadingSummary(false);
+      return;
+    }
+
+    const bluetoothProfiles = bleProfiles.profiles.map((profile, index) => ({
+      index,
+      name: profile.name || `BT ${index}`,
+      ledColor: (['red', 'green', 'blue', 'yellow', 'magenta'] as const)[index] ?? 'white',
+      connected: !!profile.connected,
+      active: index === bleProfiles.activeIndex,
+    }));
+    const entries = buildDeviceEntries(bluetoothProfiles as any, usbSlots.activeIndex);
+    setSlotEntries(entries);
+
+    const originalEndpoint = selectedEndpoint ?? osConfig?.activeEndpoint ?? gestureConfig?.activeEndpoint ?? 0;
+    const summaries: SlotSummary[] = [];
+    for (const entry of entries) {
+      const selected = entry.usbSlot !== undefined
+        ? await setActiveUsbSlot(entry.usbSlot)
+        : await setActiveBleProfile(entry.btIndex ?? 0);
+      if (!selected) {
+        summaries.push({
+          endpointIndex: entry.endpointIndex,
+          label: entry.label,
+          detail: formatEntryLabel(entry, bleProfiles, usbSlots),
+        });
+        continue;
+      }
+      const [sens, prec, acc, inertia, dragScale] = await Promise.all([
+        getSensitivity(),
+        getPrecisionScale(),
+        getAccel(),
+        getInertia(),
+        getDragScale(),
+      ]);
+      summaries.push({
+        endpointIndex: entry.endpointIndex,
+        label: entry.label,
+        detail: formatEntryLabel(entry, bleProfiles, usbSlots),
+        cpi: sens?.cpi,
+        precision: prec ? `${prec.numerator}/${prec.denominator}` : undefined,
+        accel: acc ? `${acc.enabled ? 'ON' : 'OFF'} ${acc.maxMilli / 1000}x` : undefined,
+        inertia: inertia ? `${inertia.enabled ? 'ON' : 'OFF'} ${inertia.decayMilli}/${inertia.startSpeed}` : undefined,
+        drag: dragScale ? `${dragScale.enabled ? 'ON' : 'OFF'} ${dragScale.numerator}/${dragScale.denominator}` : undefined,
+      });
+    }
+
+    const restoreEntry = entries.find(entry => entry.endpointIndex === originalEndpoint) ?? entries[0];
+    if (restoreEntry?.usbSlot !== undefined) {
+      await setActiveUsbSlot(restoreEntry.usbSlot);
+    } else if (restoreEntry?.btIndex !== undefined) {
+      await setActiveBleProfile(restoreEntry.btIndex);
+    }
+    setSlotSummaries(summaries);
+    setLoadingSummary(false);
+  }, [formatEntryLabel, selectedEndpoint]);
 
   // Load settings from device on mount if connected
   useEffect(() => {
     if (!isConnected() || loaded) return;
     (async () => {
-      const sens = await getSensitivity();
-      if (sens) {
-        setCpi(sens.cpi);
-        if (sens.scrollDen > 0) setScrollSensitivity(sens.scrollNum / sens.scrollDen);
-        setScrollDirection(sens.scrollInverted ? 'inverted' : 'normal');
-        debugLog('INF', 'Trackball', `Loaded: CPI=${sens.cpi}, scroll=${sens.scrollNum}/${sens.scrollDen}, inverted=${sens.scrollInverted}`);
-      }
-      const aml = await getAutoLayer();
-      if (aml) {
-        setAmlEnabled(aml.enabled);
-        setAmlTimeout(aml.requirePriorIdleMs);
-        setAmlDuration(aml.durationMs);
-        setAmlMinDistance(aml.motionThreshold);
-        setAmlExcluded(positionsToKeyIds(aml.excludedPositions));
-        debugLog('INF', 'Trackball', `AML: enabled=${aml.enabled}, idle=${aml.requirePriorIdleMs}ms, duration=${aml.durationMs}ms`);
-      }
-      const prec = await getPrecisionScale();
-      if (prec && prec.denominator > 0) {
-        setPrecisionSensitivity(prec.numerator / prec.denominator);
-      }
-      const acc = await getAccel();
-      if (acc) {
-        setAccelMode(acc.enabled ? 1 : 0);
-        setAccelMaxRatio(acc.maxMilli / 1000);
-        setAccelStartSpeed(acc.threshold);
-        setAccelRampWidth(acc.range);
-      }
-      const inertia = await getInertia();
-      if (inertia) {
-        setInertiaEnabled(inertia.enabled);
-        if (inertia.decayMilli > 0) setInertiaDecay(inertia.decayMilli);
-        if (inertia.startSpeed > 0) setInertiaStartSpeed(inertia.startSpeed);
-        debugLog('INF', 'Trackball', `Inertia: enabled=${inertia.enabled}, decay=${inertia.decayMilli}, startSpeed=${inertia.startSpeed}`);
-      }
-      const dragScale = await getDragScale();
-      if (dragScale) {
-        setDragScaleEnabled(dragScale.enabled);
-        if (dragScale.numerator > 0) setDragScaleNum(dragScale.numerator);
-        if (dragScale.denominator > 0) setDragScaleDen(dragScale.denominator);
-        debugLog('INF', 'Trackball', `Drag scale: enabled=${dragScale.enabled}, ratio=${dragScale.numerator}/${dragScale.denominator}`);
-      }
-      setLoaded(true);
+      const [osConfig, gestureConfig] = await Promise.all([getOsConfig(), getGestureConfig()]);
+      const initialEndpoint = osConfig?.activeEndpoint ?? gestureConfig?.activeEndpoint ?? 0;
+      await loadSlotPointingSettings(initialEndpoint, { preserveDeviceSelection: true });
+      await reloadSlotSummaries();
     })();
-  }, [loaded, setAmlExcluded]);
+  }, [loaded, loadSlotPointingSettings, reloadSlotSummaries]);
 
   // Header "⟳ Reset" bumps trackballResetTick — bring mouse acceleration back to its default (弱)
   const trackballResetTickRef = useRef(trackballResetTick);
@@ -233,6 +378,86 @@ export function TrackballConfig({ store }: Props) {
 
   return (
     <div>
+      <div className="config-section">
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
+          <span style={{ fontSize: 12, fontWeight: 600 }}>設定対象</span>
+          <span style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 700 }}>{profileTargetLabel}</span>
+        </div>
+        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
+          AML は共通設定です。カーソル/精密/加速度/慣性/ドラッグ精密は、選択中の USB slot / BT profile ごとに保存されます。
+        </div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
+          {slotEntries.map(entry => (
+            <button
+              key={entry.endpointIndex}
+              className={`preset-btn ${selectedEndpoint === entry.endpointIndex ? 'selected' : ''}`}
+              disabled={loadingSlot}
+              onClick={() => loadSlotPointingSettings(entry.endpointIndex)}
+              style={{
+                minWidth: 68,
+                textAlign: 'left',
+                padding: '6px 8px',
+                opacity: loadingSlot ? 0.7 : 1,
+              }}
+            >
+              <div style={{ fontWeight: 600 }}>{entry.label}</div>
+              <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>{entry.status || '選択可'}</div>
+            </button>
+          ))}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 10 }}>
+          <div style={{ border: '1px solid var(--border)', borderRadius: 6, padding: 8, background: 'var(--bg-secondary)' }}>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>共通設定</div>
+            <div style={{ fontSize: 12, fontWeight: 600 }}>AML</div>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>全スロット共通で有効・無効や待機時間を管理</div>
+          </div>
+          <div style={{ border: '1px solid var(--border)', borderRadius: 6, padding: 8, background: 'var(--bg-secondary)' }}>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>スロット別設定</div>
+            <div style={{ fontSize: 12, fontWeight: 600 }}>{profileTargetLabel}</div>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>CPI / 精密 / 加速度 / 慣性 / Drag をこのスロットに保存</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="config-section">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600 }}>各スロット比較</div>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>違いがある値だけをざっと見比べられます。</div>
+          </div>
+          <button className="btn btn-outline" style={{ fontSize: 11 }} onClick={() => reloadSlotSummaries()} disabled={loadingSummary}>
+            {loadingSummary ? '更新中...' : '比較を更新'}
+          </button>
+        </div>
+        <div style={{ display: 'grid', gap: 6 }}>
+          {slotSummaries.map(summary => (
+            <button
+              key={summary.endpointIndex}
+              className="btn btn-outline"
+              onClick={() => loadSlotPointingSettings(summary.endpointIndex)}
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'minmax(68px, 92px) repeat(4, minmax(0, 1fr))',
+                gap: 8,
+                alignItems: 'center',
+                textAlign: 'left',
+                padding: 8,
+                background: selectedEndpoint === summary.endpointIndex ? 'var(--bg-secondary)' : 'transparent',
+                borderColor: selectedEndpoint === summary.endpointIndex ? 'var(--accent)' : 'var(--border)',
+              }}
+            >
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700 }}>{summary.label}</div>
+                <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>{summary.detail.replace(`${summary.label} - `, '')}</div>
+              </div>
+              <div style={{ fontSize: 11 }}><span style={{ color: 'var(--text-muted)' }}>CPI </span>{summary.cpi ?? '--'}</div>
+              <div style={{ fontSize: 11 }}><span style={{ color: 'var(--text-muted)' }}>精密 </span>{summary.precision ?? '--'}</div>
+              <div style={{ fontSize: 11 }}><span style={{ color: 'var(--text-muted)' }}>Accel </span>{summary.accel ?? '--'}</div>
+              <div style={{ fontSize: 11 }}><span style={{ color: 'var(--text-muted)' }}>Inertia/Drag </span>{summary.inertia ?? '--'} / {summary.drag ?? '--'}</div>
+            </button>
+          ))}
+        </div>
+      </div>
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 0, marginBottom: 12, borderBottom: '1px solid var(--border)' }}>
         {([

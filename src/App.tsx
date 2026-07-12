@@ -6,12 +6,12 @@ import { debugLog } from './components/DebugConsole';
 import { Header } from './components/Header/Header';
 import { LayerList } from './components/LeftPanel/LayerList';
 import { ComboList } from './components/LeftPanel/ComboList';
-import { ConnectionPanel } from './components/LeftPanel/ConnectionPanel';
 import { KeyboardView } from './components/KeyboardView/KeyboardView';
 import { KeyConfig } from './components/RightPanel/KeyConfig';
 import { TrackballConfig } from './components/RightPanel/TrackballConfig';
 import { TimingConfig } from './components/RightPanel/TimingConfig';
 import { BluetoothConfig } from './components/RightPanel/BluetoothConfig';
+import { DiagnosticsPanel } from './components/RightPanel/DiagnosticsPanel';
 import { MacroList } from './components/LeftPanel/MacroList';
 import { MacroEditor } from './components/RightPanel/MacroEditor';
 import { ResizeHandle } from './components/ResizeHandle';
@@ -182,8 +182,39 @@ function App() {
       case 'timing': return <TimingConfig store={store} />;
       case 'macro-edit': return <MacroEditor store={store} />;
       case 'bluetooth': return <BluetoothConfig store={store} />;
+      case 'diagnostics': return <DiagnosticsPanel />;
     }
   };
+
+  const sidePanelContent = (
+    <aside className="side-panel" style={{ width: leftWidth }}>
+      <div className="panel-tabs">
+        <button
+          className={`panel-tab ${store.leftPanelTab === 'layers' ? 'active' : ''}`}
+          onClick={() => store.setLeftPanelTab('layers')}
+        >
+          ⚙ Layers
+        </button>
+        <button
+          className={`panel-tab ${store.leftPanelTab === 'combos' ? 'active' : ''}`}
+          onClick={() => store.setLeftPanelTab('combos')}
+        >
+          ⌨ Combos <span className="badge">{store.combos.length}</span>
+        </button>
+        <button
+          className={`panel-tab ${store.leftPanelTab === 'macros' ? 'active' : ''}`}
+          onClick={() => store.setLeftPanelTab('macros')}
+        >
+          ⚡ Macros <span className="badge">{store.macros.length}</span>
+        </button>
+      </div>
+      <div className="panel-content">
+        {store.leftPanelTab === 'layers' ? <LayerList store={store} />
+          : store.leftPanelTab === 'combos' ? <ComboList store={store} />
+          : <MacroList store={store} />}
+      </div>
+    </aside>
+  );
 
   return (
     <>
@@ -192,6 +223,21 @@ function App() {
         showConsole={showConsole}
         onToggleConsole={() => setShowConsole(v => !v)}
         usbConnected={usbConnected}
+        connectionType={connType}
+        onConnectionChange={async (conn, type) => {
+          setUsbConnected(conn);
+          setConnType(conn ? type : null);
+          if (conn) {
+            const info = await getDeviceInfo();
+            if (info) {
+              debugLog('INF', 'USB', `Device: ${info.name} (FW: ${info.firmwareVersion})`);
+            }
+            const ok = await requestUnlock();
+            if (!ok) {
+              debugLog('WRN', 'USB', 'Device is locked. Write operations will fail. Press studio_unlock combo on keyboard.');
+            }
+          }
+        }}
         unsaved={unsaved}
         wroteToDevice={wroteToDevice}
         onWrite={async () => {
@@ -242,61 +288,12 @@ function App() {
       />
 
       <div className="app-layout">
-        {/* Left Panel */}
-        <aside className="left-panel" style={{ width: leftWidth }}>
-          <div className="panel-tabs">
-            <button
-              className={`panel-tab ${store.leftPanelTab === 'layers' ? 'active' : ''}`}
-              onClick={() => store.setLeftPanelTab('layers')}
-            >
-              ⚙ Layers
-            </button>
-            <button
-              className={`panel-tab ${store.leftPanelTab === 'combos' ? 'active' : ''}`}
-              onClick={() => store.setLeftPanelTab('combos')}
-            >
-              ⌨ Combos <span className="badge">{store.combos.length}</span>
-            </button>
-            <button
-              className={`panel-tab ${store.leftPanelTab === 'macros' ? 'active' : ''}`}
-              onClick={() => store.setLeftPanelTab('macros')}
-            >
-              ⚡ Macros <span className="badge">{store.macros.length}</span>
-            </button>
-          </div>
-
-          <div className="panel-content">
-            {store.leftPanelTab === 'layers' ? <LayerList store={store} />
-              : store.leftPanelTab === 'combos' ? <ComboList store={store} />
-              : <MacroList store={store} />}
-          </div>
-
-          <ConnectionPanel
-            connected={usbConnected}
-            connectionType={connType}
-            onConnectionChange={async (conn, type) => {
-              setUsbConnected(conn);
-              setConnType(conn ? type : null);
-              if (conn) {
-                const info = await getDeviceInfo();
-                if (info) {
-                  debugLog('INF', 'USB', `Device: ${info.name} (FW: ${info.firmwareVersion})`);
-                }
-                const ok = await requestUnlock();
-                if (!ok) {
-                  debugLog('WRN', 'USB', 'Device is locked. Write operations will fail. Press studio_unlock combo on keyboard.');
-                }
-              }
-            }}
-          />
-        </aside>
-
-        <ResizeHandle side="left" onResize={onResizeLeft} />
-
         <div className="center-column">
           {store.leftPanelTab === 'macros' ? (
             <>
               {/* Macro mode: editor in center, keyboard on right */}
+              {sidePanelContent}
+              <ResizeHandle side="left" onResize={onResizeLeft} />
               <div className="macro-center-panel" style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
                 <MacroEditor store={store} />
               </div>
@@ -315,10 +312,12 @@ function App() {
             <>
               {/* Normal mode: keyboard in center, config on right */}
               <KeyboardView store={store} />
+              <ResizeHandle side="left" onResize={onResizeLeft} />
+              {sidePanelContent}
               <ResizeHandle side="right" onResize={onResizeRight} />
               <aside className="right-panel" style={{ width: rightWidth }}>
                 <div className="right-panel-tabs">
-                  {(['key-config', 'trackball', 'timing', 'bluetooth'] as const).map(tab => (
+                  {(['key-config', 'trackball', 'timing', 'bluetooth', 'diagnostics'] as const).map(tab => (
                     <button
                       key={tab}
                       className={`right-panel-tab ${store.rightPanelTab === tab ? 'active' : ''}`}
@@ -326,7 +325,8 @@ function App() {
                     >
                       {tab === 'key-config' ? '⚙ Key Config' :
                        tab === 'trackball' ? '🖲 Trackball' :
-                       tab === 'timing' ? '⏱ Timing' : '📡 デバイス'}
+                       tab === 'timing' ? '⏱ Timing' :
+                       tab === 'bluetooth' ? '📡 デバイス' : '🩺 診断'}
                     </button>
                   ))}
                 </div>
