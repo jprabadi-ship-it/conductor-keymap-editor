@@ -75,7 +75,26 @@ const BINDING_TYPES = [
   { id: 'mod-tap', value: 'mod-tap', label: 'MT(mod,key)', icon: '⌥', desc: 'ホールドでMod/タップでキー', category: null },
   { id: 'mouse', value: 'basic', label: 'Mouse Button', icon: '🖱', desc: 'マウスボタン', category: 'Mouse' },
   { id: 'toggle', value: 'toggle', label: 'TG(layer)', icon: '⊞', desc: 'レイヤートグル', category: null },
-  { id: 'device', value: 'basic', label: 'デバイス機能', icon: '⚙', desc: '出力先・BT/USBスロット切替', category: 'Device' },
+  // 'DeviceFunction' is not a real KEY_CATEGORIES entry -- it's a sentinel
+  // that switches the section below from the OUTPUT KEY keycode grid to
+  // the dedicated DEVICE_FUNCTIONS list (see render below).
+  { id: 'device', value: 'basic', label: 'デバイス機能', icon: '⚙', desc: 'ピンチズーム・AML切替・スリープ', category: 'DeviceFunction' },
+] as const;
+
+// Special device-level behaviors, distinct from plain keycodes -- shown as
+// their own list (not the keycode grid) when the デバイス機能 tile is
+// selected. Only AML toggle is wired up to real firmware right now:
+// - AML toggle: &aml_tog, already compiled into every Conductor build
+//   (display-name "Toggle AML"), just needed editor-side exposure.
+// - Pinch zoom: no such firmware behavior exists yet (ZMK core or this
+//   project) -- would need new firmware development, not just a UI hookup.
+// - Sleep (power off): ZMK core has &soft_off, but this project doesn't
+//   reference it anywhere so it's compiled out (/omit-if-no-ref/), and it
+//   has no display-name set yet -- needs a small firmware change first.
+const DEVICE_FUNCTIONS = [
+  { id: 'pinch-zoom', label: 'ピンチズーム', keyCode: null as string | null, displayLabel: null as string | null, available: false },
+  { id: 'aml-toggle', label: 'AML切替', keyCode: 'AML_TOG', displayLabel: 'AML Tog', available: true },
+  { id: 'sleep', label: 'スリープ (電源オフ)', keyCode: null as string | null, displayLabel: null as string | null, available: false },
 ] as const;
 
 export function ComboList({ store }: Props) {
@@ -113,11 +132,24 @@ export function ComboList({ store }: Props) {
     return () => { cancelled = true; };
   }, [setAmlExcluded]);
 
+  // Best-effort: land on the OUTPUT KEY category (or the デバイス機能 list)
+  // that already matches this combo's current binding, so re-opening one
+  // doesn't always dump you back on "Letters" regardless of what it's set
+  // to.
+  const guessOutputCategory = (keyCode: string | undefined, label: string | undefined): string => {
+    if (keyCode === 'AML_TOG') return 'DeviceFunction';
+    if (keyCode?.startsWith('KC_BTN') || keyCode?.startsWith('KC_MS_') || keyCode?.startsWith('KC_WH_') ||
+        label === 'Click' || label === 'R Click' || label === 'M Click') return 'Mouse';
+    if (keyCode?.startsWith('BT_SEL') || keyCode?.startsWith('USB_SEL') || keyCode === 'BT_CLR' ||
+        keyCode === 'BT_CLR_ALL' || keyCode?.startsWith('OUT_')) return 'Device';
+    return 'Letters';
+  };
+
   const startEdit = (combo: Combo) => {
     setEditingId(combo.id);
     setEditDraft({ ...combo });
     setOutputKeySearch('');
-    setOutputKeyCategory('Letters');
+    setOutputKeyCategory(guessOutputCategory(combo.binding.keyCode, combo.binding.label));
   };
 
   const cancelEdit = () => {
@@ -393,36 +425,64 @@ export function ComboList({ store }: Props) {
                 </div>
               </div>
 
-              {/* Output Key */}
-              <div className="combo-edit-field">
-                <label className="combo-edit-label">OUTPUT KEY</label>
-                <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 3 }}>発火時に出力されるキーコードまたはアクション</div>
-                <input
-                  type="text"
-                  className="keycode-search"
-                  placeholder="Search..."
-                  value={outputKeySearch}
-                  onChange={e => setOutputKeySearch(e.target.value)}
-                />
-                <div className="keycode-categories">
-                  {KEY_CATEGORIES.map(cat => (
-                    <button
-                      key={cat}
-                      className={`category-btn ${outputKeyCategory === cat ? 'selected' : ''}`}
-                      onClick={() => setOutputKeyCategory(outputKeyCategory === cat ? null : cat)}
-                    >{cat}</button>
-                  ))}
+              {/* Output Key -- デバイス機能 tile swaps this for a curated
+                  list of special device behaviors instead of the keycode
+                  grid, since those aren't plain keycodes. */}
+              {outputKeyCategory === 'DeviceFunction' ? (
+                <div className="combo-edit-field">
+                  <label className="combo-edit-label">DEVICE FUNCTION</label>
+                  <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 3 }}>デバイス固有の特殊機能</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    {DEVICE_FUNCTIONS.map(fn => {
+                      const selected = fn.available && editDraft.binding?.keyCode === fn.keyCode;
+                      return (
+                        <button
+                          key={fn.id}
+                          className={`btn btn-outline ${selected ? 'btn-active' : ''}`}
+                          disabled={!fn.available}
+                          style={{ display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left', padding: '8px 10px', opacity: fn.available ? 1 : 0.5 }}
+                          title={fn.available ? undefined : '現在のfirmwareでは未対応'}
+                          onClick={() => fn.available && setEditDraft({ ...editDraft, binding: { ...editDraft.binding!, type: 'basic', keyCode: fn.keyCode!, label: fn.displayLabel! } })}
+                        >
+                          <span style={{ width: 12 }}>{selected ? '✓' : ''}</span>
+                          <span style={{ flex: 1 }}>{fn.label}</span>
+                          {!fn.available && <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>未対応</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-                <div className="keycode-grid">
-                  {searchKeyCodes(outputKeySearch, outputKeyCategory || undefined).slice(0, 60).map(kc => (
-                    <button
-                      key={kc.code}
-                      className={`keycode-btn ${editDraft.binding?.keyCode === kc.code || editDraft.binding?.label === kc.label ? 'selected' : ''}`}
-                      onClick={() => setEditDraft({ ...editDraft, binding: { ...editDraft.binding!, keyCode: kc.code, label: kc.label } })}
-                    >{kc.label}</button>
-                  ))}
+              ) : (
+                <div className="combo-edit-field">
+                  <label className="combo-edit-label">OUTPUT KEY</label>
+                  <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 3 }}>発火時に出力されるキーコードまたはアクション</div>
+                  <input
+                    type="text"
+                    className="keycode-search"
+                    placeholder="Search..."
+                    value={outputKeySearch}
+                    onChange={e => setOutputKeySearch(e.target.value)}
+                  />
+                  <div className="keycode-categories">
+                    {KEY_CATEGORIES.map(cat => (
+                      <button
+                        key={cat}
+                        className={`category-btn ${outputKeyCategory === cat ? 'selected' : ''}`}
+                        onClick={() => setOutputKeyCategory(outputKeyCategory === cat ? null : cat)}
+                      >{cat}</button>
+                    ))}
+                  </div>
+                  <div className="keycode-grid">
+                    {searchKeyCodes(outputKeySearch, outputKeyCategory || undefined).slice(0, 60).map(kc => (
+                      <button
+                        key={kc.code}
+                        className={`keycode-btn ${editDraft.binding?.keyCode === kc.code || editDraft.binding?.label === kc.label ? 'selected' : ''}`}
+                        onClick={() => setEditDraft({ ...editDraft, binding: { ...editDraft.binding!, keyCode: kc.code, label: kc.label } })}
+                      >{kc.label}</button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Layer (for MO/LT/TG) */}
               {(editDraft.binding?.type === 'momentary' || editDraft.binding?.type === 'layer-tap' || editDraft.binding?.type === 'toggle') && (

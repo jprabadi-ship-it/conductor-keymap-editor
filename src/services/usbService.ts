@@ -779,6 +779,10 @@ function decodeBinding(binding: { behaviorId: number; param1: number; param2: nu
     }
   } else if (behName.includes('Scroll Invert') || behName.includes('scrl_inv') || behName.includes('SCRL_INV')) {
     type = 'basic'; label = 'Scrl Inv'; keyCode = 'SCRL_INV';
+  } else if (behName.toLowerCase() === 'toggle aml' || behName === 'aml_tog') {
+    // Must be checked before the generic "Toggle" (layer toggle) branch
+    // below, since "Toggle AML" contains that substring too.
+    type = 'basic'; label = 'AML Tog'; keyCode = 'AML_TOG';
   } else if (behName.includes('Mouse Key Press') || behName === 'mkp' || behName.includes('mkp')) {
     type = 'basic';
     const mouseLabel: Record<number, string> = { 1: 'Click', 2: 'R Click', 4: 'M Click', 8: 'MB4', 16: 'MB5' };
@@ -1917,16 +1921,17 @@ function computeBehByType(): Record<string, number> {
     if (!behByType['boot'] && n === 'bootloader') behByType['boot'] = id;
     if (!behByType['usb_sel'] && n === 'usb slot select') behByType['usb_sel'] = id;
     if (!behByType['out'] && (n === 'output selection' || n === 'out')) behByType['out'] = id;
+    if (!behByType['aml_tog'] && (n === 'toggle aml' || n === 'aml_tog')) behByType['aml_tog'] = id;
   }
   return behByType;
 }
 
 // Resolves a KeyBinding to {behaviorId, param1, param2} for RPCs that store
 // a standalone binding value rather than a keymap layer position (e.g.
-// gesture overrides, combo bindings). Covers the same binding types as
-// writeKeymapToDevice's per-key conversion switch, minus the handful of
-// keymap-only special cases (BT_SEL/USB_SEL/mkp/etc.) that combos and
-// gestures don't expose in their own editors.
+// gesture overrides, combo bindings). Mirrors writeKeymapToDevice's
+// per-key conversion switch, including the BT_SEL/USB_SEL/mkp/AML_TOG
+// special cases -- ComboList.tsx's OUTPUT KEY picker exposes those too now,
+// not just plain key presses.
 export async function resolveKeyBindingRpc(binding: KeyBinding): Promise<{ behaviorId: number; param1: number; param2: number } | null> {
   await ensureBehaviorsLoaded();
   const behByType = computeBehByType();
@@ -1942,6 +1947,53 @@ export async function resolveKeyBindingRpc(binding: KeyBinding): Promise<{ behav
   }
 
   if (binding.type === 'basic') {
+    // Same special-case keyCodes as writeKeymapToDevice's per-key switch --
+    // combos/gestures didn't use to expose these in their own editors (see
+    // this function's doc comment), but ComboList.tsx's OUTPUT KEY picker
+    // now does (Mouse/Device categories, AML toggle), so this needs to
+    // resolve them the same way or they'd silently fall through to being
+    // treated as a plain (and meaningless) Key Press label below.
+    if (binding.keyCode?.startsWith('USB_SEL')) {
+      if (behByType['usb_sel'] === undefined) return null;
+      return { behaviorId: behByType['usb_sel'], param1: parseInt(binding.keyCode.replace(/^USB_SEL[_ ]/, '') || '0'), param2: 0 };
+    }
+    if (binding.keyCode?.startsWith('BT_SEL')) {
+      if (behByType['bt'] === undefined) return null;
+      return { behaviorId: behByType['bt'], param1: 3, param2: parseInt(binding.keyCode.replace(/^BT_SEL[_ ]/, '') || '0') };
+    }
+    if (binding.keyCode === 'BT_CLR') {
+      if (behByType['bt'] === undefined) return null;
+      return { behaviorId: behByType['bt'], param1: 0, param2: 0 };
+    }
+    if (binding.keyCode === 'BT_CLR_ALL') {
+      if (behByType['bt'] === undefined) return null;
+      return { behaviorId: behByType['bt'], param1: 4, param2: 0 };
+    }
+    if (binding.keyCode === 'OUT_USB' || binding.keyCode === 'OUT_BT' || binding.keyCode === 'OUT_TOG') {
+      if (behByType['out'] === undefined) return null;
+      const param1 = binding.keyCode === 'OUT_USB' ? 1 : binding.keyCode === 'OUT_BT' ? 2 : 0;
+      return { behaviorId: behByType['out'], param1, param2: 0 };
+    }
+    if (binding.keyCode === 'BOOTLOADER') {
+      if (behByType['boot'] === undefined) return null;
+      return { behaviorId: behByType['boot'], param1: 0, param2: 0 };
+    }
+    if (binding.keyCode === 'AML_TOG') {
+      if (behByType['aml_tog'] === undefined) return null;
+      return { behaviorId: behByType['aml_tog'], param1: 0, param2: 0 };
+    }
+    if (binding.keyCode?.startsWith('mkp') || binding.keyCode?.startsWith('KC_BTN') ||
+        binding.label?.startsWith('MB') || binding.label === 'Click' || binding.label === 'R Click' || binding.label === 'M Click') {
+      if (behByType['mkp'] === undefined) return null;
+      const btnMap: Record<string, number> = {
+        'KC_BTN1': 1, 'KC_BTN2': 2, 'KC_BTN3': 4, 'KC_BTN4': 8, 'KC_BTN5': 16,
+        'Click': 1, 'R Click': 2, 'M Click': 4,
+        'MB1': 1, 'MB2': 2, 'MB3': 4, 'MB4': 8, 'MB5': 16,
+      };
+      const param1 = btnMap[binding.keyCode || ''] || btnMap[binding.label || ''] || 1;
+      return { behaviorId: behByType['mkp'], param1, param2: 0 };
+    }
+
     if (behByType['kp'] === undefined) return null;
     let param1 = labelToParam(binding.label, binding.keyCode);
     if (binding.modifiers?.length) {
@@ -2118,6 +2170,7 @@ export async function writeKeymapToDevice(layers: Layer[], dirtyKeys?: Set<strin
     if (!behByType['boot'] && n === 'bootloader') behByType['boot'] = id;
     if (!behByType['usb_sel'] && n === 'usb slot select') behByType['usb_sel'] = id;
     if (!behByType['out'] && (n === 'output selection' || n === 'out')) behByType['out'] = id;
+    if (!behByType['aml_tog'] && (n === 'toggle aml' || n === 'aml_tog')) behByType['aml_tog'] = id;
   };
   // From raw bindings first (most reliable)
   for (const [, raw] of Object.entries(rawBindings)) {

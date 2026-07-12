@@ -127,6 +127,7 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, conn
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {[
+                { v: '0.25.1.0', at: '2026-07-13 JST', changes: ['「デバイス機能」を専用リスト（ピンチズーム・AML切替・スリープ）に変更し、AML切替を実際に選択・保存できるように対応（firmwareの&aml_togに接続）。ピンチズーム・スリープは現行firmwareで未実装のため選択不可表示。あわせて、前バージョンで追加したMouse/DeviceカテゴリのキーコードがWrite時に正しいbehaviorへ解決されていなかった不具合を修正'] },
                 { v: '0.25.0.0', at: '2026-07-12 JST', changes: ['コンボ編集画面を強化。BINDING TYPEに「Mouse Button」「デバイス機能」を追加（クリックでOUTPUT KEYのカテゴリ欄も自動でジャンプ）、OUTPUT KEYを単純なテキスト入力からカテゴリ別キーコードピッカー（検索・Letters/Numbers/Mouse/Deviceなど全カテゴリ表示）に変更'] },
                 { v: '0.24.3.0', at: '2026-07-12 JST', changes: ['キーボード左右の隙間が不自然に広かった不具合を修正。可変グリッド設定がCSSの詳細度不足で固定48pxグリッドに上書きされ、各半分の箱の中でキーが左寄せになり右端に余白ができていたのが原因'] },
                 { v: '0.24.2.0', at: '2026-07-12 JST', changes: ['キーボードが左右均等にセンタリングされていなかった不具合を修正。縦スクロールバーを画面全体ではなくタブ内容の領域だけに持たせるよう変更し、スクロールバー分の幅のズレが解消'] },
