@@ -221,9 +221,14 @@ export function KeyboardView({ store }: Props) {
         </div>
       )}
 
-      {/* Layer switcher */}
-      <div className="layer-switcher">
-        {store.layers.map(l => (
+      {/* Layer switcher -- split into two groups, one per keyboard half
+          (same flex:1 + gap as .keyboard-half/.keyboard-container above),
+          so the gap between groups lines up with the gap between the
+          physical L/R halves instead of the dots just being centered as
+          one undifferentiated row. */}
+      {(() => {
+        const half = Math.ceil(store.layers.length / 2);
+        const renderDot = (l: typeof store.layers[number]) => (
           <button
             key={l.index}
             className={`layer-dot ${store.selectedLayerIndex === l.index ? 'active' : ''}`}
@@ -233,8 +238,14 @@ export function KeyboardView({ store }: Props) {
             <span className="layer-dot-circle" style={{ background: LED_CSS_MAP[l.ledColor] }} />
             <span className="layer-dot-label">{l.name}</span>
           </button>
-        ))}
-      </div>
+        );
+        return (
+          <div className="layer-switcher-groups">
+            <div className="layer-switcher-group">{store.layers.slice(0, half).map(renderDot)}</div>
+            <div className="layer-switcher-group">{store.layers.slice(half).map(renderDot)}</div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
