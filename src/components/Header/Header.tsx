@@ -22,12 +22,15 @@ interface Props {
 // Electron ships its own app -- only the plain web build (GitHub Pages)
 // needs a way to get the desktop one.
 const isElectron = typeof window !== 'undefined' && !!(window as any).electronAPI;
-// Versioned filename so the downloaded file says which release it is. The
-// web build and the app are released in lockstep (same version bump), so
-// the latest release always carries the asset matching this web version.
-// A version-less ConductorD-Studio-mac-arm64.dmg is also uploaded to each
-// release for older links.
-const MAC_APP_DOWNLOAD_URL = `https://github.com/jprabadi-ship-it/conductor-keymap-editor/releases/latest/download/ConductorD-Studio-${version}-mac-arm64.dmg`;
+// Deliberately the version-LESS asset name (uploaded to every release
+// alongside the versioned one): a versioned URL here 404s whenever the
+// deployed/cached web build's version differs from the newest DMG release
+// -- Pages deploys on every push while the DMG follows minutes later (or
+// never, if a release run is aborted), and browsers cache old bundles.
+// This URL always resolves to the newest release's DMG regardless; the
+// downloaded app still identifies its version in the DMG volume name,
+// the About panel, and this header.
+const MAC_APP_DOWNLOAD_URL = 'https://github.com/jprabadi-ship-it/conductor-keymap-editor/releases/latest/download/ConductorD-Studio-mac-arm64.dmg';
 // Firmware is a separate repo/artifact from Studio itself, so unlike the Mac
 // app link above this isn't gated on !isElectron -- both builds need it.
 // The "firmware-latest" release is republished in place by conductor-dongle's
@@ -135,6 +138,7 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, conn
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {[
+                { v: '0.30.2.0', at: '2026-07-14 JST', changes: ['「Macアプリダウンロード」が404になることがある不具合を修正。リンクをバージョン番号付きファイル名からバージョン番号なし（毎リリース同梱）に変更し、Web版のキャッシュ・デプロイとDMGリリースの時間差があっても常に最新リリースのDMGが取得できるように'] },
                 { v: '0.30.1.0', at: '2026-07-14 JST', changes: ['Macアプリ版のStudioウィンドウを90%ズームで起動するように変更（FHDディスプレイで手狭だったため。Cmd+/-でのセッション中の調整は従来通り、ミニマップは対象外）'] },
                 { v: '0.30.0.0', at: '2026-07-14 JST', changes: ['コンボ編集に「REQUIRE PRIOR IDLE (MS)」（直前にコンボ以外のキーを打った直後はコンボを発火させない、タイピング中の誤爆対策。0=無効）と「SLOW RELEASE」（全キーを離すまでコンボ動作を保持）を追加。firmwareのRPCには元々あったが編集UIに露出していなかったパラメータで、Read/Writeの往復にも対応'] },
                 { v: '0.29.0.0', at: '2026-07-14 JST', changes: ['FW更新通知を追加（Macアプリ版のみ）。接続時にCIが公開している最新FW（firmware-latest）と接続中デバイスのバージョン・ビルド日時を比較し、新しいFWがあればトースト通知+FWダウンロードボタンにオレンジのバッジを表示。リポジトリがプライベートのため照会はローカルのgh CLI経由（Web版はチェックなしで従来通り）'] },
