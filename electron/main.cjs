@@ -22,6 +22,11 @@ function createWindow() {
       nodeIntegration: false,
       sandbox: true,
       preload: preloadPath,
+      // The layout is sized for larger displays and feels cramped at 100%
+      // on FHD -- default the Studio window (not the minimap popup) to 90%.
+      // Users can still zoom per-session with Cmd+/-; Electron persists
+      // per-origin zoom on top of this default.
+      zoomFactor: 0.9,
     },
   })
 
@@ -31,6 +36,13 @@ function createWindow() {
   } else {
     win.loadFile(path.join(__dirname, '..', 'dist', 'index.html'))
   }
+
+  // Electron persists user zoom per-origin and lets it override the
+  // webPreferences default above, so force the 90% launch zoom explicitly;
+  // Cmd+/- still works for the rest of the session.
+  win.webContents.on('did-finish-load', () => {
+    win.webContents.setZoomFactor(0.9)
+  })
 
   // Keep the app alive in the menu bar instead of quitting when the window
   // is closed — the tray icon is the app's real lifecycle from here on.

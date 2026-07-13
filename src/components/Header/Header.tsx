@@ -135,6 +135,7 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, conn
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {[
+                { v: '0.30.1.0', at: '2026-07-14 JST', changes: ['Macアプリ版のStudioウィンドウを90%ズームで起動するように変更（FHDディスプレイで手狭だったため。Cmd+/-でのセッション中の調整は従来通り、ミニマップは対象外）'] },
                 { v: '0.30.0.0', at: '2026-07-14 JST', changes: ['コンボ編集に「REQUIRE PRIOR IDLE (MS)」（直前にコンボ以外のキーを打った直後はコンボを発火させない、タイピング中の誤爆対策。0=無効）と「SLOW RELEASE」（全キーを離すまでコンボ動作を保持）を追加。firmwareのRPCには元々あったが編集UIに露出していなかったパラメータで、Read/Writeの往復にも対応'] },
                 { v: '0.29.0.0', at: '2026-07-14 JST', changes: ['FW更新通知を追加（Macアプリ版のみ）。接続時にCIが公開している最新FW（firmware-latest）と接続中デバイスのバージョン・ビルド日時を比較し、新しいFWがあればトースト通知+FWダウンロードボタンにオレンジのバッジを表示。リポジトリがプライベートのため照会はローカルのgh CLI経由（Web版はチェックなしで従来通り）'] },
                 { v: '0.28.0.0', at: '2026-07-13 JST', changes: ['コンボ書き込みを差分方式に変更。従来はWriteのたびに全コンボを削除→再追加していたが、変更のあったコンボだけを更新（未変更ならRPCゼロ）するように。コンボを触っていないWriteが数秒速く', 'Write進捗トーストに段階表示を追加（1/4 レイヤー設定 → 2/4 キー割り当て → 3/4 コンボ → 4/4 Flash保存）'] },
