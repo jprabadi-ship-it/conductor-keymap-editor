@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useKeymapStore } from './store/useKeymapStore';
 import { readKeymap, writeKeymapToDevice, saveChanges, setLayerProps, getDeviceInfo, requestUnlock, isUnlocked, readMacrosFromDevice, onDeviceDisconnect, onActiveLayerChange, onKeyInputEvent, subscribeToInput, getRuntimeState, setKeyboardLayout, getBehaviorDisplayName, getCombosFromDevice, writeCombosToDevice } from './services/usbService';
-import { isFirmwareVersionSupported, MIN_SUPPORTED_FW_VERSION } from './services/firmwareCompat';
+import { isFirmwareVersionSupported, checkFirmwareUpdate, MIN_SUPPORTED_FW_VERSION } from './services/firmwareCompat';
 import { LED_COLORS, type PanelTab } from './types';
 import { debugLog } from './components/DebugConsole';
 import { Header } from './components/Header/Header';
@@ -31,6 +31,10 @@ function App() {
   // Once a Write lands on the device, offer the "back to the minimap"
   // shortcut in the header (Electron only).
   const [wroteToDevice, setWroteToDevice] = useState(false);
+  // Set when the connected firmware is older than the CI-published
+  // firmware-latest release (Electron only -- the check runs through the
+  // local gh CLI since the repo is private). Badges the FW download button.
+  const [fwUpdateAvailable, setFwUpdateAvailable] = useState(false);
 
   const showToast = useCallback((message: string, type: 'device' | 'local' | 'error' | 'progress' = 'device', opts?: { persist?: boolean }) => {
     if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
@@ -219,6 +223,18 @@ function App() {
                 debugLog('WRN', 'USB', `Firmware ${info.firmwareVersion} is older than the minimum supported ${MIN_SUPPORTED_FW_VERSION} -- some RPCs (device slot switching, peripheral connection status, etc.) may silently fail or time out.`);
                 alert(`接続中のファームウェア (${info.firmwareVersion}) は、このStudioが前提とする最小バージョン (${MIN_SUPPORTED_FW_VERSION}) より古いです。\n\n一部の機能（デバイス設定バックアップ、接続状態表示など）が動作しない、または反応が遅くなることがあります。ファームウェアの更新をおすすめします。`);
               }
+              // Electron only: compare against the CI-published firmware-latest
+              // release. Fire and forget -- a null result (web build, gh CLI
+              // missing/offline) just leaves the badge off.
+              (window as any).electronAPI?.checkFirmwareLatest?.().then((latest: { name: string; publishedAt: string } | null) => {
+                if (!latest) return;
+                const check = checkFirmwareUpdate(info.firmwareVersion, latest.name, latest.publishedAt);
+                setFwUpdateAvailable(check.updateAvailable);
+                if (check.updateAvailable) {
+                  debugLog('INF', 'Editor', `Newer firmware available (${check.reason === 'version' ? `v${check.latestVersion}` : `newer v${check.latestVersion} build, published ${latest.publishedAt}`}) -- see the FW download button.`);
+                  showToast('新しいファームウェアがあります（FWダウンロードボタンから取得）', 'local');
+                }
+              });
             }
             const ok = await requestUnlock();
             if (!ok) {
@@ -228,6 +244,7 @@ function App() {
         }}
         unsaved={unsaved}
         wroteToDevice={wroteToDevice}
+        fwUpdateAvailable={fwUpdateAvailable}
         onWrite={async () => {
           try {
             if (!isUnlocked()) {

@@ -14,6 +14,7 @@ interface Props {
   unsaved: boolean;
   onWrite: () => void;
   wroteToDevice?: boolean;
+  fwUpdateAvailable?: boolean;
   onRead: () => void;
   onSave: () => void;
 }
@@ -35,7 +36,7 @@ const MAC_APP_DOWNLOAD_URL = `https://github.com/jprabadi-ship-it/conductor-keym
 // build without needing a version number here.
 const FIRMWARE_DOWNLOAD_URL = 'https://github.com/jprabadi-ship-it/conductor/releases/latest/download/ConductorD-firmware-latest.zip';
 
-export function Header({ store, showConsole, onToggleConsole, usbConnected, connectionType, onConnectionChange, unsaved, onWrite, wroteToDevice, onRead, onSave }: Props) {
+export function Header({ store, showConsole, onToggleConsole, usbConnected, connectionType, onConnectionChange, unsaved, onWrite, wroteToDevice, fwUpdateAvailable, onRead, onSave }: Props) {
   const [showExport, setShowExport] = useState(false);
   const [showChangelog, setShowChangelog] = useState(false);
   const [theme, setTheme] = useState(() => localStorage.getItem('conductor-theme') || 'light');
@@ -134,6 +135,7 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, conn
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {[
+                { v: '0.29.0.0', at: '2026-07-14 JST', changes: ['FW更新通知を追加（Macアプリ版のみ）。接続時にCIが公開している最新FW（firmware-latest）と接続中デバイスのバージョン・ビルド日時を比較し、新しいFWがあればトースト通知+FWダウンロードボタンにオレンジのバッジを表示。リポジトリがプライベートのため照会はローカルのgh CLI経由（Web版はチェックなしで従来通り）'] },
                 { v: '0.28.0.0', at: '2026-07-13 JST', changes: ['コンボ書き込みを差分方式に変更。従来はWriteのたびに全コンボを削除→再追加していたが、変更のあったコンボだけを更新（未変更ならRPCゼロ）するように。コンボを触っていないWriteが数秒速く', 'Write進捗トーストに段階表示を追加（1/4 レイヤー設定 → 2/4 キー割り当て → 3/4 コンボ → 4/4 Flash保存）'] },
                 { v: '0.27.0.0', at: '2026-07-13 JST', changes: ['コンボ名を実機に保存するように対応（要ファームウェア0.6.12+の最新ビルド）。protoにnameフィールドを追加し、Writeでコンボ名がデバイスのFlashに永続化、別のPC・ブラウザから接続しても名前が復元されるように。DTデフォルトコンボ（scroll/gesture/pair/boot）はfirmwareがdevicetreeのノード名を直接報告。旧firmwareでは従来通りローカル名でのフォールバック動作'] },
                 { v: '0.26.5.0', at: '2026-07-13 JST', changes: ['Readのたびにコンボ名が「Combo 1」等の仮名に上書きされていた不具合を修正。ZMK Studioのコンボ用RPCには元々名前を保持するフィールドが無く、実機からのReadで機械的な仮名に置き換わっていた（接続直後の自動Readも含む）。既存のローカル名を位置で突き合わせて優先するように変更'] },
@@ -336,9 +338,19 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, conn
         </a>
       )}
 
-      <a className="header-action-btn" href={FIRMWARE_DOWNLOAD_URL} style={{ textDecoration: 'none' }}
-        title="最新のFW一式（dongle/L/R/settings_reset）をzipでダウンロード">
+      <a className="header-action-btn" href={FIRMWARE_DOWNLOAD_URL}
+        style={{ textDecoration: 'none', position: 'relative', ...(fwUpdateAvailable ? { borderColor: 'var(--warning)' } : {}) }}
+        title={fwUpdateAvailable
+          ? '接続中のデバイスより新しいFWが公開されています。zipをダウンロードして書き込んでください'
+          : '最新のFW一式（dongle/L/R/settings_reset）をzipでダウンロード'}>
         <span>⬇</span> FWダウンロード
+        {fwUpdateAvailable && (
+          <span style={{
+            position: 'absolute', top: -4, right: -4, width: 10, height: 10,
+            borderRadius: '50%', background: 'var(--warning)',
+            border: '2px solid var(--bg-primary)',
+          }} />
+        )}
       </a>
 
       <div className="btn-group">

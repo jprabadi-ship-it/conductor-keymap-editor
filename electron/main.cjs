@@ -1,5 +1,7 @@
 const { app, BrowserWindow, session, dialog, Tray, Menu, nativeImage, ipcMain, screen } = require('electron')
 const path = require('node:path')
+const { execFile } = require('node:child_process')
+const fs = require('node:fs')
 
 const isDev = !app.isPackaged
 const preloadPath = path.join(__dirname, 'preload.cjs')
@@ -273,6 +275,36 @@ ipcMain.on('studio-released-port', () => {
 // races the first page load (the React listener may not be registered yet),
 // which made the dark default silently fall back to light on launch.
 ipcMain.handle('get-popup-prefs', () => ({ theme: popupTheme, showMinimap }))
+
+// Firmware update check. The conductor repo is private, so its
+// firmware-latest release can't be fetched anonymously (and the web build
+// can't embed credentials) -- but on this machine the user's gh CLI is
+// already authenticated, so the Electron build queries through it. GUI
+// apps launched from Finder don't inherit the shell PATH (no
+// /opt/homebrew/bin), so probe the usual install locations explicitly.
+ipcMain.handle('check-firmware-latest', async () => {
+  const ghCandidates = ['/opt/homebrew/bin/gh', '/usr/local/bin/gh', 'gh']
+  const ghPath = ghCandidates.find((p) => p === 'gh' || fs.existsSync(p))
+  return await new Promise((resolve) => {
+    execFile(
+      ghPath,
+      ['release', 'view', 'firmware-latest', '--repo', 'jprabadi-ship-it/conductor', '--json', 'name,publishedAt'],
+      { timeout: 10000 },
+      (err, stdout) => {
+        if (err) {
+          resolve(null) // gh missing/unauthenticated/offline -- silently skip
+          return
+        }
+        try {
+          const data = JSON.parse(stdout)
+          resolve({ name: data.name || '', publishedAt: data.publishedAt || '' })
+        } catch {
+          resolve(null)
+        }
+      },
+    )
+  })
+})
 
 // Minimap's "Editorへ" button: open (or focus) the Studio window.
 ipcMain.on('open-studio', () => {

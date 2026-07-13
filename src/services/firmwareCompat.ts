@@ -38,3 +38,39 @@ export function isFirmwareVersionSupported(raw: string | undefined | null): bool
   if (!parsed) return null;
   return compareVersions(parsed, MIN_SUPPORTED_FW_VERSION) >= 0;
 }
+
+// Compares the connected device's firmware against the CI-published
+// firmware-latest release (fetched via Electron's gh-CLI bridge; the repo
+// is private so the web build never has this data and simply skips the
+// check). Two signals, in priority order:
+//  - release title carries "vX.Y.Z" -> newer semver than the device wins.
+//  - same version: the device version string embeds its __DATE__/__TIME__
+//    build stamp ("0.6.12 (2026-07-12 21:15)", UTC on CI runners), and the
+//    release's publishedAt (also UTC) trails its own build by ~10min of
+//    merge/publish steps. A 45min margin absorbs that gap without missing
+//    genuinely newer builds, which in practice are hours apart.
+export function checkFirmwareUpdate(
+  deviceVersionRaw: string | undefined | null,
+  releaseName: string,
+  releasePublishedAt: string,
+): { updateAvailable: boolean; latestVersion: string | null; reason: 'version' | 'build' | null } {
+  const none = { updateAvailable: false, latestVersion: null, reason: null as null };
+  const deviceVersion = parseFirmwareVersion(deviceVersionRaw);
+  if (!deviceVersion) return none;
+
+  const releaseVersion = releaseName.match(/v(\d+\.\d+\.\d+)/)?.[1] ?? null;
+  if (releaseVersion && compareVersions(releaseVersion, deviceVersion) > 0) {
+    return { updateAvailable: true, latestVersion: releaseVersion, reason: 'version' };
+  }
+
+  const buildMatch = deviceVersionRaw?.match(/\((\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})\)/);
+  const publishedMs = Date.parse(releasePublishedAt);
+  if (buildMatch && !Number.isNaN(publishedMs)) {
+    const deviceBuildMs = Date.parse(`${buildMatch[1]}T${buildMatch[2]}:00Z`);
+    const marginMs = 45 * 60 * 1000;
+    if (!Number.isNaN(deviceBuildMs) && publishedMs > deviceBuildMs + marginMs) {
+      return { updateAvailable: true, latestVersion: releaseVersion ?? deviceVersion, reason: 'build' };
+    }
+  }
+  return none;
+}

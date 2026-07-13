@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('layer-state', listener)
   },
   showPopupMenu: () => ipcRenderer.send('popup-context-menu'),
+  checkFirmwareLatest: () => ipcRenderer.invoke('check-firmware-latest'),
   onShowMinimap: (callback) => {
     const listener = (_event, show) => callback(show)
     ipcRenderer.on('show-minimap', listener)
