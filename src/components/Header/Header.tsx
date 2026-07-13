@@ -134,6 +134,7 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, conn
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {[
+                { v: '0.26.4.0', at: '2026-07-13 JST', changes: ['Write実行中に「⏳ 書き込み処理中...」トーストを表示するように変更。firmware側の保存処理が変更点の数に応じて長くなる（saveChangesは1キーごとに直列でflashへ保存するため）ため、完了までの間も無反応に見えないように改善。完了時は従来通り成功/失敗のトーストに切り替わる'] },
                 { v: '0.26.3.0', at: '2026-07-13 JST', changes: ['ヘッダーに「FWダウンロード」ボタンを追加。conductor-dongle側のCIがrelease/conductor-*ブランチへのpush毎に自動更新するfirmware-latest（dongle/L/R/settings_reset一式のzip）へのリンク。Macアプリダウンロードと違い、Web版・Electron版どちらでも常時表示'] },
                 { v: '0.26.2.0', at: '2026-07-13 JST', changes: ['Write時に「Save failed: Response timeout」でFlash保存が失敗して見える不具合を修正。firmware側のsaveChangesは変更したキー1つずつを直列でsettings保存するため、変更点が多いとUSB接続時の5秒タイムアウトを実際の保存時間が超えることがあった（デバイス側は正常に保存し続けているのに、クライアントが先に諦めていた）。該当RPCのタイムアウトを20秒に延長'] },
                 { v: '0.26.1.0', at: '2026-07-13 JST', changes: ['Write失敗時にトーストが一切出ず無反応に見えていた不具合を修正。デバイス書き込み・Flash保存が失敗、または例外が発生した場合にエラートーストを表示するように変更（従来は成功時のトーストのみで、失敗時は完全に無音だった）。詳細はヘッダーの「>_」デバッグコンソールで確認可能'] },

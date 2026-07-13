@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useKeymapStore } from './store/useKeymapStore';
 import { readKeymap, writeKeymapToDevice, saveChanges, setLayerProps, getDeviceInfo, requestUnlock, isUnlocked, readMacrosFromDevice, onDeviceDisconnect, onActiveLayerChange, onKeyInputEvent, subscribeToInput, getRuntimeState, setKeyboardLayout, getBehaviorDisplayName, getCombosFromDevice, writeCombosToDevice } from './services/usbService';
 import { isFirmwareVersionSupported, MIN_SUPPORTED_FW_VERSION } from './services/firmwareCompat';
@@ -23,7 +23,8 @@ function App() {
   const [usbConnected, setUsbConnected] = useState(false); // true for either transport (USB or BLE)
   const [connType, setConnType] = useState<'usb' | 'bluetooth' | null>(null);
   const [unsaved, setUnsaved] = useState(false);
-  const [toast, setToast] = useState<{ message: string; type: 'device' | 'local' | 'error' } | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'device' | 'local' | 'error' | 'progress' } | null>(null);
+  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [highestLayer, setHighestLayer] = useState(0);
   const [pressedPositions, setPressedPositions] = useState<number[]>([]);
   const [popupBattery, setPopupBattery] = useState<{ l: number | null; r: number | null } | null>(null);
@@ -31,9 +32,12 @@ function App() {
   // shortcut in the header (Electron only).
   const [wroteToDevice, setWroteToDevice] = useState(false);
 
-  const showToast = useCallback((message: string, type: 'device' | 'local' | 'error' = 'device') => {
+  const showToast = useCallback((message: string, type: 'device' | 'local' | 'error' | 'progress' = 'device', opts?: { persist?: boolean }) => {
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
     setToast({ message, type });
-    setTimeout(() => setToast(null), 3000);
+    if (!opts?.persist) {
+      toastTimeoutRef.current = setTimeout(() => setToast(null), 3000);
+    }
   }, []);
 
   useEffect(() => {
@@ -225,6 +229,7 @@ function App() {
                 return;
               }
             }
+            showToast('書き込み処理中...', 'progress', { persist: true });
             debugLog('INF', 'Editor', `Writing keymap to device... (${store.dirtyKeys.size} keys modified)`);
             // Write layer names + LED colors
             for (const layer of store.layers) {
@@ -310,12 +315,12 @@ function App() {
       {toast && (
         <div style={{
           position: 'fixed', bottom: 40, left: '50%', transform: 'translateX(-50%)',
-          background: toast.type === 'device' ? 'var(--success)' : toast.type === 'local' ? 'var(--info)' : 'var(--danger)',
+          background: toast.type === 'device' ? 'var(--success)' : toast.type === 'local' ? 'var(--info)' : toast.type === 'progress' ? 'var(--warning)' : 'var(--danger)',
           color: 'white', padding: '8px 20px', borderRadius: 6, fontSize: 13, fontWeight: 600,
           zIndex: 2000, boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
           animation: 'fadeIn 0.2s ease',
         }}>
-          {toast.type === 'device' ? '🔌' : toast.type === 'local' ? '💾' : '✗'} {toast.message}
+          {toast.type === 'device' ? '🔌' : toast.type === 'local' ? '💾' : toast.type === 'progress' ? '⏳' : '✗'} {toast.message}
         </div>
       )}
     </>
