@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { version } from '../../../package.json';
 import { KeymapStore } from '../../store/useKeymapStore';
 import { applyDeviceSettingsSnapshot, collectDeviceSettingsSnapshot, setKeyboardLayout } from '../../services/usbService';
+import { listWriteBackups, loadWriteBackup } from '../../services/writeBackups';
 import { ConnectionPanel } from '../LeftPanel/ConnectionPanel';
 
 interface Props {
@@ -138,6 +139,7 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, conn
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {[
+                { v: '0.32.0.0', at: '2026-07-14 JST', changes: ['Writeを安全なトランザクション方式に強化。①Write前に設定監査を実行し、エラーがあれば確認ダイアログで警告 ②Write前に実機の直前状態を自動バックアップ（直近3件、File>「⟲ Write前バックアップ」から復元可能） ③Write完了後に実機から再読込して書いた内容と一致するか検証（USB接続時のみ。不一致があればエラー表示して未保存状態を維持） ④進捗表示を5段階に拡張（5/5が書き戻し検証）'] },
                 { v: '0.31.0.0', at: '2026-07-14 JST', changes: ['設定監査機能を追加。Readのたびに設定の不整合を自動検査し、問題があればトースト通知+診断タブに赤/黄で一覧表示（📋コピーにも含まれる）。検査対象: カスタムbehavior（lt6_j等）がどのキーからも参照されなくなっていないか（過去のJ/Z上書き問題の再発検知）、実機に存在しないbehavior参照（NVS破損の兆候）、存在しないレイヤーへの参照、コンボの重複・包含関係による発火不能・不正キー数・変換不能な出力、参照先のないマクロ・空マクロ。診断タブから手動再検査も可能'] },
                 { v: '0.30.2.0', at: '2026-07-14 JST', changes: ['「Macアプリダウンロード」が404になることがある不具合を修正。リンクをバージョン番号付きファイル名からバージョン番号なし（毎リリース同梱）に変更し、Web版のキャッシュ・デプロイとDMGリリースの時間差があっても常に最新リリースのDMGが取得できるように'] },
                 { v: '0.30.1.0', at: '2026-07-14 JST', changes: ['Macアプリ版のStudioウィンドウを90%ズームで起動するように変更（FHDディスプレイで手狭だったため。Cmd+/-でのセッション中の調整は従来通り、ミニマップは対象外）'] },
@@ -413,6 +415,22 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, conn
               <span className="export-item-title">Import .json</span>
               <span className="export-item-desc">Load project and restore device settings</span>
             </button>
+            {listWriteBackups().map(b => (
+              <button
+                key={b.at}
+                className="export-item"
+                onClick={() => {
+                  const backup = loadWriteBackup(b.at);
+                  if (!backup) return;
+                  if (!confirm(`${new Date(b.at).toLocaleString('ja-JP')} のWrite前バックアップをエディタに読み込みます。\n（実機に反映するには読み込み後にWriteしてください）`)) return;
+                  store.importProject(backup);
+                  setShowExport(false);
+                }}
+              >
+                <span className="export-item-title">⟲ Write前バックアップ</span>
+                <span className="export-item-desc">{new Date(b.at).toLocaleString('ja-JP')} 時点の実機状態を復元</span>
+              </button>
+            ))}
           </div>
         )}
       </div>

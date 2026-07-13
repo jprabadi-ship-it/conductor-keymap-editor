@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useKeymapStore } from './store/useKeymapStore';
-import { readKeymap, writeKeymapToDevice, saveChanges, setLayerProps, getDeviceInfo, requestUnlock, isUnlocked, readMacrosFromDevice, onDeviceDisconnect, onActiveLayerChange, onKeyInputEvent, subscribeToInput, getRuntimeState, setKeyboardLayout, getBehaviorDisplayName, getCombosFromDevice, writeCombosToDevice } from './services/usbService';
+import { readKeymap, writeKeymapToDevice, saveChanges, setLayerProps, getDeviceInfo, requestUnlock, isUnlocked, readMacrosFromDevice, onDeviceDisconnect, onActiveLayerChange, onKeyInputEvent, subscribeToInput, getRuntimeState, setKeyboardLayout, getBehaviorDisplayName, getCombosFromDevice, writeCombosToDevice, verifyDeviceState } from './services/usbService';
+import { saveWriteBackup } from './services/writeBackups';
+import type { KeymapProject } from './types';
 import { isFirmwareVersionSupported, checkFirmwareUpdate, MIN_SUPPORTED_FW_VERSION } from './services/firmwareCompat';
 import { runConfigAudit } from './services/configAudit';
 import { LED_COLORS, type PanelTab } from './types';
@@ -36,6 +38,10 @@ function App() {
   // firmware-latest release (Electron only -- the check runs through the
   // local gh CLI since the repo is private). Badges the FW download button.
   const [fwUpdateAvailable, setFwUpdateAvailable] = useState(false);
+  // The last state confirmed to be on the device (captured at Read and
+  // after each verified Write) -- this is what a pre-write backup snapshots,
+  // since it's what the device holds just before we overwrite it.
+  const lastDeviceSnapshotRef = useRef<KeymapProject | null>(null);
 
   const showToast = useCallback((message: string, type: 'device' | 'local' | 'error' | 'progress' = 'device', opts?: { persist?: boolean }) => {
     if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
@@ -174,6 +180,7 @@ function App() {
       store.importProject(project);
       store.clearDirtyKeys();
       setUnsaved(false);
+      lastDeviceSnapshotRef.current = project;
       debugLog('INF', 'Editor', `Keymap applied: ${result.layers.length} layers`);
       // Config audit: catch silent settings corruption (the J/Z custom
       // behavior overwrite, dead combos, dangling references) right at Read
@@ -275,7 +282,26 @@ function App() {
                 return;
               }
             }
-            showToast('書き込み処理中... (1/4 レイヤー設定)', 'progress', { persist: true });
+            // Pre-write audit gate: errors mean parts of this config will be
+            // silently skipped or broken on the device -- make it a conscious
+            // decision. Warnings don't block.
+            const preAudit = await runConfigAudit(store.exportProject());
+            const preErrors = preAudit.filter(f => f.severity === 'error');
+            if (preErrors.length > 0) {
+              const summary = preErrors.slice(0, 3).map(f => `・${f.message}`).join('\n');
+              if (!confirm(`設定監査でエラーが${preErrors.length}件見つかりました:\n\n${summary}${preErrors.length > 3 ? '\n…' : ''}\n\nこのままWriteしますか？（詳細は診断タブ）`)) {
+                showToast('Writeを中止しました', 'local');
+                return;
+              }
+            }
+            // Auto-backup: what's on the device right now is (as far as we
+            // know) the state captured at the last Read/Write -- stash it so
+            // a bad Write can be rolled back from the File menu.
+            if (lastDeviceSnapshotRef.current) {
+              saveWriteBackup(lastDeviceSnapshotRef.current);
+              debugLog('INF', 'Editor', 'Pre-write backup saved (File > Write前バックアップ)');
+            }
+            showToast('書き込み処理中... (1/5 レイヤー設定)', 'progress', { persist: true });
             debugLog('INF', 'Editor', `Writing keymap to device... (${store.dirtyKeys.size} keys modified)`);
             // Write layer names + LED colors
             for (const layer of store.layers) {
@@ -283,35 +309,51 @@ function App() {
             }
             debugLog('INF', 'Editor', `Layer names and LED colors written (${store.layers.length} layers)`);
             // Write key bindings
-            showToast('書き込み処理中... (2/4 キー割り当て)', 'progress', { persist: true });
-            const ok = await writeKeymapToDevice(store.layers, store.dirtyKeys);
+            showToast('書き込み処理中... (2/5 キー割り当て)', 'progress', { persist: true });
+            const keymapResult = await writeKeymapToDevice(store.layers, store.dirtyKeys);
             // Combos persist themselves per-RPC (no separate save step, unlike
             // the keymap subsystem's saveChanges() below) -- write regardless
             // of keymap dirty-key tracking, same as layer names/colors above.
-            showToast('書き込み処理中... (3/4 コンボ)', 'progress', { persist: true });
-            const combosOk = await writeCombosToDevice(store.combos);
-            if (!combosOk) {
+            showToast('書き込み処理中... (3/5 コンボ)', 'progress', { persist: true });
+            const comboResult = await writeCombosToDevice(store.combos);
+            if (!comboResult.ok) {
               debugLog('WRN', 'Editor', 'Some combos failed to write -- check the console for details');
             } else {
               debugLog('INF', 'Editor', `Combos written (${store.combos.length})`);
             }
-            if (!ok) {
+            if (!keymapResult.ok && Object.keys(keymapResult.written).length === 0) {
               debugLog('ERR', 'Editor', 'Write failed: device not connected');
               showToast('書き込みに失敗しました（未接続）', 'error');
               return;
             }
-            showToast('書き込み処理中... (4/4 Flash保存)', 'progress', { persist: true });
+            showToast('書き込み処理中... (4/5 Flash保存)', 'progress', { persist: true });
             const saved = await saveChanges();
             if (!saved) {
               debugLog('ERR', 'Editor', 'Write failed: could not save to device flash -- check the console for details');
               showToast('書き込みに失敗しました（Flash保存エラー）', 'error');
               return;
             }
+            // Read-back verification (USB only: a BLE re-read takes tens of
+            // seconds and the transport is the same one that just acked every
+            // write). Confirms what we wrote is what the device now reports.
+            if (connType === 'usb') {
+              showToast('書き込み処理中... (5/5 書き戻し検証)', 'progress', { persist: true });
+              const verify = await verifyDeviceState(keymapResult.written, comboResult.expected);
+              if (!verify.ok) {
+                for (const m of verify.mismatches) {
+                  debugLog('ERR', 'Verify', m);
+                }
+                showToast(`書き戻し検証で不一致${verify.mismatches.length}件（>_コンソール参照。File>バックアップから復元できます）`, 'error');
+                return;
+              }
+              debugLog('INF', 'Verify', `Read-back verification passed (${Object.keys(keymapResult.written).length} keys, ${comboResult.expected.length} combos)`);
+            }
             store.clearDirtyKeys();
             setUnsaved(false);
             setWroteToDevice(true);
+            lastDeviceSnapshotRef.current = store.exportProject();
             debugLog('INF', 'Editor', 'Keymap written and saved to device flash');
-            showToast('実機のFlashに書き込みました', 'device');
+            showToast(connType === 'usb' ? '実機のFlashに書き込みました（検証OK）' : '実機のFlashに書き込みました', 'device');
           } catch (e: any) {
             debugLog('ERR', 'Editor', `Write failed: ${e.message}`);
             showToast(`書き込みに失敗しました: ${e.message}`, 'error');

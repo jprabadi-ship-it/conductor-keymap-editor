@@ -2128,28 +2128,51 @@ function truncateUtf8(s: string, maxBytes: number): string {
   return out;
 }
 
+// A combo resolved to exactly the values the device receives and stores.
+export type WireCombo = {
+  name: string;
+  positions: number[];
+  binding: { behaviorId: number; param1: number; param2: number };
+  timeoutMs: number;
+  layerMask: number;
+  requirePriorIdleMs: number;
+  slowRelease: boolean;
+};
+
+// Key-position order doesn't matter to the firmware's matcher, so compare
+// as sorted sets to avoid treating a mere reordering as a difference. An
+// empty device name means the firmware predates name persistence and would
+// report "" forever -- don't let that count as a mismatch. Shared between
+// the diffing writer and the post-write verification.
+function wireComboMatchesDevice(local: WireCombo, dev: any): boolean {
+  const devPositions: number[] = dev.keyPositions || [];
+  const a = [...local.positions].sort((x, y) => x - y);
+  const b = [...devPositions].sort((x, y) => x - y);
+  if (a.length !== b.length || a.some((v, i) => v !== b[i])) return false;
+  if ((dev.binding?.behaviorId ?? 0) !== local.binding.behaviorId ||
+      (dev.binding?.param1 ?? 0) !== local.binding.param1 ||
+      (dev.binding?.param2 ?? 0) !== local.binding.param2) return false;
+  if ((dev.timeoutMs || 50) !== local.timeoutMs) return false;
+  if ((dev.layerMask ?? 0) !== local.layerMask) return false;
+  if ((dev.requirePriorIdleMs ?? 0) !== local.requirePriorIdleMs) return false;
+  if (!!dev.slowRelease !== local.slowRelease) return false;
+  if ((dev.name || '') !== '' && dev.name !== local.name) return false;
+  return true;
+}
+
 // Syncs the local combo list to the device with a positional diff: combos at
 // matching indexes are compared field by field and only rewritten (setCombo)
 // when they actually differ, extra local combos are added, extra device
 // combos removed from the end down. The previous implementation was a full
 // delete-all + re-add on every Write (~2 RPCs per combo, several seconds),
 // which also made touching nothing cost as much as changing everything.
-export async function writeCombosToDevice(combos: import('../types').Combo[]): Promise<boolean> {
+// Returns the wire-form list actually intended for the device so the caller
+// can verify it landed (see verifyDeviceState).
+export async function writeCombosToDevice(combos: import('../types').Combo[]): Promise<{ ok: boolean; expected: WireCombo[] }> {
   try {
     const before = await sendRequest({ combo: { getCombos: true } });
     const deviceCombos: any[] = before.combo?.getCombos?.combos ?? [];
 
-    // Resolve every local combo to its wire form up front, so the comparison
-    // below sees exactly the values the device would receive and store.
-    type WireCombo = {
-      name: string;
-      positions: number[];
-      binding: { behaviorId: number; param1: number; param2: number };
-      timeoutMs: number;
-      layerMask: number;
-      requirePriorIdleMs: number;
-      slowRelease: boolean;
-    };
     let ok = true;
     const wireCombos: WireCombo[] = [];
     for (const combo of combos) {
@@ -2182,26 +2205,6 @@ export async function writeCombosToDevice(combos: import('../types').Combo[]): P
       });
     }
 
-    // Key-position order doesn't matter to the firmware's matcher, so
-    // compare as sorted sets to avoid rewriting over a mere reordering.
-    // An empty device name means the firmware predates name persistence
-    // and would report "" forever -- don't let that force a rewrite.
-    const sameCombo = (local: WireCombo, dev: any): boolean => {
-      const devPositions: number[] = dev.keyPositions || [];
-      const a = [...local.positions].sort((x, y) => x - y);
-      const b = [...devPositions].sort((x, y) => x - y);
-      if (a.length !== b.length || a.some((v, i) => v !== b[i])) return false;
-      if ((dev.binding?.behaviorId ?? 0) !== local.binding.behaviorId ||
-          (dev.binding?.param1 ?? 0) !== local.binding.param1 ||
-          (dev.binding?.param2 ?? 0) !== local.binding.param2) return false;
-      if ((dev.timeoutMs || 50) !== local.timeoutMs) return false;
-      if ((dev.layerMask ?? 0) !== local.layerMask) return false;
-      if ((dev.requirePriorIdleMs ?? 0) !== local.requirePriorIdleMs) return false;
-      if (!!dev.slowRelease !== local.slowRelease) return false;
-      if ((dev.name || '') !== '' && dev.name !== local.name) return false;
-      return true;
-    };
-
     let updated = 0;
     let added = 0;
     let removed = 0;
@@ -2210,7 +2213,7 @@ export async function writeCombosToDevice(combos: import('../types').Combo[]): P
     // Overlapping indexes: rewrite in place only where something differs.
     const overlap = Math.min(wireCombos.length, deviceCombos.length);
     for (let i = 0; i < overlap; i++) {
-      if (sameCombo(wireCombos[i], deviceCombos[i])) {
+      if (wireComboMatchesDevice(wireCombos[i], deviceCombos[i])) {
         unchanged++;
         continue;
       }
@@ -2270,17 +2273,19 @@ export async function writeCombosToDevice(combos: import('../types').Combo[]): P
     }
 
     debugLog('INF', 'USB', `Combo sync: ${unchanged} unchanged, ${updated} updated, ${added} added, ${removed} removed`);
-    return ok;
+    return { ok, expected: wireCombos };
   } catch (e: any) {
     debugLog('ERR', 'USB', `writeCombosToDevice failed: ${e.message}`);
-    return false;
+    return { ok: false, expected: [] };
   }
 }
 
-export async function writeKeymapToDevice(layers: Layer[], dirtyKeys?: Set<string>): Promise<boolean> {
+// Returns the raw triples actually sent per position key ("layer:posId"),
+// so the caller can verify they landed on the device (verifyDeviceState).
+export async function writeKeymapToDevice(layers: Layer[], dirtyKeys?: Set<string>): Promise<{ ok: boolean; written: Record<string, { behaviorId: number; param1: number; param2: number }> }> {
   if (!writer) {
     debugLog('ERR', 'USB', 'Not connected');
-    return false;
+    return { ok: false, written: {} };
   }
 
   // Ensure behaviors are loaded
@@ -2327,6 +2332,8 @@ export async function writeKeymapToDevice(layers: Layer[], dirtyKeys?: Set<strin
 
   let written = 0;
   let skipped = 0;
+  let failed = 0;
+  const writtenBindings: Record<string, { behaviorId: number; param1: number; param2: number }> = {};
 
   for (const layer of layers) {
     for (let keyIdx = 0; keyIdx < KEY_ORDER.length; keyIdx++) {
@@ -2461,12 +2468,60 @@ export async function writeKeymapToDevice(layers: Layer[], dirtyKeys?: Set<strin
       try {
         await setLayerBinding(layer.index, keyIdx, behaviorId, param1, param2);
         written++;
+        writtenBindings[rawKey] = { behaviorId, param1, param2 };
       } catch (e: any) {
         debugLog('ERR', 'USB', `Failed to write ${posId} on layer ${layer.index}: ${e.message}`);
+        failed++;
       }
     }
   }
 
-  debugLog('INF', 'USB', `Write complete: ${written} bindings updated, ${skipped} unchanged`);
-  return true;
+  debugLog('INF', 'USB', `Write complete: ${written} bindings updated, ${skipped} unchanged${failed > 0 ? `, ${failed} FAILED` : ''}`);
+  return { ok: failed === 0, written: writtenBindings };
+}
+
+// Post-write verification: re-read the keymap and combos from the device
+// and confirm what we just wrote actually landed. Guards against the class
+// of failure where an RPC "succeeds" but NVS keeps or corrupts old data --
+// the same kind of silent divergence behind the J/Z incident. Returns a
+// human-readable mismatch list (empty = verified clean).
+export async function verifyDeviceState(
+  expectedKeys: Record<string, { behaviorId: number; param1: number; param2: number }>,
+  expectedCombos: WireCombo[],
+): Promise<{ ok: boolean; mismatches: string[] }> {
+  const mismatches: string[] = [];
+  try {
+    // readKeymap refreshes the module-level rawBindings from the device.
+    const reread = await readKeymap();
+    if (!reread) {
+      return { ok: false, mismatches: ['実機からの再読込に失敗しました（検証不能）'] };
+    }
+    for (const [key, exp] of Object.entries(expectedKeys)) {
+      const actual = rawBindings[key];
+      if (!actual) {
+        mismatches.push(`${key}: 再読込に存在しません`);
+        continue;
+      }
+      if (actual.behaviorId !== exp.behaviorId || actual.param1 !== exp.param1 || actual.param2 !== exp.param2) {
+        mismatches.push(`${key}: 期待 beh=${exp.behaviorId}/p1=0x${exp.param1.toString(16)}/p2=0x${exp.param2.toString(16)} → 実機 beh=${actual.behaviorId}/p1=0x${actual.param1.toString(16)}/p2=0x${actual.param2.toString(16)}`);
+      }
+    }
+
+    const resp = await sendRequest({ combo: { getCombos: true } });
+    const deviceCombos: any[] = resp.combo?.getCombos?.combos ?? [];
+    if (deviceCombos.length !== expectedCombos.length) {
+      mismatches.push(`コンボ数: 期待${expectedCombos.length}件 → 実機${deviceCombos.length}件`);
+    } else {
+      for (let i = 0; i < expectedCombos.length; i++) {
+        if (!wireComboMatchesDevice(expectedCombos[i], deviceCombos[i])) {
+          mismatches.push(`コンボ「${expectedCombos[i].name || `#${i}`}」が書き込んだ内容と一致しません`);
+        }
+      }
+    }
+
+    return { ok: mismatches.length === 0, mismatches };
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `verifyDeviceState failed: ${e.message}`);
+    return { ok: false, mismatches: [`検証中にエラー: ${e.message}`] };
+  }
 }
