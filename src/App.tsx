@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useKeymapStore } from './store/useKeymapStore';
 import { readKeymap, writeKeymapToDevice, saveChanges, setLayerProps, getDeviceInfo, requestUnlock, isUnlocked, readMacrosFromDevice, onDeviceDisconnect, onActiveLayerChange, onKeyInputEvent, subscribeToInput, getRuntimeState, setKeyboardLayout, getBehaviorDisplayName, getCombosFromDevice, writeCombosToDevice } from './services/usbService';
 import { isFirmwareVersionSupported, checkFirmwareUpdate, MIN_SUPPORTED_FW_VERSION } from './services/firmwareCompat';
+import { runConfigAudit } from './services/configAudit';
 import { LED_COLORS, type PanelTab } from './types';
 import { debugLog } from './components/DebugConsole';
 import { Header } from './components/Header/Header';
@@ -174,7 +175,25 @@ function App() {
       store.clearDirtyKeys();
       setUnsaved(false);
       debugLog('INF', 'Editor', `Keymap applied: ${result.layers.length} layers`);
-      showToast(`${result.layers.length} layers loaded from device`);
+      // Config audit: catch silent settings corruption (the J/Z custom
+      // behavior overwrite, dead combos, dangling references) right at Read
+      // time, before it gets edited on top of or written back.
+      const auditFindings = await runConfigAudit(project);
+      const auditErrors = auditFindings.filter(f => f.severity === 'error').length;
+      if (auditFindings.length > 0) {
+        for (const f of auditFindings) {
+          debugLog(f.severity === 'error' ? 'ERR' : 'WRN', 'Audit', `[${f.category}] ${f.message}`);
+        }
+        showToast(
+          auditErrors > 0
+            ? `設定監査: 問題${auditErrors}件（診断タブで確認）`
+            : `設定監査: 注意${auditFindings.length}件（診断タブで確認）`,
+          auditErrors > 0 ? 'error' : 'local',
+        );
+      } else {
+        debugLog('INF', 'Audit', 'Config audit passed: no findings');
+        showToast(`${result.layers.length} layers loaded from device`);
+      }
     }
   };
 
@@ -200,7 +219,7 @@ function App() {
       case 'trackball': return <TrackballConfig store={store} />;
       case 'timing': return <TimingConfig store={store} />;
       case 'bluetooth': return <BluetoothConfig store={store} />;
-      case 'diagnostics': return <DiagnosticsPanel />;
+      case 'diagnostics': return <DiagnosticsPanel store={store} />;
     }
   };
 

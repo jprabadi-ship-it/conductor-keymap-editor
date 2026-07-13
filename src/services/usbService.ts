@@ -563,6 +563,17 @@ export function getBehaviorDisplayName(behaviorId: number): string | undefined {
   return behaviorCache[behaviorId]?.displayName;
 }
 
+// Read-only snapshots for the config audit (configAudit.ts): the raw
+// per-position bindings captured by the last device Read, and the behavior
+// id->name table. Copies, so audit code can't mutate connection state.
+export function getRawBindingsSnapshot(): Record<string, { behaviorId: number; param1: number; param2: number }> {
+  return { ...rawBindings };
+}
+
+export function getBehaviorCacheEntries(): { id: number; displayName: string }[] {
+  return Object.entries(behaviorCache).map(([id, b]) => ({ id: Number(id), displayName: b.displayName }));
+}
+
 export function getKeyboardLayout(): 'us' | 'jis' {
   return currentLayout;
 }

@@ -15,6 +15,8 @@ import {
   type RuntimeBatteryState,
 } from '../../services/usbService';
 import { isFirmwareVersionSupported } from '../../services/firmwareCompat';
+import { runConfigAudit, lastAuditResults, lastAuditAt, type AuditFinding } from '../../services/configAudit';
+import type { KeymapStore } from '../../store/useKeymapStore';
 import { debugLog } from '../DebugConsole';
 
 type DiagnosticsData = {
@@ -94,14 +96,37 @@ function buildDiagnosticsText(data: DiagnosticsData): string {
   lines.push(`USB Slots: ${data.usbSlots ? data.usbSlots.slots.map((s, i) => `${i}:${s.name}`).join('  ') || '--' : '--'}`);
   lines.push(`OS Overlay: ${data.osConfig ? `${boolText(data.osConfig.enabled)} map=[${data.osConfig.osMap.join(', ')}] activeEndpoint=${data.osConfig.activeEndpoint}` : '--'}`);
   lines.push(`Gesture Override: ${data.gestureConfig ? `${boolText(data.gestureConfig.enabled)} overrides=${data.gestureConfig.hasOverride.filter(Boolean).length} activeEndpoint=${data.gestureConfig.activeEndpoint}` : '--'}`);
+  if (lastAuditResults !== null) {
+    lines.push('');
+    lines.push('## Config Audit');
+    if (lastAuditResults.length === 0) {
+      lines.push('OK: no findings');
+    } else {
+      for (const f of lastAuditResults) {
+        lines.push(`${f.severity.toUpperCase()} [${f.category}] ${f.message}`);
+      }
+    }
+  }
   return lines.join('\n');
 }
 
-export function DiagnosticsPanel() {
+export function DiagnosticsPanel({ store }: { store?: KeymapStore }) {
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [data, setData] = useState<DiagnosticsData | null>(null);
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const [audit, setAudit] = useState<AuditFinding[] | null>(lastAuditResults);
+  const [auditAt, setAuditAt] = useState<string | null>(lastAuditAt);
+  const [auditing, setAuditing] = useState(false);
+
+  const rerunAudit = async () => {
+    if (!store) return;
+    setAuditing(true);
+    const results = await runConfigAudit(store.exportProject());
+    setAudit(results);
+    setAuditAt(new Date().toLocaleTimeString('ja-JP'));
+    setAuditing(false);
+  };
 
   const handleCopy = async () => {
     if (!data) return;
@@ -200,6 +225,42 @@ export function DiagnosticsPanel() {
             </button>
           </div>
         </div>
+      </div>
+
+      <div className="config-section">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+          <div>
+            <div className="config-label">設定監査</div>
+            <div className="config-description">
+              設定の不整合（カスタムbehaviorの置き換わり・発火しないコンボ・存在しない参照など）を検査します。Readのたびに自動実行されます{auditAt ? `（最終: ${auditAt}）` : ''}。
+            </div>
+          </div>
+          {store && (
+            <button className="btn btn-outline" style={{ fontSize: 11 }} onClick={rerunAudit} disabled={auditing}>
+              {auditing ? '検査中...' : '再検査'}
+            </button>
+          )}
+        </div>
+        {audit === null ? (
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '6px 0' }}>まだ実行されていません（Readすると自動実行されます）</div>
+        ) : audit.length === 0 ? (
+          <div style={{ fontSize: 12, color: 'var(--success)', padding: '6px 0' }}>✓ 問題は見つかりませんでした</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '6px 0' }}>
+            {audit.map((f, i) => (
+              <div key={i} style={{
+                fontSize: 11, lineHeight: 1.5, padding: '6px 8px', borderRadius: 4,
+                borderLeft: `3px solid ${f.severity === 'error' ? 'var(--danger)' : 'var(--warning)'}`,
+                background: 'var(--bg-tertiary)',
+              }}>
+                <span style={{ fontWeight: 600, color: f.severity === 'error' ? 'var(--danger)' : 'var(--warning)' }}>
+                  {f.severity === 'error' ? '✗' : '⚠'} {f.category}
+                </span>
+                {' — '}{f.message}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {data && (
