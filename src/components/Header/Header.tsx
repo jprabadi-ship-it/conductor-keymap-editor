@@ -134,6 +134,7 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, conn
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {[
+                { v: '0.27.0.0', at: '2026-07-13 JST', changes: ['コンボ名を実機に保存するように対応（要ファームウェア0.6.12+の最新ビルド）。protoにnameフィールドを追加し、Writeでコンボ名がデバイスのFlashに永続化、別のPC・ブラウザから接続しても名前が復元されるように。DTデフォルトコンボ（scroll/gesture/pair/boot）はfirmwareがdevicetreeのノード名を直接報告。旧firmwareでは従来通りローカル名でのフォールバック動作'] },
                 { v: '0.26.5.0', at: '2026-07-13 JST', changes: ['Readのたびにコンボ名が「Combo 1」等の仮名に上書きされていた不具合を修正。ZMK Studioのコンボ用RPCには元々名前を保持するフィールドが無く、実機からのReadで機械的な仮名に置き換わっていた（接続直後の自動Readも含む）。既存のローカル名を位置で突き合わせて優先するように変更'] },
                 { v: '0.26.4.0', at: '2026-07-13 JST', changes: ['Write実行中に「⏳ 書き込み処理中...」トーストを表示するように変更。firmware側の保存処理が変更点の数に応じて長くなる（saveChangesは1キーごとに直列でflashへ保存するため）ため、完了までの間も無反応に見えないように改善。完了時は従来通り成功/失敗のトーストに切り替わる'] },
                 { v: '0.26.3.0', at: '2026-07-13 JST', changes: ['ヘッダーに「FWダウンロード」ボタンを追加。conductor-dongle側のCIがrelease/conductor-*ブランチへのpush毎に自動更新するfirmware-latest（dongle/L/R/settings_reset一式のzip）へのリンク。Macアプリダウンロードと違い、Web版・Electron版どちらでも常時表示'] },

@@ -2059,8 +2059,10 @@ export async function resolveKeyBindingRpc(binding: KeyBinding): Promise<{ behav
 
 // Reads the device's real combos via combo.getCombos (previously never
 // called -- the Combos tab used to show a hardcoded local demo list with no
-// relation to what's actually compiled into the keyboard). Each combo gets a
-// synthetic id/name since the device doesn't store either.
+// relation to what's actually compiled into the keyboard). Firmware 0.6.12+
+// persists combo names on the device (DT combos report their devicetree node
+// name); older firmware sends no name, so those get a synthetic placeholder
+// that App.tsx's Read merge can override with a local name.
 export async function getCombosFromDevice(): Promise<import('../types').Combo[] | null> {
   await ensureBehaviorsLoaded();
   try {
@@ -2083,7 +2085,7 @@ export async function getCombosFromDevice(): Promise<import('../types').Combo[] 
       }
       return {
         id: `combo_${i}`,
-        name: `Combo ${i + 1}`,
+        name: c.name || `Combo ${i + 1}`,
         keyPositions: positionsToKeyIds(c.keyPositions || []),
         binding,
         timeoutMs: c.timeoutMs || 50,
@@ -2096,6 +2098,21 @@ export async function getCombosFromDevice(): Promise<import('../types').Combo[] 
     debugLog('ERR', 'USB', `getCombosFromDevice failed: ${e.message}`);
     return null;
   }
+}
+
+// Truncate to at most maxBytes of UTF-8 without splitting a character.
+function truncateUtf8(s: string, maxBytes: number): string {
+  const enc = new TextEncoder();
+  if (enc.encode(s).length <= maxBytes) return s;
+  let out = '';
+  let bytes = 0;
+  for (const ch of s) {
+    const b = enc.encode(ch).length;
+    if (bytes + b > maxBytes) break;
+    out += ch;
+    bytes += b;
+  }
+  return out;
 }
 
 // Replaces all combos on the device with the given list: removes every
@@ -2137,6 +2154,12 @@ export async function writeCombosToDevice(combos: import('../types').Combo[]): P
               binding: rpcBinding,
               timeoutMs: combo.timeoutMs || 50,
               layerMask,
+              // Persisted on-device from firmware 0.6.12; older firmware
+              // ignores unknown fields, so this is safe to always send.
+              // Firmware-side storage is 32 bytes including the NUL, and
+              // nanopb rejects the whole message if the string exceeds
+              // that, so truncate by UTF-8 bytes (names can be Japanese).
+              name: truncateUtf8(combo.name || '', 31),
             },
           },
         },
