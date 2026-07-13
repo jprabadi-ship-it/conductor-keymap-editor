@@ -153,7 +153,16 @@ function App() {
       // device behavior name.
       const deviceCombos = await getCombosFromDevice();
       if (deviceCombos) {
-        project.combos = deviceCombos;
+        // The ZMK Studio combo RPC (zmk/combo.proto's ComboConfig) has no name
+        // field at all -- getCombosFromDevice() always synthesizes "Combo N"
+        // placeholders. Without this merge, every Read (including the
+        // automatic one right after connecting) silently wiped out real names
+        // like the defaults' "scroll"/"gesture"/"pair"/"boot" or anything the
+        // user typed in, replacing them with those placeholders. Match by
+        // position (same convention as the layer-name merge above) and keep
+        // the existing local name when there is one.
+        const previousCombos = project.combos;
+        project.combos = deviceCombos.map((c, i) => ({ ...c, name: previousCombos[i]?.name || c.name }));
         debugLog('INF', 'Editor', `Combos loaded: ${deviceCombos.length}`);
       }
       store.importProject(project);
