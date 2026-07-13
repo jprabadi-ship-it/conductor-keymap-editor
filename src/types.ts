@@ -39,6 +39,13 @@ export interface Combo {
   timeoutMs: number;
   layers: number[];
   suppressAml?: boolean;
+  // Don't fire if a non-combo key was typed within this window (0 = off) --
+  // ZMK combo require-prior-idle-ms, the mistyping guard for combos that
+  // share keys with normal typing.
+  requirePriorIdleMs?: number;
+  // Release the combo behavior on the first key release instead of the
+  // last -- ZMK combo slow-release.
+  slowRelease?: boolean;
 }
 
 export interface GestureShortcut {

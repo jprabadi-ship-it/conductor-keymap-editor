@@ -350,6 +350,18 @@ export function ComboList({ store }: Props) {
                 <span className="combo-detail-label">TIMEOUT:</span>
                 <span>{combo.timeoutMs}ms</span>
               </div>
+              {(combo.requirePriorIdleMs ?? 0) > 0 && (
+                <div className="combo-detail-row">
+                  <span className="combo-detail-label">PRIOR IDLE:</span>
+                  <span>{combo.requirePriorIdleMs}ms</span>
+                </div>
+              )}
+              {combo.slowRelease && (
+                <div className="combo-detail-row">
+                  <span className="combo-detail-label">RELEASE:</span>
+                  <span>slow（全キー解放で解除）</span>
+                </div>
+              )}
               {combo.suppressAml && (
                 <div className="combo-detail-row">
                   <span className="combo-detail-label">AML:</span>
@@ -517,6 +529,44 @@ export function ComboList({ store }: Props) {
                   onChange={e => setEditDraft({ ...editDraft, timeoutMs: Number(e.target.value) })}
                   style={{ width: 80 }}
                 />
+              </div>
+
+              {/* Require prior idle */}
+              <div className="combo-edit-field">
+                <label className="combo-edit-label">REQUIRE PRIOR IDLE (MS)</label>
+                <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 3 }}>直前にコンボ以外のキーを打ってからこの時間はコンボを発火しない（タイピング中の誤爆対策、0=無効）</div>
+                <input
+                  type="number"
+                  value={editDraft.requirePriorIdleMs || 0}
+                  min={0} max={1000}
+                  onChange={e => setEditDraft({ ...editDraft, requirePriorIdleMs: Number(e.target.value) })}
+                  style={{ width: 80 }}
+                />
+              </div>
+
+              {/* Slow release */}
+              <div className="combo-edit-field">
+                <label className="combo-edit-label">SLOW RELEASE</label>
+                <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 3 }}>ONにすると最初のキーを離した時点ではなく、全キーを離した時点でコンボの動作を解除</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <button
+                    onClick={() => setEditDraft({ ...editDraft, slowRelease: !editDraft.slowRelease })}
+                    style={{
+                      width: 36, height: 20, borderRadius: 10, border: 'none', cursor: 'pointer',
+                      background: editDraft.slowRelease ? 'var(--accent)' : 'var(--bg-hover)',
+                      position: 'relative', transition: 'background 0.2s',
+                    }}
+                  >
+                    <span style={{
+                      position: 'absolute', top: 2, left: editDraft.slowRelease ? 18 : 2,
+                      width: 16, height: 16, borderRadius: '50%', background: 'white',
+                      transition: 'left 0.2s',
+                    }} />
+                  </button>
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                    {editDraft.slowRelease ? '全キーを離すまで保持' : '最初のキーを離した時点で解除'}
+                  </span>
+                </div>
               </div>
 
               {/* Suppress AML */}

@@ -2090,6 +2090,8 @@ export async function getCombosFromDevice(): Promise<import('../types').Combo[] 
         binding,
         timeoutMs: c.timeoutMs || 50,
         layers,
+        requirePriorIdleMs: c.requirePriorIdleMs || 0,
+        slowRelease: !!c.slowRelease,
       };
     });
     debugLog('INF', 'USB', `Loaded ${combos.length} combos from device (max ${data.maxCombos})`);
@@ -2134,6 +2136,8 @@ export async function writeCombosToDevice(combos: import('../types').Combo[]): P
       binding: { behaviorId: number; param1: number; param2: number };
       timeoutMs: number;
       layerMask: number;
+      requirePriorIdleMs: number;
+      slowRelease: boolean;
     };
     let ok = true;
     const wireCombos: WireCombo[] = [];
@@ -2162,6 +2166,8 @@ export async function writeCombosToDevice(combos: import('../types').Combo[]): P
         binding: rpcBinding,
         timeoutMs: combo.timeoutMs || 50,
         layerMask,
+        requirePriorIdleMs: combo.requirePriorIdleMs || 0,
+        slowRelease: !!combo.slowRelease,
       });
     }
 
@@ -2179,6 +2185,8 @@ export async function writeCombosToDevice(combos: import('../types').Combo[]): P
           (dev.binding?.param2 ?? 0) !== local.binding.param2) return false;
       if ((dev.timeoutMs || 50) !== local.timeoutMs) return false;
       if ((dev.layerMask ?? 0) !== local.layerMask) return false;
+      if ((dev.requirePriorIdleMs ?? 0) !== local.requirePriorIdleMs) return false;
+      if (!!dev.slowRelease !== local.slowRelease) return false;
       if ((dev.name || '') !== '' && dev.name !== local.name) return false;
       return true;
     };
@@ -2204,6 +2212,8 @@ export async function writeCombosToDevice(combos: import('../types').Combo[]): P
               binding: wireCombos[i].binding,
               timeoutMs: wireCombos[i].timeoutMs,
               layerMask: wireCombos[i].layerMask,
+              requirePriorIdleMs: wireCombos[i].requirePriorIdleMs,
+              slowRelease: wireCombos[i].slowRelease,
               name: wireCombos[i].name,
             },
           },
@@ -2227,6 +2237,8 @@ export async function writeCombosToDevice(combos: import('../types').Combo[]): P
               binding: wireCombos[i].binding,
               timeoutMs: wireCombos[i].timeoutMs,
               layerMask: wireCombos[i].layerMask,
+              requirePriorIdleMs: wireCombos[i].requirePriorIdleMs,
+              slowRelease: wireCombos[i].slowRelease,
               name: wireCombos[i].name,
             },
           },
