@@ -2115,21 +2115,28 @@ function truncateUtf8(s: string, maxBytes: number): string {
   return out;
 }
 
-// Replaces all combos on the device with the given list: removes every
-// existing combo (from last index down to 0, mirroring the firmware's own
-// apply_stored_combos() replace-all semantics) then adds each local combo in
-// order. The RPC is index-based (set/add/remove one at a time) with no bulk
-// "set all", so a full resync is the simplest way to keep local reordering,
-// additions, and deletions all correct without tracking a diff.
+// Syncs the local combo list to the device with a positional diff: combos at
+// matching indexes are compared field by field and only rewritten (setCombo)
+// when they actually differ, extra local combos are added, extra device
+// combos removed from the end down. The previous implementation was a full
+// delete-all + re-add on every Write (~2 RPCs per combo, several seconds),
+// which also made touching nothing cost as much as changing everything.
 export async function writeCombosToDevice(combos: import('../types').Combo[]): Promise<boolean> {
   try {
     const before = await sendRequest({ combo: { getCombos: true } });
-    const currentCount = before.combo?.getCombos?.combos?.length ?? 0;
-    for (let i = currentCount - 1; i >= 0; i--) {
-      await sendRequest({ combo: { removeCombo: { index: i } } });
-    }
+    const deviceCombos: any[] = before.combo?.getCombos?.combos ?? [];
 
+    // Resolve every local combo to its wire form up front, so the comparison
+    // below sees exactly the values the device would receive and store.
+    type WireCombo = {
+      name: string;
+      positions: number[];
+      binding: { behaviorId: number; param1: number; param2: number };
+      timeoutMs: number;
+      layerMask: number;
+    };
     let ok = true;
+    const wireCombos: WireCombo[] = [];
     for (const combo of combos) {
       const rpcBinding = await resolveKeyBindingRpc(combo.binding);
       if (!rpcBinding) {
@@ -2145,32 +2152,101 @@ export async function writeCombosToDevice(combos: import('../types').Combo[]): P
       }
       let layerMask = 0;
       for (const l of combo.layers || []) layerMask |= (1 << l);
+      wireCombos.push({
+        // Firmware-side storage is 32 bytes including the NUL, and nanopb
+        // rejects the whole message if the string exceeds that, so truncate
+        // by UTF-8 bytes (names can be Japanese). Firmware older than
+        // 0.6.12's name support simply ignores the field.
+        name: truncateUtf8(combo.name || '', 31),
+        positions,
+        binding: rpcBinding,
+        timeoutMs: combo.timeoutMs || 50,
+        layerMask,
+      });
+    }
 
+    // Key-position order doesn't matter to the firmware's matcher, so
+    // compare as sorted sets to avoid rewriting over a mere reordering.
+    // An empty device name means the firmware predates name persistence
+    // and would report "" forever -- don't let that force a rewrite.
+    const sameCombo = (local: WireCombo, dev: any): boolean => {
+      const devPositions: number[] = dev.keyPositions || [];
+      const a = [...local.positions].sort((x, y) => x - y);
+      const b = [...devPositions].sort((x, y) => x - y);
+      if (a.length !== b.length || a.some((v, i) => v !== b[i])) return false;
+      if ((dev.binding?.behaviorId ?? 0) !== local.binding.behaviorId ||
+          (dev.binding?.param1 ?? 0) !== local.binding.param1 ||
+          (dev.binding?.param2 ?? 0) !== local.binding.param2) return false;
+      if ((dev.timeoutMs || 50) !== local.timeoutMs) return false;
+      if ((dev.layerMask ?? 0) !== local.layerMask) return false;
+      if ((dev.name || '') !== '' && dev.name !== local.name) return false;
+      return true;
+    };
+
+    let updated = 0;
+    let added = 0;
+    let removed = 0;
+    let unchanged = 0;
+
+    // Overlapping indexes: rewrite in place only where something differs.
+    const overlap = Math.min(wireCombos.length, deviceCombos.length);
+    for (let i = 0; i < overlap; i++) {
+      if (sameCombo(wireCombos[i], deviceCombos[i])) {
+        unchanged++;
+        continue;
+      }
+      const setResp = await sendRequest({
+        combo: {
+          setCombo: {
+            index: i,
+            combo: {
+              keyPositions: wireCombos[i].positions,
+              binding: wireCombos[i].binding,
+              timeoutMs: wireCombos[i].timeoutMs,
+              layerMask: wireCombos[i].layerMask,
+              name: wireCombos[i].name,
+            },
+          },
+        },
+      });
+      if ((setResp.combo?.setCombo ?? 0) !== 0) {
+        debugLog('WRN', 'USB', `Failed to update combo "${combos[i]?.name}" at ${i}: code ${setResp.combo?.setCombo}`);
+        ok = false;
+      } else {
+        updated++;
+      }
+    }
+
+    // Extra local combos: append.
+    for (let i = overlap; i < wireCombos.length; i++) {
       const addResp = await sendRequest({
         combo: {
           addCombo: {
             combo: {
-              keyPositions: positions,
-              binding: rpcBinding,
-              timeoutMs: combo.timeoutMs || 50,
-              layerMask,
-              // Persisted on-device from firmware 0.6.12; older firmware
-              // ignores unknown fields, so this is safe to always send.
-              // Firmware-side storage is 32 bytes including the NUL, and
-              // nanopb rejects the whole message if the string exceeds
-              // that, so truncate by UTF-8 bytes (names can be Japanese).
-              name: truncateUtf8(combo.name || '', 31),
+              keyPositions: wireCombos[i].positions,
+              binding: wireCombos[i].binding,
+              timeoutMs: wireCombos[i].timeoutMs,
+              layerMask: wireCombos[i].layerMask,
+              name: wireCombos[i].name,
             },
           },
         },
       });
       if (addResp.combo?.addCombo?.ok === undefined) {
-        debugLog('WRN', 'USB', `Failed to add combo "${combo.name}": ${JSON.stringify(addResp.combo?.addCombo)}`);
+        debugLog('WRN', 'USB', `Failed to add combo "${wireCombos[i].name}": ${JSON.stringify(addResp.combo?.addCombo)}`);
         ok = false;
+      } else {
+        added++;
       }
     }
 
-    debugLog('INF', 'USB', `Wrote ${combos.length} combos to device (removed ${currentCount} old)`);
+    // Extra device combos: remove from the end down so indexes stay stable.
+    for (let i = deviceCombos.length - 1; i >= wireCombos.length; i--) {
+      await sendRequest({ combo: { removeCombo: { index: i } } });
+      removed++;
+    }
+
+    debugLog('INF', 'USB', `Combo sync: ${unchanged} unchanged, ${updated} updated, ${added} added, ${removed} removed`);
     return ok;
   } catch (e: any) {
     debugLog('ERR', 'USB', `writeCombosToDevice failed: ${e.message}`);

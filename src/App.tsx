@@ -239,7 +239,7 @@ function App() {
                 return;
               }
             }
-            showToast('書き込み処理中...', 'progress', { persist: true });
+            showToast('書き込み処理中... (1/4 レイヤー設定)', 'progress', { persist: true });
             debugLog('INF', 'Editor', `Writing keymap to device... (${store.dirtyKeys.size} keys modified)`);
             // Write layer names + LED colors
             for (const layer of store.layers) {
@@ -247,10 +247,12 @@ function App() {
             }
             debugLog('INF', 'Editor', `Layer names and LED colors written (${store.layers.length} layers)`);
             // Write key bindings
+            showToast('書き込み処理中... (2/4 キー割り当て)', 'progress', { persist: true });
             const ok = await writeKeymapToDevice(store.layers, store.dirtyKeys);
             // Combos persist themselves per-RPC (no separate save step, unlike
             // the keymap subsystem's saveChanges() below) -- write regardless
             // of keymap dirty-key tracking, same as layer names/colors above.
+            showToast('書き込み処理中... (3/4 コンボ)', 'progress', { persist: true });
             const combosOk = await writeCombosToDevice(store.combos);
             if (!combosOk) {
               debugLog('WRN', 'Editor', 'Some combos failed to write -- check the console for details');
@@ -262,6 +264,7 @@ function App() {
               showToast('書き込みに失敗しました（未接続）', 'error');
               return;
             }
+            showToast('書き込み処理中... (4/4 Flash保存)', 'progress', { persist: true });
             const saved = await saveChanges();
             if (!saved) {
               debugLog('ERR', 'Editor', 'Write failed: could not save to device flash -- check the console for details');

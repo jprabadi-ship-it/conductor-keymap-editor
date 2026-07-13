@@ -134,6 +134,7 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, conn
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {[
+                { v: '0.28.0.0', at: '2026-07-13 JST', changes: ['コンボ書き込みを差分方式に変更。従来はWriteのたびに全コンボを削除→再追加していたが、変更のあったコンボだけを更新（未変更ならRPCゼロ）するように。コンボを触っていないWriteが数秒速く', 'Write進捗トーストに段階表示を追加（1/4 レイヤー設定 → 2/4 キー割り当て → 3/4 コンボ → 4/4 Flash保存）'] },
                 { v: '0.27.0.0', at: '2026-07-13 JST', changes: ['コンボ名を実機に保存するように対応（要ファームウェア0.6.12+の最新ビルド）。protoにnameフィールドを追加し、Writeでコンボ名がデバイスのFlashに永続化、別のPC・ブラウザから接続しても名前が復元されるように。DTデフォルトコンボ（scroll/gesture/pair/boot）はfirmwareがdevicetreeのノード名を直接報告。旧firmwareでは従来通りローカル名でのフォールバック動作'] },
                 { v: '0.26.5.0', at: '2026-07-13 JST', changes: ['Readのたびにコンボ名が「Combo 1」等の仮名に上書きされていた不具合を修正。ZMK Studioのコンボ用RPCには元々名前を保持するフィールドが無く、実機からのReadで機械的な仮名に置き換わっていた（接続直後の自動Readも含む）。既存のローカル名を位置で突き合わせて優先するように変更'] },
                 { v: '0.26.4.0', at: '2026-07-13 JST', changes: ['Write実行中に「⏳ 書き込み処理中...」トーストを表示するように変更。firmware側の保存処理が変更点の数に応じて長くなる（saveChangesは1キーごとに直列でflashへ保存するため）ため、完了までの間も無反応に見えないように改善。完了時は従来通り成功/失敗のトーストに切り替わる'] },
