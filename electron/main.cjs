@@ -34,9 +34,14 @@ let isQuitting = false
 let latestLayerState = null
 
 function createWindow() {
+  // Launch filling the screen's usable area (menu bar/Dock excluded) rather
+  // than a fixed 1400x900 -- on an FHD (1920x1080) display that's roughly
+  // 1920x1055, matching the 90% zoom above which was tuned for exactly that
+  // size. Falls back gracefully to whatever the actual display offers.
+  const { width, height } = screen.getPrimaryDisplay().workAreaSize
   win = new BrowserWindow({
-    width: 1400,
-    height: 900,
+    width,
+    height,
     title: 'ConductorD Studio',
     webPreferences: {
       contextIsolation: true,
