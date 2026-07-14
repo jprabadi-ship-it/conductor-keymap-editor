@@ -16,6 +16,7 @@ interface Props {
   onWrite: () => void;
   wroteToDevice?: boolean;
   fwUpdateAvailable?: boolean;
+  fwLatestPublishedAt?: string | null;
   onRead: () => void;
   onSave: () => void;
 }
@@ -42,7 +43,7 @@ const MAC_APP_DOWNLOAD_URL = 'https://github.com/jprabadi-ship-it/conductor-keym
 // follow -- and the page also shows the version/commit it was built from.
 const FIRMWARE_DOWNLOAD_URL = 'https://github.com/jprabadi-ship-it/conductor/releases/tag/firmware-latest';
 
-export function Header({ store, showConsole, onToggleConsole, usbConnected, connectionType, onConnectionChange, unsaved, onWrite, wroteToDevice, fwUpdateAvailable, onRead, onSave }: Props) {
+export function Header({ store, showConsole, onToggleConsole, usbConnected, connectionType, onConnectionChange, unsaved, onWrite, wroteToDevice, fwUpdateAvailable, fwLatestPublishedAt, onRead, onSave }: Props) {
   const [showExport, setShowExport] = useState(false);
   const [showChangelog, setShowChangelog] = useState(false);
   const [theme, setTheme] = useState(() => localStorage.getItem('conductor-theme') || 'light');
@@ -141,6 +142,7 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, conn
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {[
+                { v: '0.33.0.0', at: '2026-07-14 JST', changes: ['「FWダウンロード」ボタンに最新FWの最終更新日時（firmware-latestの公開日時、JST表示）を表示するように変更。アプリ起動時に自動取得し、デバイス接続時にも更新。Macアプリ版のみ（Web版はプライベートリポジトリのAPIに触れないため従来通り表示なし）'] },
                 { v: '0.32.1.0', at: '2026-07-14 JST', changes: ['FWのzipファイル名に日付を追加（ConductorD-firmware-latest-YYYYMMDD-HHMM.zip、JST）。ダウンロードフォルダで複数のビルドを見分けられるように。「FWダウンロード」ボタンはリリースページを開く方式に変更（ファイル名が毎回変わるため直リンク不可。ページにはバージョン・ビルド元コミットも表示される）。旧来の日付なしURLも互換のため引き続き有効'] },
                 { v: '0.32.0.0', at: '2026-07-14 JST', changes: ['Writeを安全なトランザクション方式に強化。①Write前に設定監査を実行し、エラーがあれば確認ダイアログで警告 ②Write前に実機の直前状態を自動バックアップ（直近3件、File>「⟲ Write前バックアップ」から復元可能） ③Write完了後に実機から再読込して書いた内容と一致するか検証（USB接続時のみ。不一致があればエラー表示して未保存状態を維持） ④進捗表示を5段階に拡張（5/5が書き戻し検証）'] },
                 { v: '0.31.0.0', at: '2026-07-14 JST', changes: ['設定監査機能を追加。Readのたびに設定の不整合を自動検査し、問題があればトースト通知+診断タブに赤/黄で一覧表示（📋コピーにも含まれる）。検査対象: カスタムbehavior（lt6_j等）がどのキーからも参照されなくなっていないか（過去のJ/Z上書き問題の再発検知）、実機に存在しないbehavior参照（NVS破損の兆候）、存在しないレイヤーへの参照、コンボの重複・包含関係による発火不能・不正キー数・変換不能な出力、参照先のないマクロ・空マクロ。診断タブから手動再検査も可能'] },
@@ -356,6 +358,11 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, conn
           ? '接続中のデバイスより新しいFWが公開されています。リリースページから日付入りzipをダウンロードして書き込んでください'
           : '最新FW一式（dongle/L/R/settings_reset）のリリースページを開く（日付入りzip）'}>
         <span>⬇</span> FWダウンロード
+        {fwLatestPublishedAt && (
+          <span style={{ fontSize: 9, opacity: 0.75, marginLeft: 4 }}>
+            最終更新 {new Date(fwLatestPublishedAt).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+          </span>
+        )}
         {fwUpdateAvailable && (
           <span style={{
             position: 'absolute', top: -4, right: -4, width: 10, height: 10,

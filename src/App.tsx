@@ -38,6 +38,19 @@ function App() {
   // firmware-latest release (Electron only -- the check runs through the
   // local gh CLI since the repo is private). Badges the FW download button.
   const [fwUpdateAvailable, setFwUpdateAvailable] = useState(false);
+  // firmware-latest's publishedAt (ISO, UTC), shown as a "last updated"
+  // stamp on the FW download button. Same Electron-only gh bridge as above;
+  // the web build has no data source and simply shows nothing.
+  const [fwLatestPublishedAt, setFwLatestPublishedAt] = useState<string | null>(null);
+
+  // Fetch the latest-firmware publish date once at startup, so the stamp is
+  // visible without needing a device connection first (the connect-time
+  // check below refreshes it and adds the update-available comparison).
+  useEffect(() => {
+    (window as any).electronAPI?.checkFirmwareLatest?.().then((latest: { name: string; publishedAt: string } | null) => {
+      if (latest?.publishedAt) setFwLatestPublishedAt(latest.publishedAt);
+    });
+  }, []);
   // The last state confirmed to be on the device (captured at Read and
   // after each verified Write) -- this is what a pre-write backup snapshots,
   // since it's what the device holds just before we overwrite it.
@@ -254,6 +267,7 @@ function App() {
               // missing/offline) just leaves the badge off.
               (window as any).electronAPI?.checkFirmwareLatest?.().then((latest: { name: string; publishedAt: string } | null) => {
                 if (!latest) return;
+                if (latest.publishedAt) setFwLatestPublishedAt(latest.publishedAt);
                 const check = checkFirmwareUpdate(info.firmwareVersion, latest.name, latest.publishedAt);
                 setFwUpdateAvailable(check.updateAvailable);
                 if (check.updateAvailable) {
@@ -271,6 +285,7 @@ function App() {
         unsaved={unsaved}
         wroteToDevice={wroteToDevice}
         fwUpdateAvailable={fwUpdateAvailable}
+        fwLatestPublishedAt={fwLatestPublishedAt}
         onWrite={async () => {
           try {
             if (!isUnlocked()) {
