@@ -1187,6 +1187,35 @@ export async function setHoldTapPositions(behaviorId: number, positions: number[
   }
 }
 
+// Hold-tap "flavor" (decision algorithm) runtime override. 0-3, matching
+// firmware's enum flavor / the devicetree flavor property's enum order:
+// 0=hold-preferred, 1=balanced, 2=tap-preferred, 3=tap-unless-interrupted.
+export async function getHoldTapFlavor(behaviorId: number): Promise<{ flavor: number; hasRuntimeOverride: boolean } | null> {
+  try {
+    const resp = await sendRequest({ behaviors: { getHoldTapFlavor: { behaviorId } } });
+    const details = resp.behaviors?.getHoldTapFlavor;
+    if (!details) return null;
+    return {
+      flavor: details.flavor ?? 0,
+      hasRuntimeOverride: details.hasRuntimeOverride ?? false,
+    };
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `getHoldTapFlavor failed: ${e.message}`);
+    return null;
+  }
+}
+
+export async function setHoldTapFlavor(behaviorId: number, flavor: number, clearOverride: boolean = false): Promise<boolean> {
+  try {
+    await sendRequest({ behaviors: { setHoldTapFlavor: { behaviorId, flavor, clearOverride } } });
+    debugLog('INF', 'USB', `hold-tap flavor set for behavior ${behaviorId}: clear=${clearOverride}, flavor=${flavor}`);
+    return true;
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `setHoldTapFlavor failed: ${e.message}`);
+    return false;
+  }
+}
+
 export async function getPrecisionScale(): Promise<{ numerator: number; denominator: number } | null> {
   try {
     const resp = await sendRequest({ pointing: { getPrecisionScale: {} } });
