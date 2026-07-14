@@ -88,10 +88,20 @@ export async function runConfigAudit(project: KeymapProject): Promise<AuditFindi
     if (combo.binding.layer !== undefined && (combo.binding.layer < 0 || combo.binding.layer >= layerCount)) {
       badLayerRefs.push(`combo「${combo.name}」→layer${combo.binding.layer}`);
     }
-    for (const l of combo.layers || []) {
-      if (l < 0 || l >= layerCount) {
-        badLayerRefs.push(`combo「${combo.name}」のactive layers→layer${l}`);
-      }
+    // combo.layers gets its own richer diagnostic below (distinct-value and
+    // total-length breakdown) instead of one line per bad entry -- a single
+    // combo's array blowing past what 32 layer_mask bits could ever produce
+    // needs more than a truncated list to diagnose (see
+    // project_scroll_combo_layer_mask_corruption memory).
+    const badInThisCombo = (combo.layers || []).filter(l => l < 0 || l >= layerCount);
+    if (badInThisCombo.length > 0) {
+      const distinct = [...new Set(badInThisCombo)].sort((a, b) => a - b);
+      const totalLen = (combo.layers || []).length;
+      findings.push({
+        severity: 'error',
+        category: 'レイヤー参照',
+        message: `コンボ「${combo.name}」のactive layersに存在しないレイヤー参照があります。配列全体のサイズ=${totalLen}件、うち範囲外(0〜${layerCount - 1}外)=${badInThisCombo.length}件、範囲外の一意な値=${distinct.length}件（${distinct.slice(0, 10).join(',')}${distinct.length > 10 ? '...' : ''}、最小${distinct[0]}〜最大${distinct[distinct.length - 1]}）`,
+      });
     }
   }
   if (badLayerRefs.length > 0) {

@@ -33,6 +33,21 @@ function saveToStorage(key: string, data: unknown) {
   } catch { /* ignore */ }
 }
 
+// Drops out-of-range / duplicate entries from each combo's active-layers
+// restriction. A value pointing at a layer that no longer exists can never
+// match the device's actual active layer, so it's already inert -- removing
+// it is behavior-neutral, not a data-loss risk. This exists because nothing
+// in the UI can ever clear such a value once its layer is gone (the picker
+// only lists layers that currently exist), so without this the config audit
+// blocks Write forever on data the user has no way to touch by hand.
+function sanitizeComboLayers(combos: Combo[], layerCount: number): Combo[] {
+  return combos.map(c =>
+    c.layers && c.layers.length > 0
+      ? { ...c, layers: [...new Set(c.layers.filter(l => l >= 0 && l < layerCount))] }
+      : c
+  );
+}
+
 export interface UndoEntry {
   layers: Layer[];
   combos: Combo[];
@@ -40,7 +55,9 @@ export interface UndoEntry {
 
 export function useKeymapStore() {
   const [layers, setLayers] = useState<Layer[]>(() => loadFromStorage(STORAGE_KEY_KEYMAP, createDefaultLayers));
-  const [combos, setCombos] = useState<Combo[]>(() => loadFromStorage(STORAGE_KEY_COMBOS, createDefaultCombos));
+  const [combos, setCombos] = useState<Combo[]>(() =>
+    sanitizeComboLayers(loadFromStorage(STORAGE_KEY_COMBOS, createDefaultCombos), layers.length)
+  );
   const [macros, setMacros] = useState<Macro[]>(() => loadFromStorage(STORAGE_KEY_MACROS, () => []));
   const [selectedMacroIndex, setSelectedMacroIndex] = useState<number | null>(null);
   const [osLayout, setOsLayout] = useState<OsLayout>(() => loadFromStorage(STORAGE_KEY_LAYOUT, () => 'us'));
@@ -252,7 +269,7 @@ export function useKeymapStore() {
   const importProject = useCallback((project: KeymapProject) => {
     pushUndo();
     setLayers(project.layers);
-    setCombos(project.combos);
+    setCombos(sanitizeComboLayers(project.combos, project.layers.length));
     if (project.macros) {
       setMacros(project.macros);
       setSelectedMacroIndex(null);
