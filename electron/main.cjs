@@ -1,10 +1,31 @@
-const { app, BrowserWindow, session, dialog, Tray, Menu, nativeImage, ipcMain, screen } = require('electron')
+const { app, BrowserWindow, session, dialog, Tray, Menu, nativeImage, ipcMain, screen, shell } = require('electron')
 const path = require('node:path')
 const { execFile } = require('node:child_process')
 const fs = require('node:fs')
 
 const isDev = !app.isPackaged
 const preloadPath = path.join(__dirname, 'preload.cjs')
+
+// Route external links (FW download, Mac app download, anything http/https)
+// to the system browser instead of navigating the Electron window: the app's
+// session has no GitHub login, so private-repo release pages come back as
+// 404 in-app -- and following them would also navigate Studio away.
+function openExternalLinks(contents) {
+  contents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      shell.openExternal(url)
+      return { action: 'deny' }
+    }
+    return { action: 'allow' }
+  })
+  contents.on('will-navigate', (event, url) => {
+    const isAppUrl = url.startsWith('file://') || url.startsWith('http://localhost:5173')
+    if (!isAppUrl) {
+      event.preventDefault()
+      shell.openExternal(url)
+    }
+  })
+}
 
 let win = null
 let tray = null
@@ -29,6 +50,8 @@ function createWindow() {
       zoomFactor: 0.9,
     },
   })
+
+  openExternalLinks(win.webContents)
 
   if (isDev) {
     win.loadURL('http://localhost:5173/conductor-keymap-editor/')
@@ -119,6 +142,8 @@ function createPopupWindow() {
   // policy (which would hide the Dock icon) as a side effect.
   popupWin.setAlwaysOnTop(true, 'screen-saver')
   popupWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true })
+
+  openExternalLinks(popupWin.webContents)
 
   if (isDev) {
     popupWin.loadURL('http://localhost:5173/conductor-keymap-editor/#/popup')
