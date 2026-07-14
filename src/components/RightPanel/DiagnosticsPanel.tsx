@@ -193,9 +193,53 @@ export function DiagnosticsPanel({ store }: { store?: KeymapStore }) {
     if (!loaded) load();
   }, [loaded]);
 
+  // Pure local-data analysis, no RPC needed except the optional resolver
+  // check inside runConfigAudit (which itself no-ops without a loaded
+  // behavior cache) -- always renderable, unlike the rest of this panel
+  // which needs a live device. Kept above the !isConnected() early return
+  // below so results (and 再検査) stay visible while disconnected too.
+  const auditSection = (
+    <div className="config-section">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+        <div>
+          <div className="config-label">設定監査</div>
+          <div className="config-description">
+            設定の不整合（カスタムbehaviorの置き換わり・発火しないコンボ・存在しない参照など）を検査します。Readのたびに自動実行されます{auditAt ? `（最終: ${auditAt}）` : ''}。
+          </div>
+        </div>
+        {store && (
+          <button className="btn btn-outline" style={{ fontSize: 11 }} onClick={rerunAudit} disabled={auditing}>
+            {auditing ? '検査中...' : '再検査'}
+          </button>
+        )}
+      </div>
+      {audit === null ? (
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '6px 0' }}>まだ実行されていません（Readすると自動実行されます。または上の「再検査」ボタンでいつでも実行できます）</div>
+      ) : audit.length === 0 ? (
+        <div style={{ fontSize: 12, color: 'var(--success)', padding: '6px 0' }}>✓ 問題は見つかりませんでした</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '6px 0' }}>
+          {audit.map((f, i) => (
+            <div key={i} style={{
+              fontSize: 11, lineHeight: 1.5, padding: '6px 8px', borderRadius: 4,
+              borderLeft: `3px solid ${f.severity === 'error' ? 'var(--danger)' : 'var(--warning)'}`,
+              background: 'var(--bg-tertiary)',
+            }}>
+              <span style={{ fontWeight: 600, color: f.severity === 'error' ? 'var(--danger)' : 'var(--warning)' }}>
+                {f.severity === 'error' ? '✗' : '⚠'} {f.category}
+              </span>
+              {' — '}{f.message}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
   if (!isConnected()) {
     return (
       <div>
+        {auditSection}
         <div className="config-section">
           <div className="config-label">実機診断</div>
           <div className="config-description">
@@ -227,41 +271,7 @@ export function DiagnosticsPanel({ store }: { store?: KeymapStore }) {
         </div>
       </div>
 
-      <div className="config-section">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-          <div>
-            <div className="config-label">設定監査</div>
-            <div className="config-description">
-              設定の不整合（カスタムbehaviorの置き換わり・発火しないコンボ・存在しない参照など）を検査します。Readのたびに自動実行されます{auditAt ? `（最終: ${auditAt}）` : ''}。
-            </div>
-          </div>
-          {store && (
-            <button className="btn btn-outline" style={{ fontSize: 11 }} onClick={rerunAudit} disabled={auditing}>
-              {auditing ? '検査中...' : '再検査'}
-            </button>
-          )}
-        </div>
-        {audit === null ? (
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '6px 0' }}>まだ実行されていません（Readすると自動実行されます）</div>
-        ) : audit.length === 0 ? (
-          <div style={{ fontSize: 12, color: 'var(--success)', padding: '6px 0' }}>✓ 問題は見つかりませんでした</div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '6px 0' }}>
-            {audit.map((f, i) => (
-              <div key={i} style={{
-                fontSize: 11, lineHeight: 1.5, padding: '6px 8px', borderRadius: 4,
-                borderLeft: `3px solid ${f.severity === 'error' ? 'var(--danger)' : 'var(--warning)'}`,
-                background: 'var(--bg-tertiary)',
-              }}>
-                <span style={{ fontWeight: 600, color: f.severity === 'error' ? 'var(--danger)' : 'var(--warning)' }}>
-                  {f.severity === 'error' ? '✗' : '⚠'} {f.category}
-                </span>
-                {' — '}{f.message}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      {auditSection}
 
       {data && (
         <>

@@ -103,6 +103,27 @@ export async function runConfigAudit(project: KeymapProject): Promise<AuditFindi
   }
 
   // --- 4. Combo checks: unfireable/conflicting definitions.
+  // Duplicate-name check first: distinct from the position-duplicate check
+  // below (same name, potentially different positions/bindings) -- a sign
+  // that the same device combo got appended into local state more than
+  // once, e.g. across repeated Read/merge cycles, rather than an
+  // intentional coincidence. Report once per name with the total count, not
+  // once per pair, so N duplicates doesn't produce N*(N-1)/2 near-identical
+  // findings.
+  const nameCounts = new Map<string, number>();
+  for (const combo of project.combos) {
+    nameCounts.set(combo.name, (nameCounts.get(combo.name) ?? 0) + 1);
+  }
+  for (const [name, count] of nameCounts) {
+    if (count > 1) {
+      findings.push({
+        severity: 'error',
+        category: 'コンボ',
+        message: `コンボ「${name}」という名前のコンボがローカルに${count}個あります。同じ設定が重複して保存されている可能性があります（Readの繰り返しなどで蓄積した可能性）。診断のため他の項目より先にこれを解消してください`,
+      });
+    }
+  }
+
   const seenPositionSets = new Map<string, string>();
   for (const combo of project.combos) {
     if (combo.keyPositions.length < 2) {
