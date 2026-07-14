@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { KeymapStore } from '../../store/useKeymapStore';
-import { isConnected, isUnlocked, requestUnlock, getTappingTerm, setTappingTerm, saveChanges, listBehaviors, getBehaviorDetails, getHoldTapPositions, setHoldTapPositions, getHoldTapFlavor, setHoldTapFlavor } from '../../services/usbService';
+import { isConnected, isUnlocked, requestUnlock, getTappingTerm, setTappingTerm, saveChanges, listBehaviors, getBehaviorDetails, getHoldTapPositions, setHoldTapPositions, getHoldTapFlavor, setHoldTapFlavor, getKeyRepeatEnabled, setKeyRepeatEnabled } from '../../services/usbService';
 import { debugLog } from '../DebugConsole';
 import { keyIdsToPositions, positionsToKeyIds } from '../../data/layout';
 import { MiniKeyboardPicker } from './MiniKeyboardPicker';
@@ -63,6 +63,9 @@ export function TimingConfig({ store }: Props) {
     FLAVOR_HOLD_TAP_NAMES.map(({ name, label }) => ({ name, label, behaviorId: null, flavor: 0, hasOverride: false }))
   );
   const [flavorLoaded, setFlavorLoaded] = useState(false);
+  const [keyRepeatEnabled, setKeyRepeatEnabledState] = useState(false);
+  const [keyRepeatLoaded, setKeyRepeatLoaded] = useState(false);
+  const [keyRepeatBusy, setKeyRepeatBusy] = useState(false);
 
   useEffect(() => {
     if (!isConnected() || loaded) return;
@@ -75,6 +78,33 @@ export function TimingConfig({ store }: Props) {
       setLoaded(true);
     })();
   }, [loaded]);
+
+  useEffect(() => {
+    if (!isConnected() || keyRepeatLoaded) return;
+    (async () => {
+      const enabled = await getKeyRepeatEnabled();
+      if (enabled !== null) {
+        setKeyRepeatEnabledState(enabled);
+        debugLog('INF', 'Timing', `Loaded key repeat emulation: ${enabled}`);
+      }
+      setKeyRepeatLoaded(true);
+    })();
+  }, [keyRepeatLoaded]);
+
+  const toggleKeyRepeat = async () => {
+    if (!isConnected()) { debugLog('WRN', 'Timing', 'Not connected'); return; }
+    if (!isUnlocked() && !(await requestUnlock())) {
+      alert('デバイスがロックされています');
+      return;
+    }
+    setKeyRepeatBusy(true);
+    const next = !keyRepeatEnabled;
+    const ok = await setKeyRepeatEnabled(next);
+    if (ok) {
+      setKeyRepeatEnabledState(next);
+    }
+    setKeyRepeatBusy(false);
+  };
 
   useEffect(() => {
     if (!isConnected() || holdTapLoaded) return;
@@ -223,6 +253,34 @@ export function TimingConfig({ store }: Props) {
 
   return (
     <div>
+      <div className="config-section">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+          <div style={{ flex: 1, marginRight: 8 }}>
+            <div className="config-label">キーボード側キーリピート</div>
+            <div className="config-description">
+              ONにすると、キーを押し続けている間ホストOSの設定に関係なくキーボード自身が高速に離す→押すを繰り返し、連続入力を送信します
+              （macOSで英字キーが長押しリピートせずアクセント候補が出てしまう問題への対策。修飾キー・メディアキーは対象外）。
+              デフォルトOFF。
+            </div>
+          </div>
+          <button
+            onClick={toggleKeyRepeat}
+            disabled={keyRepeatBusy}
+            style={{
+              width: 36, height: 20, borderRadius: 10, border: 'none', cursor: 'pointer', flexShrink: 0,
+              background: keyRepeatEnabled ? 'var(--accent)' : 'var(--bg-hover)',
+              position: 'relative', transition: 'background 0.2s', opacity: keyRepeatBusy ? 0.5 : 1,
+            }}
+          >
+            <span style={{
+              position: 'absolute', top: 2, left: keyRepeatEnabled ? 18 : 2,
+              width: 16, height: 16, borderRadius: '50%', background: 'white',
+              transition: 'left 0.2s',
+            }} />
+          </button>
+        </div>
+      </div>
+
       <div className="config-section">
         <div className="config-label">長押し判定時間</div>
         <div className="config-description">

@@ -142,6 +142,7 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, conn
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {[
+                { v: '0.35.0.0', at: '2026-07-14 JST', changes: ['タイミングタブに「キーボード側キーリピート」トグルを追加（要ファームウェア最新ビルド、デフォルトOFF）。ONにすると修飾キー・メディアキー以外の通常キーを押し続けたとき、ホストOSの設定に関係なくキーボード自身が高速に離す→押すを繰り返して連続入力を送信。macOSで英字キーが長押しリピートせずアクセント候補ポップアップが出てしまう問題への対策'] },
                 { v: '0.34.0.0', at: '2026-07-14 JST', changes: ['タイミングタブにHold-Tap Flavor設定を追加（要ファームウェア最新ビルド）。&mt/&lt/mt_shift/lt6_j/mt_shift_zそれぞれに hold-preferred/balanced/tap-preferred/tap-unless-interrupted を個別設定可能に。デバイスのFlashに保存され、従来flavorの変更に必要だったファームウェア再ビルド・書き込みが不要に。比較表も表示'] },
                 { v: '0.33.6.0', at: '2026-07-14 JST', changes: ['「FWダウンロード」を直接ダウンロード方式に戻す（v0.32.1でリリースページ方式に変更したのを差し戻し）。firmware側のzipは日付入りファイル名がメインだが、互換用の固定名コピー（ConductorD-firmware-latest.zip）を毎回並行アップロードしているため、1クリックの直接ダウンロードのまま成立する'] },
                 { v: '0.33.5.0', at: '2026-07-14 JST', changes: ['メニューバーのアイコン（トレイアイコン）が旧デザイン（左右2クラスター）のまま変わっていなかった不具合を修正。build/icon.icnsとは別ファイル（electron/trayIcon.png）だったため見落としていた。v0.33.3と同じ右キーボードのみのデザインに統一'] },

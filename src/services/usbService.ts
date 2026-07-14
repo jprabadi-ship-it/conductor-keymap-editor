@@ -1028,6 +1028,30 @@ export async function setTappingTerm(ms: number): Promise<boolean> {
   }
 }
 
+// Keyboard-side key-repeat emulation (works around macOS not repeating
+// letter keys under a sustained hold -- see conductor_key_repeat.h on the
+// firmware side). Default off.
+export async function getKeyRepeatEnabled(): Promise<boolean | null> {
+  try {
+    const resp = await sendRequest({ core: { getKeyRepeatEnabled: true } });
+    return resp.core?.getKeyRepeatEnabled === true;
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `getKeyRepeatEnabled failed: ${e.message}`);
+    return null;
+  }
+}
+
+export async function setKeyRepeatEnabled(enabled: boolean): Promise<boolean> {
+  try {
+    await sendRequest({ core: { setKeyRepeatEnabled: { enabled } } });
+    debugLog('INF', 'USB', `Key repeat emulation ${enabled ? 'enabled' : 'disabled'}`);
+    return true;
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `setKeyRepeatEnabled failed: ${e.message}`);
+    return false;
+  }
+}
+
 export async function getBleProfiles(): Promise<{ profiles: { name: string; connected: boolean }[]; activeIndex: number } | null> {
   try {
     const resp = await sendRequest({ core: { getBleProfiles: true } });
