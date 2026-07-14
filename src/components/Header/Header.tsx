@@ -142,6 +142,7 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, conn
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {[
+                { v: '0.33.1.0', at: '2026-07-14 JST', changes: ['ミニマップの最前面表示を強化。ウィンドウレベルをfloating→screen-saverに引き上げ、全Space・他アプリのフルスクリーンの上でも表示されるように変更（従来はフルスクリーンアプリの上や別Spaceに移ると見えなくなっていた）'] },
                 { v: '0.33.0.0', at: '2026-07-14 JST', changes: ['「FWダウンロード」ボタンに最新FWの最終更新日時（firmware-latestの公開日時、JST表示）を表示するように変更。アプリ起動時に自動取得し、デバイス接続時にも更新。Macアプリ版のみ（Web版はプライベートリポジトリのAPIに触れないため従来通り表示なし）'] },
                 { v: '0.32.1.0', at: '2026-07-14 JST', changes: ['FWのzipファイル名に日付を追加（ConductorD-firmware-latest-YYYYMMDD-HHMM.zip、JST）。ダウンロードフォルダで複数のビルドを見分けられるように。「FWダウンロード」ボタンはリリースページを開く方式に変更（ファイル名が毎回変わるため直リンク不可。ページにはバージョン・ビルド元コミットも表示される）。旧来の日付なしURLも互換のため引き続き有効'] },
                 { v: '0.32.0.0', at: '2026-07-14 JST', changes: ['Writeを安全なトランザクション方式に強化。①Write前に設定監査を実行し、エラーがあれば確認ダイアログで警告 ②Write前に実機の直前状態を自動バックアップ（直近3件、File>「⟲ Write前バックアップ」から復元可能） ③Write完了後に実機から再読込して書いた内容と一致するか検証（USB接続時のみ。不一致があればエラー表示して未保存状態を維持） ④進捗表示を5段階に拡張（5/5が書き戻し検証）'] },

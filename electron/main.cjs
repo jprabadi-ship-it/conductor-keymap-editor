@@ -109,6 +109,17 @@ function createPopupWindow() {
     },
   })
 
+  // Keep the minimap above everything, everywhere: 'screen-saver' is a
+  // higher NSWindowLevel than the default 'floating' (which normal app
+  // windows can still cover in some cases), and visibleOnAllWorkspaces +
+  // visibleOnFullScreen makes it follow across Spaces and float over
+  // other apps' fullscreen windows -- the main situation where the old
+  // floating-level popup silently disappeared.
+  // skipTransformProcessType avoids macOS flipping the app's activation
+  // policy (which would hide the Dock icon) as a side effect.
+  popupWin.setAlwaysOnTop(true, 'screen-saver')
+  popupWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true })
+
   if (isDev) {
     popupWin.loadURL('http://localhost:5173/conductor-keymap-editor/#/popup')
   } else {
@@ -120,7 +131,8 @@ function createPopupWindow() {
     // Re-assert alwaysOnTop after every move to fix a macOS bug where dragging
     // a frameless alwaysOnTop window to a different display desynchronises its
     // NSWindowLevel, leaving the window stuck and unresponsive to further drags.
-    popupWin.setAlwaysOnTop(true, 'floating')
+    // Same 'screen-saver' level as at creation, or the move would demote it.
+    popupWin.setAlwaysOnTop(true, 'screen-saver')
   })
   popupWin.on('closed', () => { popupWin = null })
 
