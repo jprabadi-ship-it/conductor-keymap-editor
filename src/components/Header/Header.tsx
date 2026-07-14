@@ -142,6 +142,7 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, conn
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {[
+                { v: '0.33.3.0', at: '2026-07-14 JST', changes: ['Macアプリ版のアイコンを左右2つのキークラスター構成から右キーボード（トラックボール付き）のみに変更。中央に配置し1.35倍に拡大して見やすさを確保'] },
                 { v: '0.33.2.0', at: '2026-07-14 JST', changes: ['Macアプリ版で「FWダウンロード」を押すと404になる不具合を修正。アプリ内ブラウザはGitHubにログインしていないためプライベートリポジトリのページが404になっていた。外部リンク（FWダウンロード等のhttp/httpsリンク）はすべてmacOSの既定ブラウザ（GitHubログイン済み）で開くように変更。リンククリックでStudio画面自体が遷移してしまう問題も同時に解消'] },
                 { v: '0.33.1.0', at: '2026-07-14 JST', changes: ['ミニマップの最前面表示を強化。ウィンドウレベルをfloating→screen-saverに引き上げ、全Space・他アプリのフルスクリーンの上でも表示されるように変更（従来はフルスクリーンアプリの上や別Spaceに移ると見えなくなっていた）'] },
                 { v: '0.33.0.0', at: '2026-07-14 JST', changes: ['「FWダウンロード」ボタンに最新FWの最終更新日時（firmware-latestの公開日時、JST表示）を表示するように変更。アプリ起動時に自動取得し、デバイス接続時にも更新。Macアプリ版のみ（Web版はプライベートリポジトリのAPIに触れないため従来通り表示なし）'] },

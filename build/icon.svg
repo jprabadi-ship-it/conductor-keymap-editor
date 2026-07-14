@@ -12,21 +12,8 @@
 
   <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)"/>
 
-  <!-- left key cluster, rotated slightly outward -->
-  <g transform="translate(300,512) rotate(-8)">
-    <rect x="-155" y="-125" width="310" height="250" rx="40" fill="url(#halfLight)"/>
-    <g fill="#FFFFFF">
-      <rect x="-120" y="-92" width="60" height="60" rx="12"/>
-      <rect x="-45" y="-92" width="60" height="60" rx="12"/>
-      <rect x="30" y="-92" width="60" height="60" rx="12"/>
-      <rect x="-120" y="-17" width="60" height="60" rx="12"/>
-      <rect x="-45" y="-17" width="60" height="60" rx="12"/>
-      <rect x="30" y="-17" width="60" height="60" rx="12" fill="#F5943D"/>
-    </g>
-  </g>
-
-  <!-- right key cluster, rotated slightly outward -->
-  <g transform="translate(724,512) rotate(8)">
+  <!-- right key cluster only, centered and scaled up -->
+  <g transform="translate(512,512) scale(1.35)">
     <rect x="-155" y="-125" width="310" height="250" rx="40" fill="url(#halfLight)"/>
     <g fill="#FFFFFF">
       <rect x="-120" y="-92" width="60" height="60" rx="12"/>
