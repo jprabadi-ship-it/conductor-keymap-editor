@@ -2222,13 +2222,18 @@ function wireComboMatchesDevice(local: WireCombo, dev: any): boolean {
 // Returns the wire-form list actually intended for the device so the caller
 // can verify it landed (see verifyDeviceState).
 export async function writeCombosToDevice(combos: import('../types').Combo[]): Promise<{ ok: boolean; expected: WireCombo[] }> {
-  try {
-    const before = await sendRequest({ combo: { getCombos: true } });
-    const deviceCombos: any[] = before.combo?.getCombos?.combos ?? [];
-
-    let ok = true;
-    const wireCombos: WireCombo[] = [];
-    for (const combo of combos) {
+  // wireCombos is what we WANT on the device -- the caller (App.tsx) hands
+  // this straight to verifyDeviceState() as its ground truth, independent of
+  // whether every RPC below actually lands. It must survive a partial
+  // failure below: previously the whole loop lived inside one try/catch, so
+  // a single RPC timing out mid-sync threw the entire computed set away and
+  // returned expected: [], which made verifyDeviceState report a false
+  // "expected 0 combos, found N on device" -- the device's combos were never
+  // touched, but the caller couldn't tell that from an empty expected set.
+  let ok = true;
+  const wireCombos: WireCombo[] = [];
+  for (const combo of combos) {
+    try {
       const rpcBinding = await resolveKeyBindingRpc(combo.binding);
       if (!rpcBinding) {
         debugLog('WRN', 'USB', `Skipping combo "${combo.name}": unresolvable binding (${combo.binding.type}/${combo.binding.keyCode})`);
@@ -2256,20 +2261,39 @@ export async function writeCombosToDevice(combos: import('../types').Combo[]): P
         requirePriorIdleMs: combo.requirePriorIdleMs || 0,
         slowRelease: !!combo.slowRelease,
       });
+    } catch (e: any) {
+      debugLog('ERR', 'USB', `Skipping combo "${combo.name}": ${e.message}`);
+      ok = false;
     }
+  }
 
-    let updated = 0;
-    let added = 0;
-    let removed = 0;
-    let unchanged = 0;
+  let deviceCombos: any[] = [];
+  try {
+    const before = await sendRequest({ combo: { getCombos: true } });
+    deviceCombos = before.combo?.getCombos?.combos ?? [];
+  } catch (e: any) {
+    // Can't diff against a device state we failed to read, so nothing below
+    // is safe to send -- bail out without touching any combo RPCs. expected
+    // still reflects the locally-intended set, so verifyDeviceState can
+    // still give an honest (if unhappy) report against whatever's actually
+    // on the device, rather than the "expected 0" false alarm.
+    debugLog('ERR', 'USB', `writeCombosToDevice: failed to read current device combos, aborting sync: ${e.message}`);
+    return { ok: false, expected: wireCombos };
+  }
 
-    // Overlapping indexes: rewrite in place only where something differs.
-    const overlap = Math.min(wireCombos.length, deviceCombos.length);
-    for (let i = 0; i < overlap; i++) {
-      if (wireComboMatchesDevice(wireCombos[i], deviceCombos[i])) {
-        unchanged++;
-        continue;
-      }
+  let updated = 0;
+  let added = 0;
+  let removed = 0;
+  let unchanged = 0;
+
+  // Overlapping indexes: rewrite in place only where something differs.
+  const overlap = Math.min(wireCombos.length, deviceCombos.length);
+  for (let i = 0; i < overlap; i++) {
+    if (wireComboMatchesDevice(wireCombos[i], deviceCombos[i])) {
+      unchanged++;
+      continue;
+    }
+    try {
       const setResp = await sendRequest({
         combo: {
           setCombo: {
@@ -2292,10 +2316,15 @@ export async function writeCombosToDevice(combos: import('../types').Combo[]): P
       } else {
         updated++;
       }
+    } catch (e: any) {
+      debugLog('ERR', 'USB', `Failed to update combo "${combos[i]?.name}" at ${i}: ${e.message}`);
+      ok = false;
     }
+  }
 
-    // Extra local combos: append.
-    for (let i = overlap; i < wireCombos.length; i++) {
+  // Extra local combos: append.
+  for (let i = overlap; i < wireCombos.length; i++) {
+    try {
       const addResp = await sendRequest({
         combo: {
           addCombo: {
@@ -2317,20 +2346,25 @@ export async function writeCombosToDevice(combos: import('../types').Combo[]): P
       } else {
         added++;
       }
+    } catch (e: any) {
+      debugLog('ERR', 'USB', `Failed to add combo "${wireCombos[i].name}": ${e.message}`);
+      ok = false;
     }
+  }
 
-    // Extra device combos: remove from the end down so indexes stay stable.
-    for (let i = deviceCombos.length - 1; i >= wireCombos.length; i--) {
+  // Extra device combos: remove from the end down so indexes stay stable.
+  for (let i = deviceCombos.length - 1; i >= wireCombos.length; i--) {
+    try {
       await sendRequest({ combo: { removeCombo: { index: i } } });
       removed++;
+    } catch (e: any) {
+      debugLog('ERR', 'USB', `Failed to remove combo at ${i}: ${e.message}`);
+      ok = false;
     }
-
-    debugLog('INF', 'USB', `Combo sync: ${unchanged} unchanged, ${updated} updated, ${added} added, ${removed} removed`);
-    return { ok, expected: wireCombos };
-  } catch (e: any) {
-    debugLog('ERR', 'USB', `writeCombosToDevice failed: ${e.message}`);
-    return { ok: false, expected: [] };
   }
+
+  debugLog('INF', 'USB', `Combo sync: ${unchanged} unchanged, ${updated} updated, ${added} added, ${removed} removed`);
+  return { ok, expected: wireCombos };
 }
 
 // Returns the raw triples actually sent per position key ("layer:posId"),
