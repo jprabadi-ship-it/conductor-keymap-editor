@@ -36,9 +36,11 @@ const MAC_APP_DOWNLOAD_URL = 'https://github.com/jprabadi-ship-it/conductor-keym
 // app link above this isn't gated on !isElectron -- both builds need it.
 // The "firmware-latest" release is republished in place by conductor-dongle's
 // CI on every green push to a release/conductor-* branch (see build.yml's
-// "Publish Firmware Release" job), so this URL always points at the newest
-// build without needing a version number here.
-const FIRMWARE_DOWNLOAD_URL = 'https://github.com/jprabadi-ship-it/conductor/releases/latest/download/ConductorD-firmware-latest.zip';
+// "Publish Firmware Release" job). Links to the release PAGE rather than a
+// direct asset: the zip filename now carries its build date
+// (ConductorD-firmware-latest-YYYYMMDD-HHMM.zip), which a fixed URL can't
+// follow -- and the page also shows the version/commit it was built from.
+const FIRMWARE_DOWNLOAD_URL = 'https://github.com/jprabadi-ship-it/conductor/releases/tag/firmware-latest';
 
 export function Header({ store, showConsole, onToggleConsole, usbConnected, connectionType, onConnectionChange, unsaved, onWrite, wroteToDevice, fwUpdateAvailable, onRead, onSave }: Props) {
   const [showExport, setShowExport] = useState(false);
@@ -139,6 +141,7 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, conn
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {[
+                { v: '0.32.1.0', at: '2026-07-14 JST', changes: ['FWのzipファイル名に日付を追加（ConductorD-firmware-latest-YYYYMMDD-HHMM.zip、JST）。ダウンロードフォルダで複数のビルドを見分けられるように。「FWダウンロード」ボタンはリリースページを開く方式に変更（ファイル名が毎回変わるため直リンク不可。ページにはバージョン・ビルド元コミットも表示される）。旧来の日付なしURLも互換のため引き続き有効'] },
                 { v: '0.32.0.0', at: '2026-07-14 JST', changes: ['Writeを安全なトランザクション方式に強化。①Write前に設定監査を実行し、エラーがあれば確認ダイアログで警告 ②Write前に実機の直前状態を自動バックアップ（直近3件、File>「⟲ Write前バックアップ」から復元可能） ③Write完了後に実機から再読込して書いた内容と一致するか検証（USB接続時のみ。不一致があればエラー表示して未保存状態を維持） ④進捗表示を5段階に拡張（5/5が書き戻し検証）'] },
                 { v: '0.31.0.0', at: '2026-07-14 JST', changes: ['設定監査機能を追加。Readのたびに設定の不整合を自動検査し、問題があればトースト通知+診断タブに赤/黄で一覧表示（📋コピーにも含まれる）。検査対象: カスタムbehavior（lt6_j等）がどのキーからも参照されなくなっていないか（過去のJ/Z上書き問題の再発検知）、実機に存在しないbehavior参照（NVS破損の兆候）、存在しないレイヤーへの参照、コンボの重複・包含関係による発火不能・不正キー数・変換不能な出力、参照先のないマクロ・空マクロ。診断タブから手動再検査も可能'] },
                 { v: '0.30.2.0', at: '2026-07-14 JST', changes: ['「Macアプリダウンロード」が404になることがある不具合を修正。リンクをバージョン番号付きファイル名からバージョン番号なし（毎リリース同梱）に変更し、Web版のキャッシュ・デプロイとDMGリリースの時間差があっても常に最新リリースのDMGが取得できるように'] },
@@ -350,8 +353,8 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, conn
       <a className="header-action-btn" href={FIRMWARE_DOWNLOAD_URL}
         style={{ textDecoration: 'none', position: 'relative', ...(fwUpdateAvailable ? { borderColor: 'var(--warning)' } : {}) }}
         title={fwUpdateAvailable
-          ? '接続中のデバイスより新しいFWが公開されています。zipをダウンロードして書き込んでください'
-          : '最新のFW一式（dongle/L/R/settings_reset）をzipでダウンロード'}>
+          ? '接続中のデバイスより新しいFWが公開されています。リリースページから日付入りzipをダウンロードして書き込んでください'
+          : '最新FW一式（dongle/L/R/settings_reset）のリリースページを開く（日付入りzip）'}>
         <span>⬇</span> FWダウンロード
         {fwUpdateAvailable && (
           <span style={{
