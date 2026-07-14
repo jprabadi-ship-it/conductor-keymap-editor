@@ -37,11 +37,11 @@ const MAC_APP_DOWNLOAD_URL = 'https://github.com/jprabadi-ship-it/conductor-keym
 // app link above this isn't gated on !isElectron -- both builds need it.
 // The "firmware-latest" release is republished in place by conductor-dongle's
 // CI on every green push to a release/conductor-* branch (see build.yml's
-// "Publish Firmware Release" job). Links to the release PAGE rather than a
-// direct asset: the zip filename now carries its build date
-// (ConductorD-firmware-latest-YYYYMMDD-HHMM.zip), which a fixed URL can't
-// follow -- and the page also shows the version/commit it was built from.
-const FIRMWARE_DOWNLOAD_URL = 'https://github.com/jprabadi-ship-it/conductor/releases/tag/firmware-latest';
+// "Publish Firmware Release" job). The zip's primary filename is now
+// date-stamped (ConductorD-firmware-latest-YYYYMMDD-HHMM.zip), but a fixed-
+// name copy is uploaded alongside it on every publish specifically so this
+// link keeps working -- direct one-click download, no release-page detour.
+const FIRMWARE_DOWNLOAD_URL = 'https://github.com/jprabadi-ship-it/conductor/releases/latest/download/ConductorD-firmware-latest.zip';
 
 export function Header({ store, showConsole, onToggleConsole, usbConnected, connectionType, onConnectionChange, unsaved, onWrite, wroteToDevice, fwUpdateAvailable, fwLatestPublishedAt, onRead, onSave }: Props) {
   const [showExport, setShowExport] = useState(false);
@@ -142,6 +142,7 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, conn
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {[
+                { v: '0.33.6.0', at: '2026-07-14 JST', changes: ['「FWダウンロード」を直接ダウンロード方式に戻す（v0.32.1でリリースページ方式に変更したのを差し戻し）。firmware側のzipは日付入りファイル名がメインだが、互換用の固定名コピー（ConductorD-firmware-latest.zip）を毎回並行アップロードしているため、1クリックの直接ダウンロードのまま成立する'] },
                 { v: '0.33.5.0', at: '2026-07-14 JST', changes: ['メニューバーのアイコン（トレイアイコン）が旧デザイン（左右2クラスター）のまま変わっていなかった不具合を修正。build/icon.icnsとは別ファイル（electron/trayIcon.png）だったため見落としていた。v0.33.3と同じ右キーボードのみのデザインに統一'] },
                 { v: '0.33.4.0', at: '2026-07-14 JST', changes: ['Macアプリ版の初期起動ウィンドウサイズを固定1400x900から画面の使用可能領域いっぱい（メニューバー・Dock除く）に変更。FHD(1920x1080)ディスプレイでは約1920x1055になり、既にFHD向けに調整済みの90%ズームと組み合わせて画面を有効活用'] },
                 { v: '0.33.3.0', at: '2026-07-14 JST', changes: ['Macアプリ版のアイコンを左右2つのキークラスター構成から右キーボード（トラックボール付き）のみに変更。中央に配置し1.35倍に拡大して見やすさを確保'] },
@@ -360,8 +361,8 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, conn
       <a className="header-action-btn" href={FIRMWARE_DOWNLOAD_URL}
         style={{ textDecoration: 'none', position: 'relative', ...(fwUpdateAvailable ? { borderColor: 'var(--warning)' } : {}) }}
         title={fwUpdateAvailable
-          ? '接続中のデバイスより新しいFWが公開されています。リリースページから日付入りzipをダウンロードして書き込んでください'
-          : '最新FW一式（dongle/L/R/settings_reset）のリリースページを開く（日付入りzip）'}>
+          ? '接続中のデバイスより新しいFWが公開されています。zipをダウンロードして書き込んでください'
+          : '最新のFW一式（dongle/L/R/settings_reset）をzipでダウンロード'}>
         <span>⬇</span> FWダウンロード
         {fwLatestPublishedAt && (
           <span style={{ fontSize: 9, opacity: 0.75, marginLeft: 4 }}>
