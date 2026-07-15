@@ -944,3 +944,32 @@ input:focus { border-color: var(--accent); }
   z-index: 2;
   pointer-events: none;
 }
+
+/* Toast stack (App.tsx): newest at the front/bottom, older ones fanned out
+   behind and above it via index-based transform/opacity instead of one
+   toast flatly replacing another. The entrance animation and the "shove
+   back" reposition when a newer toast arrives are the same mechanism --
+   both are just this transition reacting to the inline transform/opacity
+   changing between renders (see the `entering` flag in App.tsx). */
+.toast-stack {
+  position: fixed;
+  bottom: 40px;
+  left: 0;
+  right: 0;
+  height: 0;
+  z-index: 2000;
+  pointer-events: none;
+}
+.toast-item {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  color: white;
+  padding: 8px 20px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  white-space: nowrap;
+  transition: transform 0.25s ease, opacity 0.25s ease;
+}

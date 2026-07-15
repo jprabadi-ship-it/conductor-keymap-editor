@@ -20,14 +20,30 @@ import { MacroList } from './components/LeftPanel/MacroList';
 import { MacroEditor } from './components/RightPanel/MacroEditor';
 import { DebugConsole } from './components/DebugConsole';
 
+// Toasts stack up to this many at once (see the toasts state below) --
+// older ones get shoved to the back visually and eventually fall off the
+// array entirely rather than piling up forever.
+const MAX_TOASTS = 3;
+
+interface ToastItem {
+  id: number;
+  message: string;
+  type: 'device' | 'local' | 'error' | 'progress';
+  // True for one render right after mount, then flipped off a frame later
+  // so the CSS transition on transform/opacity actually animates from an
+  // off-stack starting position instead of jumping straight to rest.
+  entering: boolean;
+}
+
 function App() {
   const store = useKeymapStore();
   const [showConsole, setShowConsole] = useState(false);
   const [usbConnected, setUsbConnected] = useState(false); // true for either transport (USB or BLE)
   const [connType, setConnType] = useState<'usb' | 'bluetooth' | null>(null);
   const [unsaved, setUnsaved] = useState(false);
-  const [toast, setToast] = useState<{ message: string; type: 'device' | 'local' | 'error' | 'progress' } | null>(null);
-  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const toastIdRef = useRef(0);
+  const toastTimersRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
   const [highestLayer, setHighestLayer] = useState(0);
   const [pressedPositions, setPressedPositions] = useState<number[]>([]);
   const [popupBattery, setPopupBattery] = useState<{ l: number | null; r: number | null } | null>(null);
@@ -56,13 +72,32 @@ function App() {
   // since it's what the device holds just before we overwrite it.
   const lastDeviceSnapshotRef = useRef<KeymapProject | null>(null);
 
-  const showToast = useCallback((message: string, type: 'device' | 'local' | 'error' | 'progress' = 'device', opts?: { persist?: boolean }) => {
-    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
-    setToast({ message, type });
-    if (!opts?.persist) {
-      toastTimeoutRef.current = setTimeout(() => setToast(null), 3000);
+  const removeToast = useCallback((id: number) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+    const timer = toastTimersRef.current.get(id);
+    if (timer) {
+      clearTimeout(timer);
+      toastTimersRef.current.delete(id);
     }
   }, []);
+
+  const showToast = useCallback((message: string, type: ToastItem['type'] = 'device', opts?: { persist?: boolean }) => {
+    const id = ++toastIdRef.current;
+    setToasts(prev => [{ id, message, type, entering: true }, ...prev].slice(0, MAX_TOASTS));
+    // Flip "entering" off a frame after mount so the transition below
+    // actually animates from the off-stack starting position instead of
+    // snapping straight to rest (the double rAF waits for the browser to
+    // paint the initial state first).
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setToasts(prev => prev.map(t => (t.id === id ? { ...t, entering: false } : t)));
+      });
+    });
+    if (!opts?.persist) {
+      const timer = setTimeout(() => removeToast(id), 3000);
+      toastTimersRef.current.set(id, timer);
+    }
+  }, [removeToast]);
 
   useEffect(() => {
     onDeviceDisconnect(() => { setUsbConnected(false); setConnType(null); setPressedPositions([]); });
@@ -418,15 +453,24 @@ function App() {
         <span className="footer-item">Auto-saved to LocalStorage</span>
       </footer>
 
-      {toast && (
-        <div style={{
-          position: 'fixed', bottom: 40, left: '50%', transform: 'translateX(-50%)',
-          background: toast.type === 'device' ? 'var(--success)' : toast.type === 'local' ? 'var(--info)' : toast.type === 'progress' ? 'var(--warning)' : 'var(--danger)',
-          color: 'white', padding: '8px 20px', borderRadius: 6, fontSize: 13, fontWeight: 600,
-          zIndex: 2000, boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-          animation: 'fadeIn 0.2s ease',
-        }}>
-          {toast.type === 'device' ? '🔌' : toast.type === 'local' ? '💾' : toast.type === 'progress' ? '⏳' : '✗'} {toast.message}
+      {toasts.length > 0 && (
+        <div className="toast-stack">
+          {toasts.map((t, i) => (
+            <div
+              key={t.id}
+              className="toast-item"
+              style={{
+                background: t.type === 'device' ? 'var(--success)' : t.type === 'local' ? 'var(--info)' : t.type === 'progress' ? 'var(--warning)' : 'var(--danger)',
+                zIndex: MAX_TOASTS - i,
+                transform: t.entering
+                  ? 'translate(-50%, 16px) scale(0.92)'
+                  : `translate(-50%, ${-i * 10}px) scale(${1 - i * 0.06})`,
+                opacity: t.entering ? 0 : Math.max(1 - i * 0.3, 0.3),
+              }}
+            >
+              {t.type === 'device' ? '🔌' : t.type === 'local' ? '💾' : t.type === 'progress' ? '⏳' : '✗'} {t.message}
+            </div>
+          ))}
         </div>
       )}
     </>
