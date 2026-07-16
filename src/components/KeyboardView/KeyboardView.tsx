@@ -1,19 +1,12 @@
 import { KeymapStore } from '../../store/useKeymapStore';
 import { LEFT_KEYS, RIGHT_KEYS } from '../../data/layout';
 import { KeyButton } from './KeyButton';
-import { LedColor } from '../../types';
 import { gestureBindingLabel } from '../../services/usbService';
 import { SHARED_GESTURE_LAYER, GESTURE_POSITIONS, Direction, overrideSlot, buildDeviceEntries } from '../../data/devices';
 
 interface Props {
   store: KeymapStore;
 }
-
-const LED_CSS_MAP: Record<LedColor, string> = {
-  black: 'var(--led-black)', red: 'var(--led-red)', green: 'var(--led-green)',
-  yellow: 'var(--led-yellow)', blue: 'var(--led-blue)', magenta: 'var(--led-magenta)',
-  cyan: 'var(--led-cyan)', white: 'var(--led-white)',
-};
 
 // Reverse of GESTURE_POSITIONS: keyId -> direction, for the 4 gesture keys.
 const KEY_ID_TO_DIRECTION: Record<string, Direction> = Object.fromEntries(
@@ -152,7 +145,7 @@ export function KeyboardView({ store }: Props) {
     <div className="keyboard-area">
       <div className="keyboard-toolbar">
         <div className="layer-indicator">
-          <span className="led-dot" style={{ width: 10, height: 10, borderRadius: '50%', background: LED_CSS_MAP[layer.ledColor], display: 'inline-block' }} />
+          <span className="led-dot" style={{ width: 10, height: 10, borderRadius: '50%', background: layer.ledColor, display: 'inline-block' }} />
           <span>{layer.name}</span>
         </div>
 
@@ -230,7 +223,7 @@ export function KeyboardView({ store }: Props) {
             onClick={() => store.setSelectedLayerIndex(l.index)}
             title={l.name}
           >
-            <span className="layer-dot-circle" style={{ background: LED_CSS_MAP[l.ledColor] }} />
+            <span className="layer-dot-circle" style={{ background: l.ledColor }} />
             <span className="layer-dot-label">{l.name}</span>
           </button>
         ))}

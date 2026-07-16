@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { KeymapStore } from '../../store/useKeymapStore';
-import { KeyBinding, LedColor, Modifier } from '../../types';
+import { KeyBinding, Modifier } from '../../types';
 import {
   isConnected, getBleProfiles, setBleProfileName, getOsConfig, setOsConfig, getUsbSlots, setUsbSlotName,
   getGestureConfig, setGestureEnabled, setGestureBinding, resolveKeyBindingRpc, gestureBindingLabel,
@@ -15,12 +15,6 @@ import { debugLog } from '../DebugConsole';
 interface Props {
   store: KeymapStore;
 }
-
-const LED_CSS: Record<LedColor, string> = {
-  black: 'var(--led-black)', red: 'var(--led-red)', green: 'var(--led-green)',
-  yellow: 'var(--led-yellow)', blue: 'var(--led-blue)', magenta: 'var(--led-magenta)',
-  cyan: 'var(--led-cyan)', white: 'var(--led-white)',
-};
 
 const MOD_BUTTONS: { key: Modifier; label: string }[] = [
   { key: 'lctrl', label: '⌃' }, { key: 'lshift', label: '⇧' },
@@ -312,7 +306,7 @@ export function BluetoothConfig({ store }: Props) {
                 {dev.ledColor && (
                   <span className="led-dot" style={{
                     width: 10, height: 10, borderRadius: '50%',
-                    background: LED_CSS[dev.ledColor], flexShrink: 0,
+                    background: dev.ledColor, flexShrink: 0,
                   }} />
                 )}
                 <span className="bt-profile-index">{dev.label}</span>
@@ -381,7 +375,7 @@ export function BluetoothConfig({ store }: Props) {
                             style={{ fontSize: 10, padding: '4px 6px', display: 'flex', alignItems: 'center', gap: 4 }}
                             onClick={() => setKeymapOverlay(dev.endpointIndex, l.index)}
                           >
-                            <span className="led-dot" style={{ width: 8, height: 8, borderRadius: '50%', background: LED_CSS[l.ledColor], flexShrink: 0 }} />
+                            <span className="led-dot" style={{ width: 8, height: 8, borderRadius: '50%', background: l.ledColor, flexShrink: 0 }} />
                             {l.name}
                           </button>
                         );

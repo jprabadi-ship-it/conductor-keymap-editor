@@ -12,11 +12,16 @@ export interface KeyBinding {
   tapLabel?: string;
 }
 
-export type LedColor = 'black' | 'red' | 'green' | 'yellow' | 'blue' | 'magenta' | 'cyan' | 'white';
+// A hex color ("#rrggbb"). The firmware LED is PWM-driven (full 24-bit RGB),
+// not a fixed palette -- see usbService.ts's setLayerProps/readKeymap for the
+// packed-RGB wire encoding.
+export type LedColor = string;
 
-// Index matches the firmware's rgbled-widget color_names table (0=off..7=white).
-// SetLayerPropsRequest.color is this index + 1 (0 is reserved as "no change").
-export const LED_COLORS: LedColor[] = ['black', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white'];
+// The old 8-color palette (each channel purely on/off), kept as quick-pick
+// presets in the color picker UI. Order matches the firmware's legacy
+// color_names table (0=black..7=white) purely for familiarity, not because
+// the wire format is index-based anymore.
+export const LED_COLORS: LedColor[] = ['#000000', '#ff0000', '#00ff00', '#ffff00', '#0000ff', '#ff00ff', '#00ffff', '#ffffff'];
 
 export interface KeyConfig {
   id: string; // e.g. "L00", "R03"

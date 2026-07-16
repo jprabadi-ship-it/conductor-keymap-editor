@@ -160,7 +160,7 @@ export function TrackballConfig({ store }: Props) {
     const bluetoothProfiles = bleProfiles.profiles.map((profile, index) => ({
       index,
       name: profile.name || `BT ${index}`,
-      ledColor: (['red', 'green', 'blue', 'yellow', 'magenta'] as const)[index] ?? 'white',
+      ledColor: (['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff'] as const)[index] ?? '#ffffff',
       connected: !!profile.connected,
       active: index === bleProfiles.activeIndex,
     }));
@@ -251,7 +251,7 @@ export function TrackballConfig({ store }: Props) {
     const bluetoothProfiles = bleProfiles.profiles.map((profile, index) => ({
       index,
       name: profile.name || `BT ${index}`,
-      ledColor: (['red', 'green', 'blue', 'yellow', 'magenta'] as const)[index] ?? 'white',
+      ledColor: (['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff'] as const)[index] ?? '#ffffff',
       connected: !!profile.connected,
       active: index === bleProfiles.activeIndex,
     }));

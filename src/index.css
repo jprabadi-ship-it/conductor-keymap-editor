@@ -374,6 +374,15 @@ input:focus { border-color: var(--accent); }
   text-align: center; border: 1px solid var(--border); transition: all 0.1s;
 }
 .led-color-btn:hover { border-color: var(--accent); }
+.led-picker-custom {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border);
+  font-size: 11px; color: var(--text-secondary); cursor: pointer;
+}
+.led-picker-custom input[type="color"] {
+  width: 28px; height: 22px; padding: 0; border: 1px solid var(--border);
+  border-radius: var(--radius-sm); cursor: pointer; background: none;
+}
 
 /* Layer "…" menu (copy / delete) */
 .layer-menu {

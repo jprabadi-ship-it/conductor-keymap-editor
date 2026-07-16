@@ -140,6 +140,7 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, conn
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {[
+                { v: '0.36.0.0', at: '2026-07-16 JST', changes: ['レイヤーLEDの色を8色固定からフルRGB（カラーピッカーで自由選択）に拡張（要ファームウェア最新ビルド）。ドングルのLEDは元々PWM駆動のフルカラーLEDだが、ソフトウェア側が8色（各チャンネルon/offの組み合わせ）しか扱っていなかったのを解消。従来の8色はクイック選択プリセットとして残しつつ、その下の「カスタム」からネイティブのカラーピッカーで任意の色を選択可能に。ファームウェア側でレイヤー色の永続化キーを変更したため、アップデート後は各レイヤーの色が一度リセットされる（選び直しが必要）'] },
                 { v: '0.35.5.0', at: '2026-07-15 JST', changes: ['ヘッダーのバージョン表示横にあったレイヤー名テキストを削除。同じ場所のLEDカラードットが色でレイヤーを示しており、テキストは役目を終えていたため（ドット自体は継続表示）'] },
                 { v: '0.35.4.0', at: '2026-07-15 JST', changes: ['トースト通知をスタック表示に変更。従来は新しい通知が前の通知を即座に置き換えるだけだったが、新しい通知が手前にパタッと現れ、それまで表示していた通知は後ろに退いて重なって見えるアニメーションに変更（最大3件まで表示、それより古いものは自動で外れる）。Write時の「1/5 → 5/5」のような連続進捗表示で特に効果を発揮'] },
                 { v: '0.35.3.0', at: '2026-07-15 JST', changes: ['Write時にコンボの一部RPCがタイムアウトすると、書き戻し検証が「コンボ数: 期待0件 → 実機N件」という偽の不一致を報告していた不具合を修正。実際にはコンボは実機側で変化していないのに、内部で計算済みだった「書き込みたい内容」の集合がタイムアウト発生時に丸ごと空配列にリセットされてから検証に渡っていたのが原因（内部データは失われておらず表示上の誤検知だった）。あわせて、コンボ書き込みの各RPC呼び出しを個別にtry/catchするように変更し、1件のタイムアウトで残り全部のコンボ書き込みが連鎖的に中断されないように改善（実際のWriteログで発覚、実機未検証）'] },
@@ -312,7 +313,7 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, conn
         </div>
       )}
       <div className="header-breadcrumb">
-        <span className="led-dot" style={{ width: 8, height: 8, borderRadius: '50%', background: `var(--led-${store.selectedLayer?.ledColor || 'white'})`, display: 'inline-block' }} />
+        <span className="led-dot" style={{ width: 8, height: 8, borderRadius: '50%', background: store.selectedLayer?.ledColor || '#e5e5e5', display: 'inline-block' }} />
       </div>
 
       <div className="header-spacer" />

@@ -5,7 +5,7 @@ import { saveWriteBackup } from './services/writeBackups';
 import type { KeymapProject } from './types';
 import { isFirmwareVersionSupported, checkFirmwareUpdate, MIN_SUPPORTED_FW_VERSION } from './services/firmwareCompat';
 import { runConfigAudit } from './services/configAudit';
-import { LED_COLORS, type PanelTab } from './types';
+import type { PanelTab } from './types';
 import { debugLog } from './components/DebugConsole';
 import { Header } from './components/Header/Header';
 import { LayerList } from './components/LeftPanel/LayerList';
@@ -355,7 +355,7 @@ function App() {
             debugLog('INF', 'Editor', `Writing keymap to device... (${store.dirtyKeys.size} keys modified)`);
             // Write layer names + LED colors
             for (const layer of store.layers) {
-              await setLayerProps(layer.index, layer.name, LED_COLORS.indexOf(layer.ledColor));
+              await setLayerProps(layer.index, layer.name, layer.ledColor);
             }
             debugLog('INF', 'Editor', `Layer names and LED colors written (${store.layers.length} layers)`);
             // Write key bindings

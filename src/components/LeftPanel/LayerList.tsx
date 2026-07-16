@@ -1,16 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import { KeymapStore } from '../../store/useKeymapStore';
-import { LedColor, LED_COLORS } from '../../types';
+import { LED_COLORS } from '../../types';
 
 interface Props {
   store: KeymapStore;
 }
-
-const LED_CSS: Record<LedColor, string> = {
-  black: 'var(--led-black)', red: 'var(--led-red)', green: 'var(--led-green)',
-  yellow: 'var(--led-yellow)', blue: 'var(--led-blue)', magenta: 'var(--led-magenta)',
-  cyan: 'var(--led-cyan)', white: 'var(--led-white)',
-};
 
 export function LayerList({ store }: Props) {
   const [ledPickerLayer, setLedPickerLayer] = useState<number | null>(null);
@@ -52,7 +46,7 @@ export function LayerList({ store }: Props) {
           className={`layer-item ${store.selectedLayerIndex === layer.index ? 'selected' : ''}`}
           onClick={() => store.setSelectedLayerIndex(layer.index)}
         >
-          <span className="led-dot" style={{ background: LED_CSS[layer.ledColor] }} />
+          <span className="led-dot" style={{ background: layer.ledColor }} />
 
           {editingLayer === layer.index ? (
             <input
@@ -91,7 +85,7 @@ export function LayerList({ store }: Props) {
               setLedPickerLayer(ledPickerLayer === layer.index ? null : layer.index);
             }}
           >
-            <span style={{ width: 12, height: 12, borderRadius: '50%', background: LED_CSS[layer.ledColor], display: 'inline-block', border: '1px solid var(--border)' }} />
+            <span style={{ width: 12, height: 12, borderRadius: '50%', background: layer.ledColor, display: 'inline-block', border: '1px solid var(--border)' }} />
           </button>
 
           <span className="layer-trailing">
@@ -145,15 +139,24 @@ export function LayerList({ store }: Props) {
                 {LED_COLORS.map(color => (
                   <button
                     key={color}
-                    className={`led-color-btn ${layer.ledColor === color ? 'selected' : ''}`}
-                    style={{ color: LED_CSS[color] }}
+                    className={`led-color-btn ${layer.ledColor.toLowerCase() === color ? 'selected' : ''}`}
+                    style={{ background: color, width: 22, height: 22, padding: 0, borderRadius: '50%' }}
+                    title={color}
                     onClick={() => {
                       store.setLayerLedColor(layer.index, color);
                       setLedPickerLayer(null);
                     }}
-                  >{color}</button>
+                  />
                 ))}
               </div>
+              <label className="led-picker-custom">
+                <span>カスタム</span>
+                <input
+                  type="color"
+                  value={/^#[0-9a-f]{6}$/i.test(layer.ledColor) ? layer.ledColor : '#ffffff'}
+                  onChange={e => store.setLayerLedColor(layer.index, e.target.value)}
+                />
+              </label>
             </div>
           )}
         </div>

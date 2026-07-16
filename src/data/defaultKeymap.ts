@@ -1,4 +1,4 @@
-import { Layer, KeyConfig, LedColor, Combo, GestureShortcut, BluetoothProfile } from '../types';
+import { Layer, KeyConfig, LedColor, LED_COLORS, Combo, GestureShortcut, BluetoothProfile } from '../types';
 import { KEYBOARD_LAYOUT } from './layout';
 
 type BT = KeyConfig['binding']['type'];
@@ -14,10 +14,6 @@ function none(): KeyConfig['binding'] {
 function trans(): KeyConfig['binding'] {
   return { type: 'trans', keyCode: 'KC_TRNS', label: '---' };
 }
-
-const LED_MAP: Record<number, LedColor> = {
-  0: 'black', 1: 'red', 2: 'green', 3: 'yellow', 4: 'blue', 5: 'magenta', 6: 'cyan', 7: 'white',
-};
 
 const PROTECTED_LAYERS = [0, 1, 2, 3, 4, 5, 6, 12, 13];
 
@@ -158,7 +154,7 @@ export function createDefaultLayers(): Layer[] {
   return LAYER_DATA.map(ld => ({
     name: ld.name,
     index: ld.id,
-    ledColor: LED_MAP[ld.ledColor] || 'white',
+    ledColor: LED_COLORS[ld.ledColor] || '#ffffff',
     isProtected: PROTECTED_LAYERS.includes(ld.id),
     keys: buildKeys(ld.bindings),
   }));
@@ -195,7 +191,7 @@ export function createDefaultGestures(): GestureShortcut[] {
 }
 
 export function createDefaultBluetoothProfiles(): BluetoothProfile[] {
-  const colors: LedColor[] = ['cyan', 'magenta', 'yellow', 'green', 'red'];
+  const colors: LedColor[] = ['#00ffff', '#ff00ff', '#ffff00', '#00ff00', '#ff0000'];
   return Array.from({ length: 5 }, (_, i) => ({
     index: i, name: '', connected: false, active: i === 0, ledColor: colors[i],
   }));

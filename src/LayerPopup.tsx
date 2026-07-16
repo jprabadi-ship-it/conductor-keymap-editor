@@ -1,17 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { KeyButton } from './components/KeyboardView/KeyButton';
 import { LEFT_KEYS, RIGHT_KEYS, KeyPosition, positionToKeyId, positionsToKeyIds } from './data/layout';
-import { Layer, LedColor, Combo, KeyBinding } from './types';
+import { Layer, Combo, KeyBinding } from './types';
 import {
   connectUsb, connectBle, disconnectUsb, disconnectBle, requestUnlock, readKeymap, getCombosFromDevice, getAutoLayer, getRuntimeState,
   onDeviceDisconnect, onActiveLayerChange, onKeyInputEvent, subscribeToInput,
 } from './services/usbService';
-
-const LED_CSS_MAP: Record<LedColor, string> = {
-  black: 'var(--led-black)', red: 'var(--led-red)', green: 'var(--led-green)',
-  yellow: 'var(--led-yellow)', blue: 'var(--led-blue)', magenta: 'var(--led-magenta)',
-  cyan: 'var(--led-cyan)', white: 'var(--led-white)',
-};
 
 interface LayerState {
   layers: Layer[];
@@ -220,7 +214,7 @@ export function LayerPopup() {
       const layers: Layer[] = result.layers.map((dl: any) => ({
         name: dl.name,
         index: dl.id,
-        ledColor: dl.ledColor ?? 'black',
+        ledColor: dl.ledColor ?? '#000000',
         isProtected: false,
         keys: Object.entries(dl.bindings as Record<string, KeyBinding>).map(([id, binding]) => ({ id, binding })),
       }));
@@ -354,7 +348,7 @@ export function LayerPopup() {
           <button className="layer-popup-close" onClick={handleClose}
             title={localConn.connected ? '切断してミニマップを閉じる' : 'ミニマップを閉じる'}>✕</button>
           <span className="layer-popup-grip" title="ここを掴んで移動">⠿</span>
-          <span className="led-dot" style={{ width: 10, height: 10, borderRadius: '50%', background: LED_CSS_MAP[layer.ledColor] }} />
+          <span className="led-dot" style={{ width: 10, height: 10, borderRadius: '50%', background: layer.ledColor }} />
           <span>{layer.name}</span>
           {!effective!.connected && connectButtons}
           <button className="layer-popup-connect-btn" onClick={openStudio} title="Keymap Editor（Studio）を開く">
@@ -376,7 +370,7 @@ export function LayerPopup() {
           <div className="layer-switcher">
             {effective!.layers.map(l => (
               <div key={l.index} className={`layer-dot ${l.index === layer.index ? 'active' : ''}`} title={l.name}>
-                <span className="layer-dot-circle" style={{ background: LED_CSS_MAP[l.ledColor] }} />
+                <span className="layer-dot-circle" style={{ background: l.ledColor }} />
                 <span className="layer-dot-label">{l.name}</span>
               </div>
             ))}

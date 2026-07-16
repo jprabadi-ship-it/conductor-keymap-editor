@@ -154,7 +154,7 @@ export function useKeymapStore() {
     setLayers(prev => [...prev, {
       name: `Layer ${newIndex}`,
       index: newIndex,
-      ledColor: 'white',
+      ledColor: '#ffffff',
       isProtected: false,
       keys: prev[0].keys.map(k => ({ id: k.id, binding: { type: 'trans' as const, keyCode: 'KC_TRNS', label: '' } })),
     }]);

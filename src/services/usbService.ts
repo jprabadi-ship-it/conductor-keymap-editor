@@ -3,7 +3,6 @@ import { debugLog } from '../components/DebugConsole';
 import protoJson from '../data/zmk-studio-proto.json';
 import { keyIdsToPositions, positionsToKeyIds } from '../data/layout';
 import type { DeviceSettingsSnapshot, KeyBinding, Layer, SensitivitySnapshot } from '../types';
-import { LED_COLORS } from '../types';
 
 const SOF = 171;
 const EOF = 173;
@@ -909,9 +908,10 @@ export async function readKeymap(): Promise<any> {
       });
 
       const layerName = layer.name && layer.name.length > 0 ? layer.name : `Layer ${layer.id}`;
-      // Wire value is colorIndex+1 (0 = not reported, e.g. no LED widget
-      // compiled in at all); undefined here means "leave ledColor as-is".
-      const ledColor = layer.color > 0 ? LED_COLORS[layer.color - 1] : undefined;
+      // Wire value is a packed 0xRRGGBB with bit 24 set to mark "a real color
+      // follows" (0 = not reported, e.g. no LED widget compiled in at all);
+      // undefined here means "leave ledColor as-is".
+      const ledColor = layer.color > 0 ? `#${(layer.color & 0xFFFFFF).toString(16).padStart(6, '0')}` : undefined;
       debugLog('INF', 'USB', `  Layer ${layer.id}: "${layerName}" (${Object.keys(bindings).length} keys)${ledColor ? `, color=${ledColor}` : ''}`);
       return {
         id: layer.id,
@@ -948,10 +948,12 @@ export async function setLayerBinding(layerId: number, keyPosition: number, beha
   }
 }
 
-export async function setLayerProps(layerId: number, name: string, colorIndex?: number): Promise<boolean> {
+export async function setLayerProps(layerId: number, name: string, colorHex?: string): Promise<boolean> {
   try {
-    // Firmware color field is colorIndex + 1; 0 means "leave color unchanged".
-    const color = colorIndex === undefined ? 0 : colorIndex + 1;
+    // Firmware color field: 0 means "leave color unchanged". A real color has
+    // bit 24 (0x01000000) set so packed black (#000000) doesn't collide with
+    // that sentinel.
+    const color = colorHex === undefined ? 0 : 0x01000000 | (parseInt(colorHex.replace('#', ''), 16) & 0xFFFFFF);
     const resp = await sendRequest({
       keymap: { setLayerProps: { layerId, name, color } },
     });
