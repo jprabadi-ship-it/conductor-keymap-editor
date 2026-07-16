@@ -154,7 +154,10 @@ export function LayerList({ store }: Props) {
                 <input
                   type="color"
                   value={/^#[0-9a-f]{6}$/i.test(layer.ledColor) ? layer.ledColor : '#ffffff'}
-                  onChange={e => store.setLayerLedColor(layer.index, e.target.value)}
+                  onChange={e => {
+                    store.setLayerLedColor(layer.index, e.target.value);
+                    setLedPickerLayer(null);
+                  }}
                 />
               </label>
             </div>
