@@ -111,6 +111,14 @@ function App() {
     setKeyboardLayout(store.osLayout);
   }, []);
 
+  // Suspends the runtime-state poll below for the duration of a Write. The
+  // firmware's settings flash save blocks its RPC thread for several
+  // seconds, so poll requests sent during that window always time out
+  // ("getRuntimeState failed: Response timeout") and their responses then
+  // arrive after the editor gave up ("Unexpected response id" warnings) --
+  // harmless, but they read like Write errors in the console.
+  const writeInProgressRef = useRef(false);
+
   // Active layer isn't reliably pushed by every firmware build yet, so poll
   // as a fallback alongside the layerChanged notification handled above --
   // whichever arrives first wins, the other just confirms the same value.
@@ -118,6 +126,7 @@ function App() {
     if (!usbConnected) return;
     let cancelled = false;
     const poll = async () => {
+      if (writeInProgressRef.current) return;
       const state = await getRuntimeState();
       if (!cancelled && state) {
         setHighestLayer(state.highestLayer);
@@ -322,6 +331,7 @@ function App() {
         fwUpdateAvailable={fwUpdateAvailable}
         fwLatestPublishedAt={fwLatestPublishedAt}
         onWrite={async () => {
+          writeInProgressRef.current = true;
           try {
             if (!isUnlocked()) {
               debugLog('WRN', 'Editor', 'Device is locked. Attempting unlock...');
@@ -407,6 +417,8 @@ function App() {
           } catch (e: any) {
             debugLog('ERR', 'Editor', `Write failed: ${e.message}`);
             showToast(`書き込みに失敗しました: ${e.message}`, 'error');
+          } finally {
+            writeInProgressRef.current = false;
           }
         }}
         onRead={handleRead}
