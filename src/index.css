@@ -344,6 +344,13 @@ input:focus { border-color: var(--accent); }
   display: flex; align-items: center; gap: 8px;
   padding: 6px 8px; border-radius: var(--radius-sm);
   cursor: pointer; font-size: 13px; transition: background 0.1s;
+  /* Anchor for .led-picker below -- without this, position:absolute has no
+     positioned ancestor and falls back to a "static position" computed
+     against the flex container's initial containing block instead of this
+     row, so the popup renders detached and overlapping neighboring rows
+     (a click meant for a swatch can land on a different row's own LED
+     button instead, which swaps the open picker out from under you). */
+  position: relative;
 }
 .layer-item:hover { background: var(--bg-hover); }
 .layer-item.selected { background: var(--bg-selected); font-weight: 600; }
@@ -363,7 +370,8 @@ input:focus { border-color: var(--accent); }
 
 /* LED color picker */
 .led-picker {
-  position: absolute; background: var(--bg-secondary);
+  position: absolute; top: calc(100% + 2px); right: 8px;
+  background: var(--bg-secondary);
   border: 1px solid var(--border); border-radius: var(--radius);
   padding: 12px; z-index: 100; box-shadow: 0 8px 24px rgba(0,0,0,0.4);
 }
