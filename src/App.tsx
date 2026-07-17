@@ -83,7 +83,17 @@ function App() {
 
   const showToast = useCallback((message: string, type: ToastItem['type'] = 'device', opts?: { persist?: boolean }) => {
     const id = ++toastIdRef.current;
-    setToasts(prev => [{ id, message, type, entering: true }, ...prev].slice(0, MAX_TOASTS));
+    // Progress toasts (the Write steps) are persistent -- no auto-dismiss
+    // timer -- so in the stacked-toast world they'd linger behind forever
+    // once the terminal success/error toast (which DOES auto-dismiss after
+    // 3s) has come and gone, looking like a Write that never finishes.
+    // Successive progress steps may stack (that's the visual), but any
+    // NON-progress toast is a terminal state for the sequence and sweeps
+    // all progress toasts out of the stack.
+    setToasts(prev => [
+      { id, message, type, entering: true },
+      ...(type === 'progress' ? prev : prev.filter(t => t.type !== 'progress')),
+    ].slice(0, MAX_TOASTS));
     // Flip "entering" off a frame after mount so the transition below
     // actually animates from the off-stack starting position instead of
     // snapping straight to rest (the double rAF waits for the browser to
@@ -95,6 +105,11 @@ function App() {
     });
     if (!opts?.persist) {
       const timer = setTimeout(() => removeToast(id), 3000);
+      toastTimersRef.current.set(id, timer);
+    } else {
+      // Safety net: even a "persistent" toast shouldn't outlive its writer
+      // by minutes if some code path forgets to send a terminal toast.
+      const timer = setTimeout(() => removeToast(id), 60000);
       toastTimersRef.current.set(id, timer);
     }
   }, [removeToast]);
