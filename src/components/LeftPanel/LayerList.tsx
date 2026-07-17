@@ -142,10 +142,7 @@ export function LayerList({ store }: Props) {
                     className={`led-color-btn ${layer.ledColor.toLowerCase() === color ? 'selected' : ''}`}
                     style={{ background: color, width: 22, height: 22, padding: 0, borderRadius: '50%' }}
                     title={color}
-                    onClick={() => {
-                      store.setLayerLedColor(layer.index, color);
-                      setLedPickerLayer(null);
-                    }}
+                    onClick={() => store.setLayerLedColor(layer.index, color)}
                   />
                 ))}
               </div>
@@ -154,12 +151,13 @@ export function LayerList({ store }: Props) {
                 <input
                   type="color"
                   value={/^#[0-9a-f]{6}$/i.test(layer.ledColor) ? layer.ledColor : '#ffffff'}
-                  onChange={e => {
-                    store.setLayerLedColor(layer.index, e.target.value);
-                    setLedPickerLayer(null);
-                  }}
+                  onChange={e => store.setLayerLedColor(layer.index, e.target.value)}
                 />
               </label>
+              <button
+                className="led-picker-done"
+                onClick={() => setLedPickerLayer(null)}
+              >閉じる</button>
             </div>
           )}
         </div>
