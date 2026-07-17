@@ -48,13 +48,41 @@ function sanitizeComboLayers(combos: Combo[], layerCount: number): Combo[] {
   );
 }
 
+// Layer LED colors were CSS keywords ('green', 'cyan', ...) until v0.36.0
+// switched LedColor to "#rrggbb" hex strings. Cached localStorage keymaps
+// from before that still carry the keywords, and the Write path parses the
+// color with parseInt(hex, 16) -- which doesn't reject keywords outright
+// but half-parses them ('cyan' reads the leading 'c' and yields 0x0C,
+// 'green' yields NaN -> 0), silently writing garbage colors to the device.
+// Migrate keywords to their hex equivalents on every load; anything else
+// unrecognizable falls back to white.
+const LEGACY_LED_KEYWORDS: Record<string, string> = {
+  black: '#000000', red: '#ff0000', green: '#00ff00', yellow: '#ffff00',
+  blue: '#0000ff', magenta: '#ff00ff', cyan: '#00ffff', white: '#ffffff',
+};
+
+function sanitizeLedColor(color: unknown): string {
+  if (typeof color === 'string') {
+    if (/^#[0-9a-f]{6}$/i.test(color)) return color.toLowerCase();
+    const mapped = LEGACY_LED_KEYWORDS[color.toLowerCase()];
+    if (mapped) return mapped;
+  }
+  return '#ffffff';
+}
+
+function sanitizeLayerColors(layers: Layer[]): Layer[] {
+  return layers.map(l => ({ ...l, ledColor: sanitizeLedColor(l.ledColor) }));
+}
+
 export interface UndoEntry {
   layers: Layer[];
   combos: Combo[];
 }
 
 export function useKeymapStore() {
-  const [layers, setLayers] = useState<Layer[]>(() => loadFromStorage(STORAGE_KEY_KEYMAP, createDefaultLayers));
+  const [layers, setLayers] = useState<Layer[]>(() =>
+    sanitizeLayerColors(loadFromStorage(STORAGE_KEY_KEYMAP, createDefaultLayers))
+  );
   const [combos, setCombos] = useState<Combo[]>(() =>
     sanitizeComboLayers(loadFromStorage(STORAGE_KEY_COMBOS, createDefaultCombos), layers.length)
   );
@@ -268,7 +296,7 @@ export function useKeymapStore() {
 
   const importProject = useCallback((project: KeymapProject) => {
     pushUndo();
-    setLayers(project.layers);
+    setLayers(sanitizeLayerColors(project.layers));
     setCombos(sanitizeComboLayers(project.combos, project.layers.length));
     if (project.macros) {
       setMacros(project.macros);

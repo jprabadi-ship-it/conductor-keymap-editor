@@ -952,8 +952,18 @@ export async function setLayerProps(layerId: number, name: string, colorHex?: st
   try {
     // Firmware color field: 0 means "leave color unchanged". A real color has
     // bit 24 (0x01000000) set so packed black (#000000) doesn't collide with
-    // that sentinel.
-    const color = colorHex === undefined ? 0 : 0x01000000 | (parseInt(colorHex.replace('#', ''), 16) & 0xFFFFFF);
+    // that sentinel. Anything that isn't a #rrggbb string (e.g. a pre-v0.36.0
+    // keyword like 'green' surviving in an imported file) is treated as "no
+    // change" rather than half-parsed into a garbage color -- parseInt(hex)
+    // reads 'cyan' as 0xC and 'green' as NaN.
+    let color = 0;
+    if (colorHex !== undefined) {
+      if (/^#[0-9a-f]{6}$/i.test(colorHex)) {
+        color = 0x01000000 | parseInt(colorHex.slice(1), 16);
+      } else {
+        debugLog('WRN', 'USB', `setLayerProps: unrecognized color "${colorHex}" for layer ${layerId}, leaving device color unchanged`);
+      }
+    }
     const resp = await sendRequest({
       keymap: { setLayerProps: { layerId, name, color } },
     });
