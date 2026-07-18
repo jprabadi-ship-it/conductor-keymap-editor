@@ -5,6 +5,7 @@ import {
   getBleProfiles,
   getDeviceInfo,
   getDragScale,
+  getFirmwareInfo,
   getGestureConfig,
   getInertia,
   getOsConfig,
@@ -13,8 +14,9 @@ import {
   getUsbSlots,
   isConnected,
   type RuntimeBatteryState,
+  type FirmwareUnitInfo,
 } from '../../services/usbService';
-import { isFirmwareVersionSupported } from '../../services/firmwareCompat';
+import { isFirmwareVersionSupported, analyzeFirmwareConsistency } from '../../services/firmwareCompat';
 import { runConfigAudit, lastAuditResults, lastAuditAt, type AuditFinding } from '../../services/configAudit';
 import type { KeymapStore } from '../../store/useKeymapStore';
 import { debugLog } from '../DebugConsole';
@@ -31,7 +33,16 @@ type DiagnosticsData = {
   dragScale: Awaited<ReturnType<typeof getDragScale>>;
   osConfig: Awaited<ReturnType<typeof getOsConfig>>;
   gestureConfig: Awaited<ReturnType<typeof getGestureConfig>>;
+  firmwareInfo: Awaited<ReturnType<typeof getFirmwareInfo>>;
 };
+
+// One display line per unit: stamp + build id, or why it's unknown.
+function unitText(u: FirmwareUnitInfo | undefined, isSelf: boolean) {
+  if (!u) return '--';
+  if (!isSelf && !u.connected) return 'offline';
+  if (!u.stamp && !u.buildId) return '不明（旧FW?）';
+  return `${u.stamp || '--'}${u.buildId ? ` #${u.buildId}` : ''}`;
+}
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
@@ -70,6 +81,13 @@ function buildDiagnosticsText(data: DiagnosticsData): string {
   lines.push('## Device');
   lines.push(`Name: ${data.device?.name || '--'}`);
   lines.push(`Firmware: ${data.device?.firmwareVersion || '--'}`);
+  lines.push(`FW Dongle: ${unitText(data.firmwareInfo?.self, true)}`);
+  lines.push(`FW R: ${unitText(data.firmwareInfo?.peripherals?.[0], false)}`);
+  lines.push(`FW L: ${unitText(data.firmwareInfo?.peripherals?.[1], false)}`);
+  if (data.firmwareInfo) {
+    const c = analyzeFirmwareConsistency(data.firmwareInfo.self, data.firmwareInfo.peripherals);
+    lines.push(`FW Consistency: ${c.status} -- ${c.detail}`);
+  }
   lines.push(`Highest Layer: ${data.runtime?.highestLayer ?? '--'}`);
   lines.push(`Layers Bitmask: ${data.runtime?.activeLayersBitmask !== undefined ? `0x${data.runtime.activeLayersBitmask.toString(16)}` : '--'}`);
   lines.push(`Active OS: ${data.runtime?.activeOs ?? '--'}`);
@@ -159,6 +177,7 @@ export function DiagnosticsPanel({ store }: { store?: KeymapStore }) {
       dragScale,
       osConfig,
       gestureConfig,
+      firmwareInfo,
     ] = await Promise.all([
       getDeviceInfo(),
       getRuntimeState(),
@@ -171,6 +190,7 @@ export function DiagnosticsPanel({ store }: { store?: KeymapStore }) {
       getDragScale(),
       getOsConfig(),
       getGestureConfig(),
+      getFirmwareInfo(),
     ]);
     setData({
       device,
@@ -184,6 +204,7 @@ export function DiagnosticsPanel({ store }: { store?: KeymapStore }) {
       dragScale,
       osConfig,
       gestureConfig,
+      firmwareInfo,
     });
     setLoading(false);
     setLoaded(true);
@@ -283,6 +304,30 @@ export function DiagnosticsPanel({ store }: { store?: KeymapStore }) {
             <Row label="Layers Bitmask" value={data.runtime?.activeLayersBitmask !== undefined ? `0x${data.runtime.activeLayersBitmask.toString(16)}` : '--'} />
             <Row label="Active OS" value={String(data.runtime?.activeOs ?? '--')} />
             <Row label="OS Profile" value={boolText(data.runtime?.osProfileEnabled)} />
+          </div>
+
+          <div className="config-section">
+            <div className="config-label">ファームウェア構成</div>
+            <Row label="Dongle" value={unitText(data.firmwareInfo?.self, true)} />
+            <Row label="R" value={unitText(data.firmwareInfo?.peripherals?.[0], false)} />
+            <Row label="L" value={unitText(data.firmwareInfo?.peripherals?.[1], false)} />
+            {data.firmwareInfo && (() => {
+              const c = analyzeFirmwareConsistency(data.firmwareInfo.self, data.firmwareInfo.peripherals);
+              return (
+                <div style={{
+                  fontSize: 11, marginTop: 6, padding: '6px 8px', borderRadius: 4, lineHeight: 1.5,
+                  color: c.status === 'mismatch' ? 'var(--danger)' : c.status === 'unknown' ? 'var(--warning)' : 'var(--success)',
+                  background: c.status === 'mismatch' ? 'rgba(239,68,68,0.08)' : c.status === 'unknown' ? 'rgba(245,158,11,0.08)' : 'rgba(16,185,129,0.08)',
+                }}>
+                  {c.status === 'mismatch' ? '✗ ' : c.status === 'unknown' ? '△ ' : '✓ '}{c.detail}
+                </div>
+              );
+            })()}
+            {!data.firmwareInfo && (
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                このdongleのFWはget_firmware_info未対応です（要FW更新）
+              </div>
+            )}
           </div>
 
           <div className="config-section">

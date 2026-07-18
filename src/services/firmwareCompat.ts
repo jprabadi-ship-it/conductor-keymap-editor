@@ -9,7 +9,38 @@
 // firmware capability, and keep it in sync with the firmware side's
 // CONFIG_ZMK_STUDIO_FIRMWARE_VERSION bump (see conductor-dongle's
 // monokey_R.conf / monokey_dongle.conf).
+import type { FirmwareUnitInfo } from './usbService';
+
 export const MIN_SUPPORTED_FW_VERSION = '0.6.12';
+
+// Cross-unit firmware consistency (dongle vs L vs R). Only build ids are
+// exactly comparable -- they carry the same CI-injected git SHA on every
+// unit of one run. Compile-time stamps differ by minutes between parallel
+// build jobs, so they are display-only here. A connected peripheral with an
+// EMPTY id either runs pre-buildid firmware or a local build: report it as
+// 'unknown' rather than 'mismatch' (we genuinely can't tell), but surface
+// it so the user knows the comparison is incomplete.
+export function analyzeFirmwareConsistency(
+  self: FirmwareUnitInfo,
+  peripherals: FirmwareUnitInfo[],
+): { status: 'consistent' | 'mismatch' | 'unknown'; detail: string } {
+  const connected = peripherals.filter(p => p.connected);
+  const ids = [self, ...connected].map(u => u.buildId).filter(id => id !== '');
+  const distinct = [...new Set(ids)];
+  if (distinct.length > 1) {
+    return {
+      status: 'mismatch',
+      detail: `ビルドIDが一致していません（${distinct.join(' / ')}）。全ユニットを同じzipのFWに焼き直してください`,
+    };
+  }
+  if (ids.length < 1 + connected.length) {
+    return {
+      status: 'unknown',
+      detail: 'ビルドIDを報告しないユニットがあるため比較できません（旧FWまたはローカルビルドの可能性）',
+    };
+  }
+  return { status: 'consistent', detail: `全ユニットが同一ビルド（${distinct[0] ?? '不明'}）です` };
+}
 
 // Firmware reports "X.Y.Z (YYYY-MM-DD HH:MM)" (see
 // encode_device_info_firmware_version in core_subsystem.c) -- pull out

@@ -1043,6 +1043,36 @@ export async function setTappingTerm(ms: number): Promise<boolean> {
 // Keyboard-side key-repeat emulation (works around macOS not repeating
 // letter keys under a sustained hold -- see conductor_key_repeat.h on the
 // firmware side). Default off.
+// Build identity of one unit (dongle itself or a split peripheral), for
+// firmware-mismatch detection. buildId is the CI-injected short git SHA --
+// identical across every unit of one CI run, "" on local builds or firmware
+// too old to report it (which the UI shows as "unknown", not a mismatch).
+export interface FirmwareUnitInfo {
+  connected: boolean;
+  stamp: string;
+  buildId: string;
+}
+
+export async function getFirmwareInfo(): Promise<{ self: FirmwareUnitInfo; peripherals: FirmwareUnitInfo[] } | null> {
+  try {
+    const resp = await sendRequest({ core: { getFirmwareInfo: true } });
+    const info = resp.core?.getFirmwareInfo;
+    if (!info?.self) {
+      // Firmware predating the RPC responds without this oneof member.
+      return null;
+    }
+    const unit = (u: any): FirmwareUnitInfo => ({
+      connected: u?.connected === true,
+      stamp: u?.stamp ?? '',
+      buildId: u?.buildId ?? '',
+    });
+    return { self: unit(info.self), peripherals: (info.peripherals ?? []).map(unit) };
+  } catch (e: any) {
+    debugLog('WRN', 'USB', `getFirmwareInfo failed (old firmware?): ${e.message}`);
+    return null;
+  }
+}
+
 export async function getKeyRepeatEnabled(): Promise<boolean | null> {
   try {
     const resp = await sendRequest({ core: { getKeyRepeatEnabled: true } });

@@ -1,9 +1,9 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useKeymapStore } from './store/useKeymapStore';
-import { readKeymap, writeKeymapToDevice, saveChanges, setLayerProps, getDeviceInfo, requestUnlock, isUnlocked, readMacrosFromDevice, onDeviceDisconnect, onActiveLayerChange, onKeyInputEvent, subscribeToInput, getRuntimeState, setKeyboardLayout, getBehaviorDisplayName, getCombosFromDevice, writeCombosToDevice, verifyDeviceState } from './services/usbService';
+import { readKeymap, writeKeymapToDevice, saveChanges, setLayerProps, getDeviceInfo, getFirmwareInfo, requestUnlock, isUnlocked, readMacrosFromDevice, onDeviceDisconnect, onActiveLayerChange, onKeyInputEvent, subscribeToInput, getRuntimeState, setKeyboardLayout, getBehaviorDisplayName, getCombosFromDevice, writeCombosToDevice, verifyDeviceState } from './services/usbService';
 import { saveWriteBackup } from './services/writeBackups';
 import type { KeymapProject } from './types';
-import { isFirmwareVersionSupported, checkFirmwareUpdate, MIN_SUPPORTED_FW_VERSION } from './services/firmwareCompat';
+import { isFirmwareVersionSupported, checkFirmwareUpdate, analyzeFirmwareConsistency, MIN_SUPPORTED_FW_VERSION } from './services/firmwareCompat';
 import { runConfigAudit } from './services/configAudit';
 import type { PanelTab } from './types';
 import { debugLog } from './components/DebugConsole';
@@ -339,6 +339,20 @@ function App() {
             if (!ok) {
               debugLog('WRN', 'USB', 'Device is locked. Write operations will fail. Press studio_unlock combo on keyboard.');
             }
+            // Cross-unit firmware consistency: the dongle reports L/R build
+            // identities read over the split link. Warn immediately on a
+            // hard mismatch; log-only for "unknown" (old peripheral FW or a
+            // local build can't be compared, don't cry wolf). Fire and
+            // forget -- old dongle firmware returns null here.
+            getFirmwareInfo().then(fw => {
+              if (!fw) return;
+              const c = analyzeFirmwareConsistency(fw.self, fw.peripherals);
+              debugLog(c.status === 'mismatch' ? 'ERR' : c.status === 'unknown' ? 'WRN' : 'INF', 'FW',
+                `Dongle=${fw.self.stamp} #${fw.self.buildId || '?'} / R=${fw.peripherals[0]?.connected ? `${fw.peripherals[0].stamp} #${fw.peripherals[0].buildId || '?'}` : 'offline'} / L=${fw.peripherals[1]?.connected ? `${fw.peripherals[1].stamp} #${fw.peripherals[1].buildId || '?'}` : 'offline'} -- ${c.detail}`);
+              if (c.status === 'mismatch') {
+                showToast('⚠️ dongle/L/RのFWビルドが一致していません（診断タブ参照）', 'error');
+              }
+            });
           }
         }}
         unsaved={unsaved}
