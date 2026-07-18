@@ -41,7 +41,7 @@ function unitText(u: FirmwareUnitInfo | undefined, isSelf: boolean) {
   if (!u) return '--';
   if (!isSelf && !u.connected) return 'offline';
   if (!u.stamp && !u.buildId) return '不明（旧FW?）';
-  return `${u.stamp || '--'}${u.buildId ? ` #${u.buildId}` : ''}`;
+  return [u.stamp, u.buildId ? `#${u.buildId}` : ''].filter(Boolean).join(' ');
 }
 
 function Row({ label, value }: { label: string; value: string }) {
