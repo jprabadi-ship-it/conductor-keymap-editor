@@ -6,8 +6,42 @@ interface Props {
   store: KeymapStore;
 }
 
+// Custom colors the user has previously picked, newest first. Recorded when
+// the picker closes (the native color input fires change continuously while
+// dragging, so "on close" is the only sane notion of a *chosen* color), and
+// only for colors outside the 8 presets -- those already have buttons.
+const COLOR_HISTORY_KEY = 'conductor-led-color-history';
+const COLOR_HISTORY_MAX = 8;
+
+function loadColorHistory(): string[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(COLOR_HISTORY_KEY) || '[]');
+    return Array.isArray(v) ? v.filter(c => typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c)) : [];
+  } catch {
+    return [];
+  }
+}
+
 export function LayerList({ store }: Props) {
   const [ledPickerLayer, setLedPickerLayer] = useState<number | null>(null);
+  const [colorHistory, setColorHistory] = useState<string[]>(loadColorHistory);
+
+  const recordColorHistory = (color: string) => {
+    const c = color.toLowerCase();
+    if (!/^#[0-9a-f]{6}$/.test(c) || LED_COLORS.includes(c)) return;
+    setColorHistory(prev => {
+      const next = [c, ...prev.filter(x => x !== c)].slice(0, COLOR_HISTORY_MAX);
+      try { localStorage.setItem(COLOR_HISTORY_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+  };
+
+  // Both close paths (閉じる button and re-toggling the LED dot) go through
+  // here so the just-picked custom color always lands in the history.
+  const closeLedPicker = (currentColor: string) => {
+    recordColorHistory(currentColor);
+    setLedPickerLayer(null);
+  };
   const [menuLayer, setMenuLayer] = useState<number | null>(null);
   const [copyPickerLayer, setCopyPickerLayer] = useState<number | null>(null);
   const [editingLayer, setEditingLayer] = useState<number | null>(null);
@@ -82,7 +116,11 @@ export function LayerList({ store }: Props) {
             style={{ padding: '0 4px', position: 'relative' }}
             onClick={(e) => {
               e.stopPropagation();
-              setLedPickerLayer(ledPickerLayer === layer.index ? null : layer.index);
+              if (ledPickerLayer === layer.index) {
+                closeLedPicker(layer.ledColor);
+              } else {
+                setLedPickerLayer(layer.index);
+              }
             }}
           >
             <span style={{ width: 12, height: 12, borderRadius: '50%', background: layer.ledColor, display: 'inline-block', border: '1px solid var(--border)' }} />
@@ -154,9 +192,25 @@ export function LayerList({ store }: Props) {
                   onChange={e => store.setLayerLedColor(layer.index, e.target.value)}
                 />
               </label>
+              {colorHistory.length > 0 && (
+                <>
+                  <div className="led-picker-history-title">最近使った色</div>
+                  <div className="led-picker-grid">
+                    {colorHistory.map(color => (
+                      <button
+                        key={color}
+                        className={`led-color-btn ${layer.ledColor.toLowerCase() === color ? 'selected' : ''}`}
+                        style={{ background: color, width: 22, height: 22, padding: 0, borderRadius: '50%' }}
+                        title={color}
+                        onClick={() => store.setLayerLedColor(layer.index, color)}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
               <button
                 className="led-picker-done"
-                onClick={() => setLedPickerLayer(null)}
+                onClick={() => closeLedPicker(layer.ledColor)}
               >閉じる</button>
             </div>
           )}
