@@ -344,7 +344,7 @@ ipcMain.handle('check-firmware-latest', async () => {
   return await new Promise((resolve) => {
     execFile(
       ghPath,
-      ['release', 'view', 'firmware-latest', '--repo', 'jprabadi-ship-it/conductor', '--json', 'name,publishedAt'],
+      ['release', 'view', 'firmware-latest', '--repo', 'jprabadi-ship-it/conductor', '--json', 'name,publishedAt,body'],
       { timeout: 10000 },
       (err, stdout) => {
         if (err) {
@@ -353,7 +353,15 @@ ipcMain.handle('check-firmware-latest', async () => {
         }
         try {
           const data = JSON.parse(stdout)
-          resolve({ name: data.name || '', publishedAt: data.publishedAt || '' })
+          // GitHub's publishedAt is set once at first publish and never
+          // moves on later `gh release upload`/`edit` calls (this release
+          // is reused across every CI run, not recreated) -- it stays
+          // frozen at whenever the release was first created, not the
+          // actual last build. The workflow now embeds the real build time
+          // as "Built: <ISO>" in the notes body; prefer that when present.
+          const builtMatch = (data.body || '').match(/Built:\s*(\S+)/)
+          const publishedAt = builtMatch ? builtMatch[1] : (data.publishedAt || '')
+          resolve({ name: data.name || '', publishedAt })
         } catch {
           resolve(null)
         }

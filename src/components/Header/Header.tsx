@@ -140,6 +140,7 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, conn
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {[
+                { v: '0.38.4.0', at: '2026-07-19 JST', changes: ['「FWダウンロード」ボタンの最終更新日が更新されない不具合を修正。GitHubのpublishedAtは初回公開時刻に固定され、firmware-latestのようにアセットだけを更新し続けるリリースでは実質ずっと同じ日時のままだった。firmware側リリースノートに埋め込んだ実ビルド日時を読むように変更（firmware v0.6.12以降が必要）'] },
                 { v: '0.38.3.0', at: '2026-07-19 JST', changes: ['(開発者向け)CIに契約テストを追加。`src/data/zmk-studio-proto.json`(手動更新)がfirmware側の実際の.protoファイルと食い違っていないかを毎push/PRで自動チェック。ユーザー向けの機能変更はなし'] },
                 { v: '0.38.2.0', at: '2026-07-19 JST', changes: ['レイヤーパネルに「🎨 テーマ」を追加。現在の全レイヤーのLED配色に好きな名前を付けて保存し、いつでも一括で呼び戻せるように（レイヤー名で対応付けるため、レイヤーの並び替え後も概ね正しく適用される）'] },
                 { v: '0.38.1.0', at: '2026-07-19 JST', changes: ['LEDカラーピッカーに「明るさ」スライダーを追加（10-100%）。選んだ色（プリセット・履歴・カスタム）を後から一律に暗く調整可能に。ワイヤ形式・ファームウェアに明るさの概念はないため、スライダーで暗くした色をそのままRGB値として送信する方式（元の色相は保存されない）'] },
