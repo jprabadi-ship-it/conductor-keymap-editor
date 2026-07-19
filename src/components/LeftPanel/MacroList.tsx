@@ -9,11 +9,11 @@ export function MacroList({ store }: Props) {
   return (
     <div>
       <div className="panel-section-title">
-        <span>Macros ({store.macros.length}/16)</span>
+        <span>Macros ({store.macros.length}/32)</span>
         <button
           className="btn"
           onClick={() => store.addMacro()}
-          disabled={store.macros.length >= 16}
+          disabled={store.macros.length >= 32}
           style={{ fontSize: 12 }}
         >+ New</button>
       </div>

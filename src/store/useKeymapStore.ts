@@ -251,7 +251,7 @@ export function useKeymapStore() {
 
   // Macro operations
   const addMacro = useCallback(() => {
-    if (macros.length >= 16) return;
+    if (macros.length >= 32) return;
     let name = 'm_new';
     let suffix = 1;
     const names = new Set(macros.map(m => m.name));
