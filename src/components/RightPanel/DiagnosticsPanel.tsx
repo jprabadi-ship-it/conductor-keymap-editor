@@ -20,7 +20,6 @@ import { isFirmwareVersionSupported, analyzeFirmwareConsistency } from '../../se
 import { runConfigAudit, lastAuditResults, lastAuditAt, type AuditFinding } from '../../services/configAudit';
 import type { KeymapStore } from '../../store/useKeymapStore';
 import { debugLog } from '../DebugConsole';
-import { FirmwareUpdateWizard } from './FirmwareUpdateWizard';
 
 const isElectron = typeof window !== 'undefined' && !!(window as any).electronAPI;
 
@@ -131,7 +130,7 @@ function buildDiagnosticsText(data: DiagnosticsData): string {
   return lines.join('\n');
 }
 
-export function DiagnosticsPanel({ store }: { store?: KeymapStore }) {
+export function DiagnosticsPanel({ store, onOpenFirmwareWizard }: { store?: KeymapStore; onOpenFirmwareWizard?: (info: DiagnosticsData['firmwareInfo']) => void }) {
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [data, setData] = useState<DiagnosticsData | null>(null);
@@ -139,7 +138,6 @@ export function DiagnosticsPanel({ store }: { store?: KeymapStore }) {
   const [audit, setAudit] = useState<AuditFinding[] | null>(lastAuditResults);
   const [auditAt, setAuditAt] = useState<string | null>(lastAuditAt);
   const [auditing, setAuditing] = useState(false);
-  const [showWizard, setShowWizard] = useState(false);
 
   const rerunAudit = async () => {
     if (!store) return;
@@ -314,7 +312,7 @@ export function DiagnosticsPanel({ store }: { store?: KeymapStore }) {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div className="config-label">ファームウェア構成</div>
               {isElectron && data.firmwareInfo && (
-                <button className="btn btn-outline" style={{ fontSize: 11 }} onClick={() => setShowWizard(true)}>
+                <button className="btn btn-outline" style={{ fontSize: 11 }} onClick={() => onOpenFirmwareWizard?.(data.firmwareInfo)}>
                   🔄 アップデート
                 </button>
               )}
@@ -340,14 +338,6 @@ export function DiagnosticsPanel({ store }: { store?: KeymapStore }) {
               </div>
             )}
           </div>
-
-          {showWizard && data.firmwareInfo && (
-            <FirmwareUpdateWizard
-              self={data.firmwareInfo.self}
-              peripherals={data.firmwareInfo.peripherals}
-              onClose={() => setShowWizard(false)}
-            />
-          )}
 
           <div className="config-section">
             <div className="config-label">Battery / Link</div>

@@ -16,6 +16,7 @@ import { TrackballConfig } from './components/RightPanel/TrackballConfig';
 import { TimingConfig } from './components/RightPanel/TimingConfig';
 import { BluetoothConfig } from './components/RightPanel/BluetoothConfig';
 import { DiagnosticsPanel } from './components/RightPanel/DiagnosticsPanel';
+import { FirmwareUpdateWizard } from './components/RightPanel/FirmwareUpdateWizard';
 import { MacroList } from './components/LeftPanel/MacroList';
 import { MacroEditor } from './components/RightPanel/MacroEditor';
 import { DebugConsole } from './components/DebugConsole';
@@ -38,6 +39,15 @@ interface ToastItem {
 function App() {
   const store = useKeymapStore();
   const [showConsole, setShowConsole] = useState(false);
+  // Rendered at this top level (not inside DiagnosticsPanel) deliberately:
+  // the wizard's whole point is guiding the user through resetting a unit
+  // into its UF2 bootloader, which necessarily drops the current USB/BLE
+  // connection. DiagnosticsPanel unmounts its device-dependent content on
+  // disconnect (isConnected() early return), which was silently killing the
+  // wizard mid-flow the moment the user actually followed its own
+  // instructions. It only ever needed a firmwareInfo snapshot, never a live
+  // connection, so it doesn't need to live inside the connection-gated tree.
+  const [firmwareWizardInfo, setFirmwareWizardInfo] = useState<Awaited<ReturnType<typeof getFirmwareInfo>> | null>(null);
   const [usbConnected, setUsbConnected] = useState(false); // true for either transport (USB or BLE)
   const [connType, setConnType] = useState<'usb' | 'bluetooth' | null>(null);
   const [unsaved, setUnsaved] = useState(false);
@@ -298,7 +308,7 @@ function App() {
       case 'trackball': return <TrackballConfig store={store} />;
       case 'timing': return <TimingConfig store={store} />;
       case 'bluetooth': return <BluetoothConfig store={store} />;
-      case 'diagnostics': return <DiagnosticsPanel store={store} />;
+      case 'diagnostics': return <DiagnosticsPanel store={store} onOpenFirmwareWizard={setFirmwareWizardInfo} />;
     }
   };
 
@@ -483,6 +493,14 @@ function App() {
       </div>
 
       <DebugConsole visible={showConsole} />
+
+      {firmwareWizardInfo && (
+        <FirmwareUpdateWizard
+          self={firmwareWizardInfo.self}
+          peripherals={firmwareWizardInfo.peripherals}
+          onClose={() => setFirmwareWizardInfo(null)}
+        />
+      )}
 
       {/* Footer */}
       <footer className="footer">
