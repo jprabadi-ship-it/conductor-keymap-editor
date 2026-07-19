@@ -86,7 +86,7 @@ export function KeyConfig({ store }: Props) {
         <div className="config-section">
           <div className="config-label">カスタムbehavior</div>
           <div className="config-description">
-            このキーが実際に使うbehaviorを選びます。選ばないと標準の&lt;/&mt;になり、Write時にカスタムbehaviorが失われます。
+            このキーが実際に使うbehaviorを選びます。選ばないと標準のLayer-Tap/Mod-Tapになり、Write時にカスタムbehaviorが失われます。
           </div>
           <div className="type-grid">
             <button
