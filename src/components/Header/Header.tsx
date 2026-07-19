@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { version } from '../../../package.json';
 import { KeymapStore } from '../../store/useKeymapStore';
 import { applyDeviceSettingsSnapshot, collectDeviceSettingsSnapshot, setKeyboardLayout } from '../../services/usbService';
@@ -43,11 +43,42 @@ const MAC_APP_DOWNLOAD_URL = 'https://github.com/jprabadi-ship-it/conductor-keym
 // link keeps working -- direct one-click download, no release-page detour.
 const FIRMWARE_DOWNLOAD_URL = 'https://github.com/jprabadi-ship-it/conductor/releases/latest/download/ConductorD-firmware-latest.zip';
 
+// True auto-update (silent download+relaunch via electron-updater/Squirrel.Mac)
+// needs a valid code signature, which this app doesn't have (unsigned, no
+// Developer ID cert) -- Squirrel.Mac's own update-apply step requires one, it's
+// not just a Gatekeeper prompt to click through. So this is a lighter "there's
+// a newer version, here's the link" notice instead: same manual download+open
+// flow as clicking "Macアプリダウンロード" in the web build, just surfaced
+// proactively inside the app. conductor-keymap-editor is intentionally public
+// (for GitHub Pages), so the release API needs no auth, unlike the firmware
+// check against the private conductor repo.
+function isNewerVersion(latest: string, current: string): boolean {
+  const a = latest.split('.').map(Number);
+  const b = current.split('.').map(Number);
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    const av = a[i] || 0, bv = b[i] || 0;
+    if (av !== bv) return av > bv;
+  }
+  return false;
+}
+
 export function Header({ store, showConsole, onToggleConsole, usbConnected, connectionType, onConnectionChange, unsaved, onWrite, wroteToDevice, fwUpdateAvailable, fwLatestPublishedAt, onRead, onSave }: Props) {
   const [showExport, setShowExport] = useState(false);
   const [showChangelog, setShowChangelog] = useState(false);
   const [theme, setTheme] = useState(() => localStorage.getItem('conductor-theme') || 'light');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [editorLatestVersion, setEditorLatestVersion] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isElectron) return;
+    fetch('https://api.github.com/repos/jprabadi-ship-it/conductor-keymap-editor/releases/latest')
+      .then((r) => r.json())
+      .then((data) => {
+        const tag = typeof data?.tag_name === 'string' ? data.tag_name.replace(/^v/, '') : null;
+        if (tag && isNewerVersion(tag, version)) setEditorLatestVersion(tag);
+      })
+      .catch(() => { /* offline or rate-limited -- silently skip */ });
+  }, []);
 
   const handleExport = async () => {
     const data = store.exportProject();
@@ -140,6 +171,7 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, conn
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {[
+                { v: '0.38.5.0', at: '2026-07-19 JST', changes: ['Macアプリ版に更新通知を追加。起動時に自分のリリース一覧を確認し、新しいバージョンがあればヘッダーに「⬇ Studioアップデート」を表示（クリックでDMGを直接ダウンロード）。無署名配布のためelectron-updaterによる完全自動更新（サイレントDL→再起動）はSquirrel.Macがコード署名を必須要件とするため不可——ダウンロード後の上書きインストールは引き続き手動'] },
                 { v: '0.38.4.0', at: '2026-07-19 JST', changes: ['「FWダウンロード」ボタンの最終更新日が更新されない不具合を修正。GitHubのpublishedAtは初回公開時刻に固定され、firmware-latestのようにアセットだけを更新し続けるリリースでは実質ずっと同じ日時のままだった。firmware側リリースノートに埋め込んだ実ビルド日時を読むように変更（firmware v0.6.12以降が必要）'] },
                 { v: '0.38.3.0', at: '2026-07-19 JST', changes: ['(開発者向け)CIに契約テストを追加。`src/data/zmk-studio-proto.json`(手動更新)がfirmware側の実際の.protoファイルと食い違っていないかを毎push/PRで自動チェック。ユーザー向けの機能変更はなし'] },
                 { v: '0.38.2.0', at: '2026-07-19 JST', changes: ['レイヤーパネルに「🎨 テーマ」を追加。現在の全レイヤーのLED配色に好きな名前を付けて保存し、いつでも一括で呼び戻せるように（レイヤー名で対応付けるため、レイヤーの並び替え後も概ね正しく適用される）'] },
@@ -374,6 +406,14 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, conn
       {!isElectron && (
         <a className="header-action-btn" href={MAC_APP_DOWNLOAD_URL} style={{ textDecoration: 'none' }}>
           <span>⬇</span> Macアプリダウンロード
+        </a>
+      )}
+
+      {isElectron && editorLatestVersion && (
+        <a className="header-action-btn" href={MAC_APP_DOWNLOAD_URL}
+          style={{ textDecoration: 'none', borderColor: 'var(--warning)' }}
+          title={`Studio v${editorLatestVersion} が公開されています。クリックしてDMGをダウンロードし、開いて上書きインストールしてください`}>
+          <span>⬇</span> Studioアップデート (v{editorLatestVersion})
         </a>
       )}
 
