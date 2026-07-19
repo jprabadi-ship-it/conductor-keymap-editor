@@ -1,0 +1,57 @@
+name: Proto Contract Check
+
+# Catches drift between the hand-maintained src/data/zmk-studio-proto.json
+# and the actual .proto/.options files in zmk-studio-messages -- the two are
+# kept in sync manually today (edit both whenever an RPC field changes), and
+# nothing else catches a mismatch. Regenerates the JSON from the real protos
+# (scripts/gen_proto_json.mjs) and diffs it against the checked-in file.
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # zmk-studio-messages is private; the default GITHUB_TOKEN only grants
+      # access to this repo, not sibling private repos on the same account.
+      # WEST_UPDATE_TOKEN is the same fine-grained PAT already used for this
+      # in conductor-dongle's build.yml -- add it as a secret here too.
+      - name: Configure git auth for private proto repo
+        run: |
+          git config --global url."https://x-access-token:${WEST_UPDATE_TOKEN}@github.com/".insteadOf "https://github.com/"
+        env:
+          WEST_UPDATE_TOKEN: ${{ secrets.WEST_UPDATE_TOKEN }}
+
+      - uses: actions/checkout@v4
+        with:
+          repository: jprabadi-ship-it/zmk-studio-messages
+          ref: release/conductor-0.6.4-ConductorD
+          path: zmk-studio-messages
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Generate proto JSON from real .proto files
+        run: |
+          node scripts/gen_proto_json.mjs --proto-dir "$GITHUB_WORKSPACE/zmk-studio-messages/proto/zmk" > /tmp/generated.json
+
+      - name: Diff against checked-in zmk-studio-proto.json
+        run: |
+          # Raw byte diff is too strict: protobufjs's JS object key order
+          # isn't guaranteed stable across runs even for identical proto
+          # content, so normalize (sort keys) before comparing -- otherwise
+          # this job flakes on reordering alone, not real drift.
+          jq -S . /tmp/generated.json > /tmp/generated.sorted.json
+          jq -S . src/data/zmk-studio-proto.json > /tmp/checked-in.sorted.json
+          if ! diff -u /tmp/checked-in.sorted.json /tmp/generated.sorted.json; then
+            echo "::error::src/data/zmk-studio-proto.json is out of sync with the real .proto files. Regenerate with: node scripts/gen_proto_json.mjs > src/data/zmk-studio-proto.json"
+            exit 1
+          fi
