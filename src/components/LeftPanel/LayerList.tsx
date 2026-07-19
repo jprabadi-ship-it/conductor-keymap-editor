@@ -22,6 +22,25 @@ function loadColorHistory(): string[] {
   }
 }
 
+// Named per-layer color schemes the user has saved, keyed by layer *name*
+// (not index) so a theme saved on one project still applies sensibly if
+// layers were reordered or a few added/removed since -- only layers whose
+// name matches a key in the theme get recolored.
+type LedTheme = { id: string; name: string; colors: Record<string, string>; savedAt: string };
+const LED_THEMES_KEY = 'conductor-led-color-themes';
+const LED_THEMES_MAX = 12;
+
+function loadLedThemes(): LedTheme[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(LED_THEMES_KEY) || '[]');
+    return Array.isArray(v) ? v.filter(t =>
+      t && typeof t.id === 'string' && typeof t.name === 'string' && t.colors && typeof t.colors === 'object'
+    ) : [];
+  } catch {
+    return [];
+  }
+}
+
 // Brightness is purely an editor-side convenience: the wire format is a
 // packed 24-bit RGB value with no spare bits, and firmware has no brightness
 // concept. So the slider scales whatever color was last picked (the "base")
@@ -77,6 +96,39 @@ export function LayerList({ store }: Props) {
   const [editValue, setEditValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const [themePanelOpen, setThemePanelOpen] = useState(false);
+  const [themes, setThemes] = useState<LedTheme[]>(loadLedThemes);
+  const [namingTheme, setNamingTheme] = useState(false);
+  const [newThemeName, setNewThemeName] = useState('');
+  const themeNameInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (namingTheme && themeNameInputRef.current) themeNameInputRef.current.focus();
+  }, [namingTheme]);
+
+  const saveThemeNamed = (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const colors: Record<string, string> = {};
+    store.layers.forEach(l => { colors[l.name] = l.ledColor; });
+    const theme: LedTheme = { id: `theme-${Date.now()}`, name: trimmed, colors, savedAt: new Date().toISOString() };
+    setThemes(prev => {
+      const next = [theme, ...prev.filter(t => t.name !== trimmed)].slice(0, LED_THEMES_MAX);
+      try { localStorage.setItem(LED_THEMES_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+    setNamingTheme(false);
+    setNewThemeName('');
+  };
+
+  const deleteTheme = (id: string) => {
+    setThemes(prev => {
+      const next = prev.filter(t => t.id !== id);
+      try { localStorage.setItem(LED_THEMES_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+  };
+
   useEffect(() => {
     if (editingLayer !== null && inputRef.current) {
       inputRef.current.focus();
@@ -98,9 +150,66 @@ export function LayerList({ store }: Props) {
 
   return (
     <div>
-      <div className="panel-section-title">
+      <div className="panel-section-title" style={{ position: 'relative' }}>
         <span>Layers</span>
-        <button className="btn" onClick={store.addLayer} style={{ fontSize: 16, padding: '0 4px' }}>+</button>
+        <span style={{ display: 'flex', gap: 4 }}>
+          <button
+            className="btn"
+            style={{ fontSize: 12, padding: '0 6px' }}
+            onClick={() => { setThemePanelOpen(v => !v); setNamingTheme(false); }}
+          >🎨 テーマ</button>
+          <button className="btn" onClick={store.addLayer} style={{ fontSize: 16, padding: '0 4px' }}>+</button>
+        </span>
+
+        {themePanelOpen && (
+          <div className="led-picker layer-menu" style={{ right: 0, minWidth: 200 }} onClick={e => e.stopPropagation()}>
+            <div className="led-picker-title">LEDテーマ</div>
+            {namingTheme ? (
+              <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
+                <input
+                  ref={themeNameInputRef}
+                  type="text"
+                  value={newThemeName}
+                  onChange={e => setNewThemeName(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') saveThemeNamed(newThemeName);
+                    if (e.key === 'Escape') setNamingTheme(false);
+                  }}
+                  placeholder="テーマ名"
+                  style={{
+                    flex: 1, fontSize: 12, padding: '3px 6px',
+                    background: 'var(--bg-primary)', border: '1px solid var(--accent)',
+                    color: 'var(--text-primary)', borderRadius: 3, outline: 'none', minWidth: 0,
+                  }}
+                />
+                <button className="btn" style={{ fontSize: 11 }} onClick={() => saveThemeNamed(newThemeName)}>保存</button>
+              </div>
+            ) : (
+              <button className="layer-menu-item" onClick={() => { setNamingTheme(true); setNewThemeName(''); }}>
+                + 現在の配色を保存
+              </button>
+            )}
+            {themes.length === 0 ? (
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', padding: '6px 0' }}>保存済みテーマはありません</div>
+            ) : (
+              themes.map(theme => (
+                <div key={theme.id} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 0' }}>
+                  <span style={{ flex: 1, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{theme.name}</span>
+                  <button
+                    className="btn"
+                    style={{ fontSize: 10 }}
+                    onClick={() => { store.applyLedTheme(theme.colors); setThemePanelOpen(false); }}
+                  >適用</button>
+                  <button
+                    className="btn"
+                    style={{ fontSize: 10, color: 'var(--danger)' }}
+                    onClick={() => deleteTheme(theme.id)}
+                  >削除</button>
+                </div>
+              ))
+            )}
+          </div>
+        )}
       </div>
 
       {store.layers.map((layer) => (

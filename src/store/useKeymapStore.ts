@@ -175,6 +175,17 @@ export function useKeymapStore() {
     ));
   }, []);
 
+  // Applies a saved LED color theme (name -> hex) to every layer whose name
+  // matches. Unlike setLayerLedColor (called continuously while dragging the
+  // native color input, so it skips pushUndo on purpose), this is a single
+  // explicit action, so it gets one undo entry like addLayer/removeLayer.
+  const applyLedTheme = useCallback((colors: Record<string, LedColor>) => {
+    pushUndo();
+    setLayers(prev => prev.map(layer =>
+      colors[layer.name] ? { ...layer, ledColor: colors[layer.name] } : layer
+    ));
+  }, [pushUndo]);
+
   const addLayer = useCallback(() => {
     const newIndex = layers.length;
     if (newIndex >= 16) return;
@@ -340,7 +351,7 @@ export function useKeymapStore() {
     expandedDevice, setExpandedDevice, editingDirection, setEditingDirection,
     selectedGestureDevice, setSelectedGestureDevice,
     dirtyKeys, clearDirtyKeys,
-    updateKeyBinding, setLayerName, setLayerLedColor, addLayer, removeLayer, copyLayerBindings,
+    updateKeyBinding, setLayerName, setLayerLedColor, applyLedTheme, addLayer, removeLayer, copyLayerBindings,
     addCombo, updateCombo, removeCombo,
     addMacro, updateMacro, removeMacro,
     addMacroStep, updateMacroStep, removeMacroStep, moveMacroStep,
