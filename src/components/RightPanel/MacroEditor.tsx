@@ -243,6 +243,69 @@ export function MacroEditor({ store }: Props) {
         </div>
       </div>
 
+      {/* Write to Device */}
+      {isConnected() && (macro.deviceId !== undefined || getFreeMacroSlots().length > 0) && (
+        <div className="config-section" style={{ marginTop: 16 }}>
+          <button
+            className="btn"
+            style={{ width: '100%', fontSize: 12, border: '1px solid var(--accent)', color: 'var(--accent)', padding: '6px' }}
+            onClick={async () => {
+              let targetId = macro.deviceId;
+              if (targetId === undefined) {
+                const slot = claimFreeMacroSlot();
+                if (slot === null) {
+                  alert('No free macro slots on device.');
+                  return;
+                }
+                targetId = slot;
+                store.updateMacro(idx, { deviceId: targetId });
+              }
+              // Re-register on every successful write, not just when a fresh
+              // slot is claimed -- otherwise renaming an already-provisioned
+              // macro and clicking Write to Device never updates
+              // macroNameToDeviceId's mapping, and the keymap write path
+              // (which resolves `&name` -> deviceId purely from that cache)
+              // silently fails to find the macro under its new name.
+              registerMacroDeviceId(macro.name, targetId);
+              const ok = await writeMacroToDevice(targetId, macro);
+              if (ok) {
+                const saved = await saveChanges();
+                if (saved) {
+                  alert(`Macro "${macro.name}" written and saved to device flash.`);
+                } else {
+                  alert(`Macro "${macro.name}" written but flash save failed.`);
+                }
+              } else {
+                alert('Failed to write macro to device.');
+              }
+            }}
+          >Write to Device</button>
+        </div>
+      )}
+
+      {/* Record */}
+      <div className="config-section" style={{ marginTop: 16 }}>
+        <button
+          className="btn"
+          onClick={() => recording ? stopRecording() : setRecording(true)}
+          style={{
+            width: '100%',
+            fontSize: 12,
+            padding: '6px',
+            background: recording ? 'var(--danger)' : undefined,
+            color: recording ? '#fff' : 'var(--accent)',
+            border: `1px solid ${recording ? 'var(--danger)' : 'var(--accent)'}`,
+          }}
+        >
+          {recording ? '⏺ Recording... (click to stop)' : '⏺ Record keystrokes'}
+        </button>
+        {recording && (
+          <div style={{ fontSize: 11, color: 'var(--danger)', marginTop: 4, textAlign: 'center' }}>
+            Type keys to add steps automatically
+          </div>
+        )}
+      </div>
+
       {/* Steps */}
       <div className="config-section">
         <div className="config-label">Steps ({macro.bindings.length})</div>
@@ -346,69 +409,6 @@ export function MacroEditor({ store }: Props) {
             onClick={() => store.addMacroStep(idx, { action: 'macro_wait_time', ms: 100 })}
           >+ Wait</button>
         </div>
-      </div>
-
-      {/* Write to Device */}
-      {isConnected() && (macro.deviceId !== undefined || getFreeMacroSlots().length > 0) && (
-        <div className="config-section" style={{ marginTop: 16 }}>
-          <button
-            className="btn"
-            style={{ width: '100%', fontSize: 12, border: '1px solid var(--accent)', color: 'var(--accent)', padding: '6px' }}
-            onClick={async () => {
-              let targetId = macro.deviceId;
-              if (targetId === undefined) {
-                const slot = claimFreeMacroSlot();
-                if (slot === null) {
-                  alert('No free macro slots on device.');
-                  return;
-                }
-                targetId = slot;
-                store.updateMacro(idx, { deviceId: targetId });
-              }
-              // Re-register on every successful write, not just when a fresh
-              // slot is claimed -- otherwise renaming an already-provisioned
-              // macro and clicking Write to Device never updates
-              // macroNameToDeviceId's mapping, and the keymap write path
-              // (which resolves `&name` -> deviceId purely from that cache)
-              // silently fails to find the macro under its new name.
-              registerMacroDeviceId(macro.name, targetId);
-              const ok = await writeMacroToDevice(targetId, macro);
-              if (ok) {
-                const saved = await saveChanges();
-                if (saved) {
-                  alert(`Macro "${macro.name}" written and saved to device flash.`);
-                } else {
-                  alert(`Macro "${macro.name}" written but flash save failed.`);
-                }
-              } else {
-                alert('Failed to write macro to device.');
-              }
-            }}
-          >Write to Device</button>
-        </div>
-      )}
-
-      {/* Record */}
-      <div className="config-section" style={{ marginTop: 16 }}>
-        <button
-          className="btn"
-          onClick={() => recording ? stopRecording() : setRecording(true)}
-          style={{
-            width: '100%',
-            fontSize: 12,
-            padding: '6px',
-            background: recording ? 'var(--danger)' : undefined,
-            color: recording ? '#fff' : 'var(--accent)',
-            border: `1px solid ${recording ? 'var(--danger)' : 'var(--accent)'}`,
-          }}
-        >
-          {recording ? '⏺ Recording... (click to stop)' : '⏺ Record keystrokes'}
-        </button>
-        {recording && (
-          <div style={{ fontSize: 11, color: 'var(--danger)', marginTop: 4, textAlign: 'center' }}>
-            Type keys to add steps automatically
-          </div>
-        )}
       </div>
 
       {/* Delete */}
