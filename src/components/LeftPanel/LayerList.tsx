@@ -22,9 +22,38 @@ function loadColorHistory(): string[] {
   }
 }
 
+// Brightness is purely an editor-side convenience: the wire format is a
+// packed 24-bit RGB value with no spare bits, and firmware has no brightness
+// concept. So the slider scales whatever color was last picked (the "base")
+// down to a dimmer version of the same hue, rather than being a value that
+// round-trips -- reopening the picker later just shows the already-scaled
+// color, same as if the user had picked that dimmer color directly.
+function scaleColor(hex: string, factor: number): string {
+  const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+  if (!m) return hex;
+  const scale = (h: string) => Math.round(Math.min(255, Math.max(0, parseInt(h, 16) * factor))).toString(16).padStart(2, '0');
+  return `#${scale(m[1])}${scale(m[2])}${scale(m[3])}`;
+}
+
 export function LayerList({ store }: Props) {
   const [ledPickerLayer, setLedPickerLayer] = useState<number | null>(null);
   const [colorHistory, setColorHistory] = useState<string[]>(loadColorHistory);
+  const [pickerBaseColor, setPickerBaseColor] = useState('#ffffff');
+  const [brightness, setBrightness] = useState(100);
+
+  // Any explicit color pick (preset, history, native picker) becomes the new
+  // 100%-brightness base; the slider always scales down from here, not from
+  // whatever the previously-scaled color happened to be.
+  const pickColor = (layerIndex: number, color: string) => {
+    setPickerBaseColor(color);
+    setBrightness(100);
+    store.setLayerLedColor(layerIndex, color);
+  };
+
+  const changeBrightness = (layerIndex: number, value: number) => {
+    setBrightness(value);
+    store.setLayerLedColor(layerIndex, scaleColor(pickerBaseColor, value / 100));
+  };
 
   const recordColorHistory = (color: string) => {
     const c = color.toLowerCase();
@@ -120,6 +149,8 @@ export function LayerList({ store }: Props) {
                 closeLedPicker(layer.ledColor);
               } else {
                 setLedPickerLayer(layer.index);
+                setPickerBaseColor(layer.ledColor);
+                setBrightness(100);
               }
             }}
           >
@@ -180,7 +211,7 @@ export function LayerList({ store }: Props) {
                     className={`led-color-btn ${layer.ledColor.toLowerCase() === color ? 'selected' : ''}`}
                     style={{ background: color, width: 22, height: 22, padding: 0, borderRadius: '50%' }}
                     title={color}
-                    onClick={() => store.setLayerLedColor(layer.index, color)}
+                    onClick={() => pickColor(layer.index, color)}
                   />
                 ))}
               </div>
@@ -189,9 +220,19 @@ export function LayerList({ store }: Props) {
                 <input
                   type="color"
                   value={/^#[0-9a-f]{6}$/i.test(layer.ledColor) ? layer.ledColor : '#ffffff'}
-                  onChange={e => store.setLayerLedColor(layer.index, e.target.value)}
+                  onChange={e => pickColor(layer.index, e.target.value)}
                 />
               </label>
+              <div className="led-picker-history-title">明るさ ({brightness}%)</div>
+              <input
+                type="range"
+                className="timing-slider"
+                min={10}
+                max={100}
+                step={5}
+                value={brightness}
+                onChange={e => changeBrightness(layer.index, Number(e.target.value))}
+              />
               {colorHistory.length > 0 && (
                 <>
                   <div className="led-picker-history-title">最近使った色</div>
@@ -202,7 +243,7 @@ export function LayerList({ store }: Props) {
                         className={`led-color-btn ${layer.ledColor.toLowerCase() === color ? 'selected' : ''}`}
                         style={{ background: color, width: 22, height: 22, padding: 0, borderRadius: '50%' }}
                         title={color}
-                        onClick={() => store.setLayerLedColor(layer.index, color)}
+                        onClick={() => pickColor(layer.index, color)}
                       />
                     ))}
                   </div>
