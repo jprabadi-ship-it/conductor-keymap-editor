@@ -364,8 +364,14 @@ export function MacroEditor({ store }: Props) {
                 }
                 targetId = slot;
                 store.updateMacro(idx, { deviceId: targetId });
-                registerMacroDeviceId(macro.name, targetId);
               }
+              // Re-register on every successful write, not just when a fresh
+              // slot is claimed -- otherwise renaming an already-provisioned
+              // macro and clicking Write to Device never updates
+              // macroNameToDeviceId's mapping, and the keymap write path
+              // (which resolves `&name` -> deviceId purely from that cache)
+              // silently fails to find the macro under its new name.
+              registerMacroDeviceId(macro.name, targetId);
               const ok = await writeMacroToDevice(targetId, macro);
               if (ok) {
                 const saved = await saveChanges();
