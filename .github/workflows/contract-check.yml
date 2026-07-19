@@ -18,15 +18,16 @@ jobs:
 
       # zmk-studio-messages is private; the default GITHUB_TOKEN only grants
       # access to this repo, not sibling private repos on the same account.
-      # actions/checkout's own token: input hits a known GitHub bug with
-      # fine-grained PATs ("Write access to repository not granted" on a
-      # plain read-only fetch -- confirmed via a live failed run). Plain
-      # `git clone` with the PAT embedded in the URL doesn't hit this bug;
-      # it's the same approach conductor-dongle's build.yml already uses
-      # successfully for this exact token against this exact repo.
+      # Confirmed the WEST_UPDATE_TOKEN fine-grained PAT genuinely has read
+      # access to this repo (checked its Repository access list directly),
+      # yet a shallow `git clone --depth=1` still 403s with a nonsensical
+      # "Write access to repository not granted" -- a known flaky GitHub
+      # bug with fine-grained PATs + shallow/filtered smart-HTTP fetches.
+      # conductor-dongle's build.yml sidesteps it by never using --depth
+      # (west's own fetch uses --filter=tree:0 instead); do the same here.
       - name: Clone zmk-studio-messages
         run: |
-          git clone --depth=1 --branch release/conductor-0.6.4-ConductorD \
+          git clone --branch release/conductor-0.6.4-ConductorD \
             "https://x-access-token:${WEST_UPDATE_TOKEN}@github.com/jprabadi-ship-it/zmk-studio-messages.git" \
             zmk-studio-messages
         env:
