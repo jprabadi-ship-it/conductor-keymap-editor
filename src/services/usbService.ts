@@ -493,6 +493,24 @@ export async function listBehaviors(): Promise<number[]> {
   }
 }
 
+// Discovers every custom hold-tap behavior the firmware currently exposes
+// (not a hardcoded name list -- generalizes TimingConfig.tsx's per-name
+// lookup pattern via CUSTOM_HOLDTAP_RE so new customs show up without an
+// editor code change). Used by KeyConfig.tsx to offer them as an explicit
+// choice for layer-tap/mod-tap keys, instead of only ever being reachable
+// by having read one off the device previously.
+export async function listCustomHoldTapBehaviors(): Promise<{ id: number; name: string; kind: 'lt' | 'mt' }[]> {
+  const ids = await listBehaviors();
+  const result: { id: number; name: string; kind: 'lt' | 'mt' }[] = [];
+  for (const id of ids) {
+    const details = await getBehaviorDetails(id);
+    if (details && CUSTOM_HOLDTAP_RE.test(details.displayName)) {
+      result.push({ id, name: details.displayName, kind: /^lt/i.test(details.displayName) ? 'lt' : 'mt' });
+    }
+  }
+  return result;
+}
+
 export async function getBehaviorDetails(behaviorId: number): Promise<{ displayName: string } | null> {
   if (behaviorCache[behaviorId]) return behaviorCache[behaviorId];
   try {
@@ -735,6 +753,15 @@ function computeMacroBehaviorIds(): Set<number> {
   return ids;
 }
 
+// Custom hold-tap behaviors (lt6_j, mt_shift, mt_shift_z, ...) are project-
+// specific ZMK behaviors layered on top of the built-in &lt/&mt, named by
+// convention as "lt<N>_..."/"mt_...". Their firmware displayName is the
+// literal behavior name (e.g. "lt6_j"), not a generic "Layer-Tap" category
+// string, so they need this separate recognition path. Canonical location:
+// configAudit.ts reuses this same regex to detect when one silently stops
+// being referenced by any key (the 2026-07 J/Z incident's signature).
+export const CUSTOM_HOLDTAP_RE = /^(mt|lt)\d*_/i;
+
 // Decode a raw {behaviorId, param1, param2} triple (as returned by any RPC
 // that carries a BehaviorBinding -- keymap bindings, combo bindings, gesture
 // overrides) into the editor's local KeyBinding shape. Shared so combos
@@ -830,6 +857,20 @@ function decodeBinding(binding: { behaviorId: number; param1: number; param2: nu
     extra.layer = binding.param1;
     extra.tapLabel = hidToLabel(binding.param2);
     label = extra.tapLabel;
+  } else if (CUSTOM_HOLDTAP_RE.test(behName)) {
+    // Project-specific hold-tap (lt6_j, mt_shift, mt_shift_z, ...) -- same
+    // param layout as the built-in &lt/&mt cases above, just decoded via the
+    // custom behavior's own literal name instead of a generic display string.
+    if (/^lt/i.test(behName)) {
+      type = 'layer-tap';
+      extra.layer = binding.param1;
+      extra.tapLabel = hidToLabel(binding.param2);
+      label = extra.tapLabel;
+    } else {
+      type = 'mod-tap';
+      extra.tapLabel = hidToLabel(binding.param2);
+      label = extra.tapLabel;
+    }
   } else if (behName.includes('Momentary') || behName === 'mo') {
     type = 'momentary';
     extra.layer = binding.param1;
@@ -860,7 +901,7 @@ function decodeBinding(binding: { behaviorId: number; param1: number; param2: nu
     keyCode = 'NONE';
   }
 
-  return { type, keyCode, label, ...extra } as KeyBinding;
+  return { type, keyCode, label, behaviorId: binding.behaviorId, ...extra } as KeyBinding;
 }
 
 export async function readKeymap(): Promise<any> {
@@ -2557,13 +2598,28 @@ export async function writeKeymapToDevice(layers: Layer[], dirtyKeys?: Set<strin
           behaviorId = behByType["mo"] ?? 0;
           param1 = binding.layer ?? 0;
           break;
-        case 'layer-tap':
-          behaviorId = behByType["lt"] ?? 0;
+        case 'layer-tap': {
+          // Preserve a custom hold-tap (lt6_j, ...) instead of always
+          // downgrading to the generic built-in &lt -- this is the actual
+          // fix for the J/Z-gets-silently-overwritten bug: without this
+          // check, writing this key for ANY reason (direct edit, a layer
+          // copy that includes its position, ...) always emitted the
+          // generic ID, discarding whatever custom behavior was there.
+          const customLt = binding.behaviorId !== undefined &&
+            behaviorCache[binding.behaviorId] &&
+            CUSTOM_HOLDTAP_RE.test(behaviorCache[binding.behaviorId].displayName)
+            ? binding.behaviorId : undefined;
+          behaviorId = customLt ?? behByType["lt"] ?? 0;
           param1 = binding.layer ?? 0;
           param2 = labelToParam(binding.tapLabel || binding.label, binding.tapKeyCode || '');
           break;
+        }
         case 'mod-tap': {
-          behaviorId = behByType["mt"] ?? 0;
+          const customMt = binding.behaviorId !== undefined &&
+            behaviorCache[binding.behaviorId] &&
+            CUSTOM_HOLDTAP_RE.test(behaviorCache[binding.behaviorId].displayName)
+            ? binding.behaviorId : undefined;
+          behaviorId = customMt ?? behByType["mt"] ?? 0;
           const mtModUsage: Record<string, number> = {
             lctrl: 0x700E0, lshift: 0x700E1, lalt: 0x700E2, lgui: 0x700E3,
             rctrl: 0x700E4, rshift: 0x700E5, ralt: 0x700E6, rgui: 0x700E7,

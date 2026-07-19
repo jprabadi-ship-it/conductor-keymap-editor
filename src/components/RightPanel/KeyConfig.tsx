@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { KeymapStore } from '../../store/useKeymapStore';
 import { BindingType, Modifier } from '../../types';
 import { KEY_CATEGORIES, searchKeyCodes } from '../../data/keycodes';
+import { isConnected, listCustomHoldTapBehaviors } from '../../services/usbService';
 
 interface Props {
   store: KeymapStore;
@@ -35,6 +36,12 @@ const RIGHT_MODS: { mod: Modifier; label: string }[] = [
 export function KeyConfig({ store }: Props) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>('Letters');
+  const [customHoldTaps, setCustomHoldTaps] = useState<{ id: number; name: string; kind: 'lt' | 'mt' }[] | null>(null);
+
+  useEffect(() => {
+    if (!isConnected() || customHoldTaps !== null) return;
+    listCustomHoldTapBehaviors().then(setCustomHoldTaps);
+  }, [customHoldTaps]);
 
   const key = store.selectedKey;
   if (!key) {
@@ -74,6 +81,28 @@ export function KeyConfig({ store }: Props) {
           ))}
         </div>
       </div>
+
+      {(binding.type === 'mod-tap' || binding.type === 'layer-tap') && customHoldTaps && customHoldTaps.some(c => c.kind === (binding.type === 'layer-tap' ? 'lt' : 'mt')) && (
+        <div className="config-section">
+          <div className="config-label">カスタムbehavior</div>
+          <div className="config-description">
+            このキーが実際に使うbehaviorを選びます。選ばないと標準の&lt;/&mt;になり、Write時にカスタムbehaviorが失われます。
+          </div>
+          <div className="type-grid">
+            <button
+              className={`type-btn ${binding.behaviorId === undefined ? 'selected' : ''}`}
+              onClick={() => updateBinding({ behaviorId: undefined })}
+            >標準(&amp;{binding.type === 'layer-tap' ? 'lt' : 'mt'})</button>
+            {customHoldTaps.filter(c => c.kind === (binding.type === 'layer-tap' ? 'lt' : 'mt')).map(c => (
+              <button
+                key={c.id}
+                className={`type-btn ${binding.behaviorId === c.id ? 'selected' : ''}`}
+                onClick={() => updateBinding({ behaviorId: c.id })}
+              >{c.name}</button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {(binding.type === 'basic' || binding.type === 'mod-tap' || binding.type === 'layer-tap') && (
         <div className="config-section">

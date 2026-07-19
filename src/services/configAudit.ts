@@ -9,6 +9,7 @@ import {
   getRawBindingsSnapshot,
   getBehaviorCacheEntries,
   resolveKeyBindingRpc,
+  CUSTOM_HOLDTAP_RE,
 } from './usbService';
 
 export interface AuditFinding {
@@ -21,12 +22,6 @@ export interface AuditFinding {
 // state through App -- the audit only ever runs from one place at a time.
 export let lastAuditResults: AuditFinding[] | null = null;
 export let lastAuditAt: string | null = null;
-
-// Behavior names the firmware always provides; anything else is either a
-// macro (m_*) or a project-specific custom behavior. Mirrors (a subset of)
-// usbService's STANDARD_BEHAVIORS, but only the classification this audit
-// needs: "is this a custom hold-tap that should be referenced somewhere?"
-const CUSTOM_HOLDTAP_RE = /^(mt|lt)\d*_/i;
 
 function comboPositionsKey(positions: string[]): string {
   return [...positions].sort().join(',');

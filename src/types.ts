@@ -10,6 +10,12 @@ export interface KeyBinding {
   layer?: number;
   tapKeyCode?: string;
   tapLabel?: string;
+  // The actual on-device behavior ID as last read (or explicitly assigned).
+  // For layer-tap/mod-tap keys this is what lets a custom hold-tap (e.g.
+  // lt6_j, distinct from the generic built-in &lt) survive a write --
+  // without it, the write path can't tell "this key already uses a custom
+  // behavior" from "this is a fresh generic layer-tap".
+  behaviorId?: number;
 }
 
 // A hex color ("#rrggbb"). The firmware LED is PWM-driven (full 24-bit RGB),
