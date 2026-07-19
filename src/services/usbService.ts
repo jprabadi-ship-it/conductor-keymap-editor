@@ -1216,7 +1216,17 @@ export async function getSensitivity(): Promise<{ cpi: number; cursorNum: number
     const resp = await sendRequest({ pointing: { getSensitivity: {} } });
     const s = resp.pointing?.getSensitivity;
     if (s) {
-      const rawScrollNum = s.scroll?.numerator ?? 1;
+      // scroll.numerator is wire-type uint32 (see pointing.proto), but
+      // setSensitivity() below encodes "inverted" by sending a negative JS
+      // number into it, which wraps to a huge unsigned value (e.g. -400 ->
+      // 4294966896). protobufjs decodes a uint32 field as a plain
+      // non-negative number, so it never comes back negative here -- fix by
+      // reinterpreting values above the int32 range as their two's-
+      // complement negative equivalent before checking the sign, instead of
+      // just testing `< 0` (which could never be true and left inversion
+      // undetected + that huge number surfacing as-is in diagnostics).
+      const u32ScrollNum = (s.scroll?.numerator ?? 1) >>> 0;
+      const rawScrollNum = u32ScrollNum > 0x7FFFFFFF ? u32ScrollNum - 0x100000000 : u32ScrollNum;
       const scrollInverted = rawScrollNum < 0;
       return { cpi: s.cpi, cursorNum: s.cursor?.numerator ?? 1, cursorDen: s.cursor?.denominator ?? 1, scrollNum: Math.abs(rawScrollNum), scrollDen: s.scroll?.denominator ?? 1, scrollInverted };
     }
