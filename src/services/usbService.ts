@@ -2511,11 +2511,16 @@ export async function writeKeymapToDevice(layers: Layer[], dirtyKeys?: Set<strin
     const beh = behaviorCache[raw.behaviorId];
     if (beh) matchBeh(beh.displayName, raw.behaviorId);
   }
-  // Fallback: scan full behavior cache if rawBindings is empty
-  if (Object.keys(behByType).length === 0) {
-    for (const [idStr, beh] of Object.entries(behaviorCache)) {
-      matchBeh(beh.displayName, Number(idStr));
-    }
+  // Always fill in any behavior types not resolved from rawBindings by
+  // scanning the full cache -- rawBindings only reflects behaviors actually
+  // used somewhere in the currently-loaded keymap, so a type genuinely
+  // present on the device but unused so far (e.g. &bt/&bootloader/&out on a
+  // keymap that never happened to bind one) would otherwise never resolve
+  // when the user newly assigns it, silently falling back to behaviorId 0.
+  // matchBeh()'s own `!behByType[x]` guards make this a pure fill-in pass,
+  // never overwriting a value already found via rawBindings.
+  for (const [idStr, beh] of Object.entries(behaviorCache)) {
+    matchBeh(beh.displayName, Number(idStr));
   }
   // Log all behaviors for debugging
   const allBehaviors = Object.entries(behaviorCache).map(([id, b]) => `${id}:${b.displayName}`);
@@ -2673,9 +2678,17 @@ export async function writeKeymapToDevice(layers: Layer[], dirtyKeys?: Set<strin
       debugLog('INF', 'USB', `  Write ${posId}@L${layer.index}: beh=${behaviorId} p1=0x${param1.toString(16)} p2=0x${param2.toString(16)}`);
 
       try {
-        await setLayerBinding(layer.index, keyIdx, behaviorId, param1, param2);
-        written++;
-        writtenBindings[rawKey] = { behaviorId, param1, param2 };
+        // setLayerBinding() catches its own errors and resolves to false
+        // rather than throwing (e.g. INVALID_BEHAVIOR) -- the boolean
+        // return must be checked, or a per-key rejection silently counts
+        // as written, and a genuinely partial Write reports success.
+        const success = await setLayerBinding(layer.index, keyIdx, behaviorId, param1, param2);
+        if (success) {
+          written++;
+          writtenBindings[rawKey] = { behaviorId, param1, param2 };
+        } else {
+          failed++;
+        }
       } catch (e: any) {
         debugLog('ERR', 'USB', `Failed to write ${posId} on layer ${layer.index}: ${e.message}`);
         failed++;

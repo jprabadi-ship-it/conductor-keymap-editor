@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { KeymapStore } from '../../store/useKeymapStore';
 import { MacroAction } from '../../types';
-import { writeMacroToDevice, isConnected, claimFreeMacroSlot, getFreeMacroSlots, saveChanges, registerMacroDeviceId, setMacro } from '../../services/usbService';
+import { writeMacroToDevice, isConnected, claimFreeMacroSlot, releaseMacroSlot, getFreeMacroSlots, saveChanges, registerMacroDeviceId, setMacro } from '../../services/usbService';
 
 interface Props {
   store: KeymapStore;
@@ -250,25 +250,27 @@ export function MacroEditor({ store }: Props) {
             className="btn"
             style={{ width: '100%', fontSize: 12, border: '1px solid var(--accent)', color: 'var(--accent)', padding: '6px' }}
             onClick={async () => {
-              let targetId = macro.deviceId;
-              if (targetId === undefined) {
+              const freshlyClaimed = macro.deviceId === undefined;
+              let targetId: number;
+              if (freshlyClaimed) {
                 const slot = claimFreeMacroSlot();
                 if (slot === null) {
                   alert('No free macro slots on device.');
                   return;
                 }
                 targetId = slot;
-                store.updateMacro(idx, { deviceId: targetId });
+              } else {
+                targetId = macro.deviceId as number;
               }
-              // Re-register on every successful write, not just when a fresh
-              // slot is claimed -- otherwise renaming an already-provisioned
-              // macro and clicking Write to Device never updates
-              // macroNameToDeviceId's mapping, and the keymap write path
-              // (which resolves `&name` -> deviceId purely from that cache)
-              // silently fails to find the macro under its new name.
-              registerMacroDeviceId(macro.name, targetId);
               const ok = await writeMacroToDevice(targetId, macro);
               if (ok) {
+                // Only commit local state once the device write actually
+                // succeeded -- committing beforehand meant a failed write
+                // still left Studio believing the macro exists in that
+                // slot (registered in macroNameToDeviceId, deviceId set),
+                // when the device itself has nothing there.
+                if (freshlyClaimed) store.updateMacro(idx, { deviceId: targetId });
+                registerMacroDeviceId(macro.name, targetId);
                 const saved = await saveChanges();
                 if (saved) {
                   alert(`Macro "${macro.name}" written and saved to device flash.`);
@@ -276,6 +278,7 @@ export function MacroEditor({ store }: Props) {
                   alert(`Macro "${macro.name}" written but flash save failed.`);
                 }
               } else {
+                if (freshlyClaimed) releaseMacroSlot(targetId);
                 alert('Failed to write macro to device.');
               }
             }}
