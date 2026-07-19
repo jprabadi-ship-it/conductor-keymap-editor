@@ -172,6 +172,7 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, conn
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {[
                 { v: '0.38.6.0', at: '2026-07-19 JST', changes: ['カスタムhold-tapビヘイビア（lt6_j等）がWriteのたびに標準のLayer-Tap/Mod-Tapへ静かに置き換わってしまう不具合を修正（J/Zが繰り返し汎用ビヘイビアに戻る症状の真因）。ファームウェアの表示名がカテゴリ名でなく個別名（"lt6_j"等）で返るキーを正しく認識できていなかった。Key Configにキー個別の「カスタムbehavior」選択欄を追加し、既に壊れているキーの復元にも対応'] },
+                { v: '0.38.8.0', at: '2026-07-19 JST', changes: ['Write前バックアップの保持件数を3件から20件に増加。File メニューの一覧は長くなりすぎないようスクロール表示に対応'] },
                 { v: '0.38.7.0', at: '2026-07-19 JST', changes: ['Key Configの「カスタムbehavior」欄で説明文が文字化けしていた不具合を修正（HTML実体参照として解釈される記法をそのまま使っていたため）'] },
                 { v: '0.38.5.0', at: '2026-07-19 JST', changes: ['Macアプリ版に更新通知を追加。起動時に自分のリリース一覧を確認し、新しいバージョンがあればヘッダーに「⬇ Studioアップデート」を表示（クリックでDMGを直接ダウンロード）。無署名配布のためelectron-updaterによる完全自動更新（サイレントDL→再起動）はSquirrel.Macがコード署名を必須要件とするため不可——ダウンロード後の上書きインストールは引き続き手動'] },
                 { v: '0.38.4.0', at: '2026-07-19 JST', changes: ['「FWダウンロード」ボタンの最終更新日が更新されない不具合を修正。GitHubのpublishedAtは初回公開時刻に固定され、firmware-latestのようにアセットだけを更新し続けるリリースでは実質ずっと同じ日時のままだった。firmware側リリースノートに埋め込んだ実ビルド日時を読むように変更（firmware v0.6.12以降が必要）'] },

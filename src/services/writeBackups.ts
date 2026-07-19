@@ -6,7 +6,7 @@
 import type { KeymapProject } from '../types';
 
 const STORAGE_KEY = 'conductor-write-backups';
-const MAX_BACKUPS = 3;
+const MAX_BACKUPS = 20;
 
 export interface WriteBackupEntry {
   at: string; // ISO timestamp

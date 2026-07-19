@@ -709,7 +709,7 @@ input:focus { border-color: var(--accent); }
   right: 60px; background: var(--bg-secondary);
   border: 1px solid var(--border); border-radius: var(--radius);
   padding: 4px; z-index: 200; box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-  min-width: 240px;
+  min-width: 240px; max-height: 70vh; overflow-y: auto;
 }
 .export-item {
   display: flex; flex-direction: column;
