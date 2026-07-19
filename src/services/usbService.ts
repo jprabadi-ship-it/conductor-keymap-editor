@@ -1888,6 +1888,18 @@ export function claimFreeMacroSlot(): number | null {
   return freeDeviceMacroSlots.shift() ?? null;
 }
 
+// Returns a device macro slot to the free pool immediately after it's
+// cleared (deleting a macro), instead of requiring a fresh Read to notice
+// it's free again -- without this, all 16 dynamic slots can appear
+// exhausted (silently hiding "Write to Device" on any new macro) even right
+// after the user deleted an old one to make room.
+export function releaseMacroSlot(deviceId: number) {
+  if (!freeDeviceMacroSlots.includes(deviceId)) freeDeviceMacroSlots.push(deviceId);
+  for (const [name, id] of Object.entries(macroNameToDeviceId)) {
+    if (id === deviceId) delete macroNameToDeviceId[name];
+  }
+}
+
 export function registerMacroDeviceId(name: string, deviceId: number) {
   macroNameToDeviceId[name] = deviceId;
 }

@@ -283,6 +283,12 @@ export function MacroEditor({ store }: Props) {
         </div>
       )}
 
+      {isConnected() && macro.deviceId === undefined && getFreeMacroSlots().length === 0 && (
+        <div className="config-section" style={{ marginTop: 16, fontSize: 11, color: 'var(--danger)' }}>
+          実機の空きマクロスロットがありません（全16個使用中）。不要なマクロを削除してから再度お試しください。
+        </div>
+      )}
+
       {/* Record */}
       <div className="config-section" style={{ marginTop: 16 }}>
         <button

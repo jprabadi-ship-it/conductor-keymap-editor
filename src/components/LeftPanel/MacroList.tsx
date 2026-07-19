@@ -1,5 +1,5 @@
 import { KeymapStore } from '../../store/useKeymapStore';
-import { isConnected, setMacro, saveChanges } from '../../services/usbService';
+import { isConnected, setMacro, saveChanges, releaseMacroSlot } from '../../services/usbService';
 
 interface Props {
   store: KeymapStore;
@@ -44,6 +44,7 @@ export function MacroList({ store }: Props) {
               if (macro.deviceId !== undefined && isConnected()) {
                 await setMacro(macro.deviceId, '', []);
                 await saveChanges();
+                releaseMacroSlot(macro.deviceId);
               }
               store.removeMacro(i);
             }}
