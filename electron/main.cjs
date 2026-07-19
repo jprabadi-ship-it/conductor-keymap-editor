@@ -1,7 +1,9 @@
 const { app, BrowserWindow, session, dialog, Tray, Menu, nativeImage, ipcMain, screen, shell } = require('electron')
 const path = require('node:path')
+const os = require('node:os')
 const { execFile } = require('node:child_process')
 const fs = require('node:fs')
+const extractZip = require('extract-zip')
 
 const isDev = !app.isPackaged
 const preloadPath = path.join(__dirname, 'preload.cjs')
@@ -358,6 +360,85 @@ ipcMain.handle('check-firmware-latest', async () => {
       },
     )
   })
+})
+
+// Firmware Update Wizard: download+extract the firmware-latest release ZIP
+// so the renderer can hand the individual .uf2 files to a user-picked UF2
+// bootloader drive via the File System Access API. User-initiated (unlike
+// check-firmware-latest's passive background poll), so failures are
+// reported back instead of silently swallowed. gh CLI probing mirrors
+// check-firmware-latest above.
+ipcMain.handle('download-firmware-release', async () => {
+  const ghCandidates = ['/opt/homebrew/bin/gh', '/usr/local/bin/gh', 'gh']
+  const ghPath = ghCandidates.find((p) => p === 'gh' || fs.existsSync(p))
+
+  const execFileAsync = (cmd, args, opts) =>
+    new Promise((resolve, reject) => {
+      execFile(cmd, args, opts, (err, stdout, stderr) => {
+        if (err) reject(new Error(stderr?.trim() || err.message))
+        else resolve(stdout)
+      })
+    })
+
+  let workDir = null
+  try {
+    const bodyJson = await execFileAsync(
+      ghPath,
+      ['release', 'view', 'firmware-latest', '--repo', 'jprabadi-ship-it/conductor', '--json', 'body'],
+      { timeout: 10000 },
+    )
+    const body = JSON.parse(bodyJson).body || ''
+    const shaMatch = body.match(/@ `([0-9a-f]{7,40})`/)
+    if (!shaMatch) throw new Error('release body からビルドSHAを取得できませんでした')
+    const sha = shaMatch[1].slice(0, 8)
+
+    workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'conductord-fw-'))
+    await execFileAsync(
+      ghPath,
+      [
+        'release', 'download', 'firmware-latest',
+        '--repo', 'jprabadi-ship-it/conductor',
+        '--dir', workDir,
+        '--clobber',
+        '--pattern', 'ConductorD-firmware-latest.zip',
+      ],
+      { timeout: 30000 },
+    )
+
+    const zipPath = path.join(workDir, 'ConductorD-firmware-latest.zip')
+    const extractDir = path.join(workDir, 'extracted')
+    fs.mkdirSync(extractDir)
+    await extractZip(zipPath, { dir: extractDir })
+
+    const entries = fs.readdirSync(extractDir)
+    const findFile = (prefix) => entries.find((f) => f.startsWith(prefix) && f.endsWith('.uf2'))
+    // R always runs as a split peripheral in dongle mode in this system, so
+    // it's the R_dongle_mode build (monokey_R_periph), not standalone R.
+    const names = {
+      dongle: findFile('dongle_ConductorD_'),
+      R: findFile('R_dongle_mode_ConductorD_'),
+      L: findFile('L_ConductorD_'),
+    }
+    const missing = Object.entries(names).filter(([, f]) => !f).map(([unit]) => unit)
+    if (missing.length > 0) {
+      throw new Error(`次のユニット用uf2がzip内に見つかりません: ${missing.join(', ')}`)
+    }
+
+    // The renderer has no filesystem access (contextIsolation, no
+    // nodeIntegration) beyond what the user explicitly grants via
+    // showDirectoryPicker, so hand the (small, <1MB) uf2 bytes back
+    // directly rather than a path it can't read.
+    const files = {}
+    for (const [unit, name] of Object.entries(names)) {
+      files[unit] = { name, data: fs.readFileSync(path.join(extractDir, name)).toString('base64') }
+    }
+
+    return { ok: true, sha, files }
+  } catch (err) {
+    return { ok: false, error: err.message || String(err) }
+  } finally {
+    if (workDir) fs.rmSync(workDir, { recursive: true, force: true })
+  }
 })
 
 // Minimap's "Editorへ" button: open (or focus) the Studio window.
