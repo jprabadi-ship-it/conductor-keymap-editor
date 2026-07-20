@@ -171,6 +171,7 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, conn
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {[
+                { v: '0.38.19.0', at: '2026-07-20 JST', changes: ['マクロのWrite to Deviceが1回目のsetMacro呼び出しでResponse timeoutになったまま何も救済されずに終わる問題に対応。完全リセット後でもタイムアウトする場合があることを確認、原因はまだ完全には特定できていないが、手動での再クリックで通っていた実績があるため、setMacro呼び出し自体に自動リトライ(最大3回)を追加'] },
                 { v: '0.38.6.0', at: '2026-07-19 JST', changes: ['カスタムhold-tapビヘイビア（lt6_j等）がWriteのたびに標準のLayer-Tap/Mod-Tapへ静かに置き換わってしまう不具合を修正（J/Zが繰り返し汎用ビヘイビアに戻る症状の真因）。ファームウェアの表示名がカテゴリ名でなく個別名（"lt6_j"等）で返るキーを正しく認識できていなかった。Key Configにキー個別の「カスタムbehavior」選択欄を追加し、既に壊れているキーの復元にも対応'] },
                 { v: '0.38.18.0', at: '2026-07-20 JST', changes: ['マクロのWrite to Deviceが繰り返しResponse timeoutで失敗する不具合を修正。ファームウェアのsetMacroはsaveChangesと同様にNVSへ同期的なフラッシュ書き込みを行うが、32スロット化でNVS領域が埋まりガベージコレクションに時間がかかるようになったのに対し、setMacro側のタイムアウトだけUSBデフォルトの5秒のままだった。saveChangesと同じ20秒に延長'] },
                 { v: '0.38.17.0', at: '2026-07-20 JST', changes: ['マクロ名に大文字が使えなかった問題を修正。ファームウェア側は単なる文字バッファでケース制限が無く、エディタの入力欄側で小文字/数字/アンダースコアのみに制限していただけだったため、大文字も許可するよう変更'] },

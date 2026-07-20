@@ -1856,29 +1856,41 @@ export async function getMacroData(macroId: number): Promise<DeviceMacroData | n
 }
 
 export async function setMacro(macroId: number, name: string, steps: DeviceMacroStep[]): Promise<boolean> {
-  try {
-    const protoSteps = steps.map(s => {
-      const actionType = s.action === 'keyRelease' ? 2 : s.action === 'waitMs' ? 3 : 1;
-      return { actionType, value: s.value };
-    });
-    // set_macro synchronously does a settings_save_one() NVS write on the
-    // firmware side (same as saveChanges), which can exceed the default 5s
-    // USB timeout once the NVS area holding up to 32 macro slots needs
-    // garbage collection -- give it the same floor as saveChanges.
-    const resp = await sendRequest({
-      macros: { setMacro: { macro: { id: macroId, name, steps: protoSteps } } }
-    }, 20000);
-    const result = resp.macros?.setMacro;
-    if (result === 0 || result === 'SET_MACRO_RESP_OK') {
-      debugLog('INF', 'USB', `setMacro(${macroId}): OK, ${steps.length} steps saved`);
-      return true;
+  const protoSteps = steps.map(s => {
+    const actionType = s.action === 'keyRelease' ? 2 : s.action === 'waitMs' ? 3 : 1;
+    return { actionType, value: s.value };
+  });
+  // set_macro synchronously does a settings_save_one() NVS write on the
+  // firmware side (same as saveChanges), which can exceed the default 5s
+  // USB timeout once the NVS area holding up to 32 macro slots needs
+  // garbage collection -- give it the same floor as saveChanges. In
+  // practice the first attempt still sometimes times out even with this
+  // floor (observed even right after a full settings_reset), so retry a
+  // couple of times before giving up -- a manual re-click has reliably
+  // succeeded in the past, so an automatic retry should too.
+  const MAX_ATTEMPTS = 3;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const resp = await sendRequest({
+        macros: { setMacro: { macro: { id: macroId, name, steps: protoSteps } } }
+      }, 20000);
+      const result = resp.macros?.setMacro;
+      if (result === 0 || result === 'SET_MACRO_RESP_OK') {
+        debugLog('INF', 'USB', `setMacro(${macroId}): OK, ${steps.length} steps saved${attempt > 1 ? ` (attempt ${attempt})` : ''}`);
+        return true;
+      }
+      debugLog('WRN', 'USB', `setMacro(${macroId}) error: ${result}`);
+      return false;
+    } catch (e: any) {
+      if (attempt < MAX_ATTEMPTS) {
+        debugLog('WRN', 'USB', `setMacro(${macroId}) attempt ${attempt} failed: ${e.message}, retrying...`);
+        continue;
+      }
+      debugLog('ERR', 'USB', `setMacro failed after ${MAX_ATTEMPTS} attempts: ${e.message}`);
+      return false;
     }
-    debugLog('WRN', 'USB', `setMacro(${macroId}) error: ${result}`);
-    return false;
-  } catch (e: any) {
-    debugLog('ERR', 'USB', `setMacro failed: ${e.message}`);
-    return false;
   }
+  return false;
 }
 
 let freeDeviceMacroSlots: number[] = [];
