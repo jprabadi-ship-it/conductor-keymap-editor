@@ -204,12 +204,12 @@ export function MacroEditor({ store }: Props) {
         <input
           type="text"
           value={macro.name}
-          onChange={e => store.updateMacro(idx, { name: e.target.value.replace(/[^a-z0-9_]/g, '') })}
+          onChange={e => store.updateMacro(idx, { name: e.target.value.replace(/[^a-zA-Z0-9_]/g, '') })}
           style={{ width: '100%' }}
           placeholder="macro_name"
         />
         <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
-          lowercase, numbers, underscores only
+          letters, numbers, underscores only
         </div>
       </div>
 

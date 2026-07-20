@@ -1861,9 +1861,13 @@ export async function setMacro(macroId: number, name: string, steps: DeviceMacro
       const actionType = s.action === 'keyRelease' ? 2 : s.action === 'waitMs' ? 3 : 1;
       return { actionType, value: s.value };
     });
+    // set_macro synchronously does a settings_save_one() NVS write on the
+    // firmware side (same as saveChanges), which can exceed the default 5s
+    // USB timeout once the NVS area holding up to 32 macro slots needs
+    // garbage collection -- give it the same floor as saveChanges.
     const resp = await sendRequest({
       macros: { setMacro: { macro: { id: macroId, name, steps: protoSteps } } }
-    });
+    }, 20000);
     const result = resp.macros?.setMacro;
     if (result === 0 || result === 'SET_MACRO_RESP_OK') {
       debugLog('INF', 'USB', `setMacro(${macroId}): OK, ${steps.length} steps saved`);
