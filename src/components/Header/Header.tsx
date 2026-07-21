@@ -171,6 +171,7 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, conn
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {[
+                { v: '0.38.20.0', at: '2026-07-21 JST', changes: ['新規マクロ作成時に毎回同じ特定のスロット(devicetree宣言順で一番最初の動的マクロ)を優先的に割り当てていたのを変更。このスロットはsetMacro書き込みが再現性を持って失敗する(ファームウェア側の原因は未特定、要UARTログ調査)ことが分かったため、空きスロットの末尾から選ぶよう変更し、他に空きがある限りこのスロットを避けるようにした(そのスロットしか空きが無い場合は引き続き使用される)'] },
                 { v: '0.38.19.0', at: '2026-07-20 JST', changes: ['マクロのWrite to Deviceが1回目のsetMacro呼び出しでResponse timeoutになったまま何も救済されずに終わる問題に対応。完全リセット後でもタイムアウトする場合があることを確認、原因はまだ完全には特定できていないが、手動での再クリックで通っていた実績があるため、setMacro呼び出し自体に自動リトライ(最大3回)を追加'] },
                 { v: '0.38.6.0', at: '2026-07-19 JST', changes: ['カスタムhold-tapビヘイビア（lt6_j等）がWriteのたびに標準のLayer-Tap/Mod-Tapへ静かに置き換わってしまう不具合を修正（J/Zが繰り返し汎用ビヘイビアに戻る症状の真因）。ファームウェアの表示名がカテゴリ名でなく個別名（"lt6_j"等）で返るキーを正しく認識できていなかった。Key Configにキー個別の「カスタムbehavior」選択欄を追加し、既に壊れているキーの復元にも対応'] },
                 { v: '0.38.18.0', at: '2026-07-20 JST', changes: ['マクロのWrite to Deviceが繰り返しResponse timeoutで失敗する不具合を修正。ファームウェアのsetMacroはsaveChangesと同様にNVSへ同期的なフラッシュ書き込みを行うが、32スロット化でNVS領域が埋まりガベージコレクションに時間がかかるようになったのに対し、setMacro側のタイムアウトだけUSBデフォルトの5秒のままだった。saveChangesと同じ20秒に延長'] },
