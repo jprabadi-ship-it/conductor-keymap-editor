@@ -1901,14 +1901,7 @@ export function getFreeMacroSlots(): number[] {
 }
 
 export function claimFreeMacroSlot(): number | null {
-  // Pop from the end, not the front: the lowest-numbered dynamic macro slot
-  // (the first one declared in devicetree) has been reliably reproducing a
-  // setMacro Response timeout that never actually persists, across multiple
-  // sessions and even right after a clean settings_reset, while every other
-  // slot writes fine. Root cause is still unconfirmed (needs on-device UART
-  // logs), so this just steers new macros away from it when alternatives
-  // exist -- it's still used as a last resort if it's the only slot free.
-  return freeDeviceMacroSlots.pop() ?? null;
+  return freeDeviceMacroSlots.shift() ?? null;
 }
 
 // Returns a device macro slot to the free pool immediately after it's
