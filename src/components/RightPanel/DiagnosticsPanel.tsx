@@ -23,6 +23,23 @@ import { debugLog } from '../DebugConsole';
 
 const isElectron = typeof window !== 'undefined' && !!(window as any).electronAPI;
 
+// Static snapshot from the last checked CI build (run 29883279360,
+// commit aa42891, 2026-07-22) -- firmware has no RPC that reports its own
+// flash/RAM usage at runtime, so this can't be queried live. Update these
+// numbers by hand whenever a CI memory report is checked again.
+const FIRMWARE_SIZE_INFO: Record<string, { flashUsed: number; ramUsed: number }> = {
+  dongle: { flashUsed: 352140, ramUsed: 136472 },
+  r: { flashUsed: 212612, ramUsed: 57356 }, // R_dongle_mode (periph) -- the build actually flashed to R in normal dongle-mode use
+  l: { flashUsed: 202636, ramUsed: 48580 },
+};
+const FLASH_CAPACITY = 788 * 1024;
+const RAM_CAPACITY = 256 * 1024;
+
+function sizeText(usedBytes: number, capacityBytes: number): string {
+  const pct = ((usedBytes / capacityBytes) * 100).toFixed(1);
+  return `${usedBytes.toLocaleString()} B / ${capacityBytes.toLocaleString()} B (${pct}%)`;
+}
+
 type DiagnosticsData = {
   device: Awaited<ReturnType<typeof getDeviceInfo>>;
   runtime: RuntimeBatteryState | null;
@@ -337,6 +354,16 @@ export function DiagnosticsPanel({ store, onOpenFirmwareWizard }: { store?: Keym
                 このdongleのFWはget_firmware_info未対応です（要FW更新）
               </div>
             )}
+          </div>
+
+          <div className="config-section">
+            <div className="config-label">ファームウェア容量（前回CI確認時点、実機からの取得値ではありません）</div>
+            <Row label="Dongle Flash" value={sizeText(FIRMWARE_SIZE_INFO.dongle.flashUsed, FLASH_CAPACITY)} />
+            <Row label="Dongle RAM" value={sizeText(FIRMWARE_SIZE_INFO.dongle.ramUsed, RAM_CAPACITY)} />
+            <Row label="R Flash" value={sizeText(FIRMWARE_SIZE_INFO.r.flashUsed, FLASH_CAPACITY)} />
+            <Row label="R RAM" value={sizeText(FIRMWARE_SIZE_INFO.r.ramUsed, RAM_CAPACITY)} />
+            <Row label="L Flash" value={sizeText(FIRMWARE_SIZE_INFO.l.flashUsed, FLASH_CAPACITY)} />
+            <Row label="L RAM" value={sizeText(FIRMWARE_SIZE_INFO.l.ramUsed, RAM_CAPACITY)} />
           </div>
 
           <div className="config-section">

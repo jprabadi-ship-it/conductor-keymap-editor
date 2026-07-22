@@ -1992,13 +1992,14 @@ export async function readMacrosFromDevice(): Promise<import('../types').Macro[]
 }
 
 // Firmware's MAX_MACRO_STEPS (macro_subsystem.c) and the wire protocol's
-// MacroSequence.steps max_count (macros.options) are both 32. A single UI
-// "Tap" row expands to 2 wire steps (keyPress+keyRelease) below, so the
-// wire count can exceed the UI's displayed step count -- exceeding 32 on
-// the wire causes the request to fail nanopb decode on the firmware side,
-// which can't even send back a clean error, so the host just sees a
-// Response timeout with nothing indicating *why*. Check before sending.
-export const MAX_MACRO_WIRE_STEPS = 32;
+// MacroSequence.steps max_count (macros.options) are both 50 (raised from
+// 32 on 2026-07-22). A single UI "Tap" row expands to 2 wire steps
+// (keyPress+keyRelease) below, so the wire count can exceed the UI's
+// displayed step count -- exceeding the limit on the wire causes the
+// request to fail nanopb decode on the firmware side, which can't even
+// send back a clean error, so the host just sees a Response timeout with
+// nothing indicating *why*. Check before sending.
+export const MAX_MACRO_WIRE_STEPS = 50;
 
 export function computeMacroWireStepCount(macro: import('../types').Macro): number {
   let count = 0;
