@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { KeymapStore } from '../../store/useKeymapStore';
 import { MacroAction } from '../../types';
-import { writeMacroToDevice, isConnected, claimFreeMacroSlot, releaseMacroSlot, getFreeMacroSlots, saveChanges, registerMacroDeviceId, setMacro } from '../../services/usbService';
+import { writeMacroToDevice, isConnected, claimFreeMacroSlot, releaseMacroSlot, getFreeMacroSlots, saveChanges, registerMacroDeviceId, setMacro, computeMacroWireStepCount, MAX_MACRO_WIRE_STEPS } from '../../services/usbService';
 
 interface Props {
   store: KeymapStore;
@@ -262,6 +262,12 @@ export function MacroEditor({ store }: Props) {
               } else {
                 targetId = macro.deviceId as number;
               }
+              const wireSteps = computeMacroWireStepCount(macro);
+              if (wireSteps > MAX_MACRO_WIRE_STEPS) {
+                if (freshlyClaimed) releaseMacroSlot(targetId);
+                alert(`Macro "${macro.name}" needs ${wireSteps} device steps (Tap counts as 2: press+release), but the firmware only supports ${MAX_MACRO_WIRE_STEPS}. Remove some steps or split it into multiple macros.`);
+                return;
+              }
               const ok = await writeMacroToDevice(targetId, macro);
               if (ok) {
                 // Only commit local state once the device write actually
@@ -317,7 +323,18 @@ export function MacroEditor({ store }: Props) {
 
       {/* Steps */}
       <div className="config-section">
-        <div className="config-label">Steps ({macro.bindings.length})</div>
+        <div className="config-label">
+          Steps ({macro.bindings.length})
+          {(() => {
+            const wireSteps = computeMacroWireStepCount(macro);
+            const over = wireSteps > MAX_MACRO_WIRE_STEPS;
+            return (
+              <span style={{ fontWeight: 'normal', color: over ? 'var(--danger)' : 'var(--text-muted)', marginLeft: 6 }}>
+                — {wireSteps}/{MAX_MACRO_WIRE_STEPS} device steps{over ? ' (too many, Tap = 2 steps)' : ''}
+              </span>
+            );
+          })()}
+        </div>
 
         {macro.bindings.length === 0 && (
           <div style={{ color: 'var(--text-muted)', fontSize: 12, padding: '8px 0', textAlign: 'center' }}>
