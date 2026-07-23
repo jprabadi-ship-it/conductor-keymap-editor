@@ -848,6 +848,24 @@ function decodeBinding(binding: { behaviorId: number; param1: number; param2: nu
       label = baseLabel;
       keyCode = baseLabel;
     }
+  } else if (behName.includes('Double Tap') || behName === 'double_tap') {
+    type = 'double-tap';
+    const { mods: dtMods } = parseParam(binding.param1);
+    if (dtMods) {
+      const modMap: [number, string][] = [
+        [0x01, 'lctrl'], [0x02, 'lshift'], [0x04, 'lalt'], [0x08, 'lgui'],
+        [0x10, 'rctrl'], [0x20, 'rshift'], [0x40, 'ralt'], [0x80, 'rgui'],
+      ];
+      const mods: string[] = [];
+      for (const [bit, name] of modMap) {
+        if (dtMods & bit) mods.push(name);
+      }
+      extra.modifiers = mods;
+      const baseParam = binding.param1 & 0x00FFFFFF;
+      const baseLabel = hidToLabel(baseParam);
+      label = baseLabel;
+      keyCode = baseLabel;
+    }
   } else if (behName.includes('Mod-Tap') || behName === 'mt') {
     type = 'mod-tap';
     extra.tapLabel = hidToLabel(binding.param2);
@@ -1077,6 +1095,35 @@ export async function setTappingTerm(ms: number): Promise<boolean> {
     return true;
   } catch (e: any) {
     debugLog('ERR', 'USB', `setTappingTerm failed: ${e.message}`);
+    return false;
+  }
+}
+
+// Gap (ms) between the two taps of the &double_tap behavior (global, not
+// per-key). Mirrors getTappingTerm/setTappingTerm.
+export async function getDoubleTapGap(): Promise<number | null> {
+  try {
+    const resp = await sendRequest({ core: { getDoubleTapGap: true } });
+    const dt = resp.core?.getDoubleTapGap;
+    if (dt) {
+      const ms = dt.gapMs ?? null;
+      debugLog('INF', 'USB', `Double-tap gap: ${ms}ms (default: ${dt.defaultGapMs}ms)`);
+      return ms;
+    }
+    return null;
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `getDoubleTapGap failed: ${e.message}`);
+    return null;
+  }
+}
+
+export async function setDoubleTapGap(ms: number): Promise<boolean> {
+  try {
+    await sendRequest({ core: { setDoubleTapGap: { gapMs: ms } } });
+    debugLog('INF', 'USB', `Double-tap gap set to ${ms}ms`);
+    return true;
+  } catch (e: any) {
+    debugLog('ERR', 'USB', `setDoubleTapGap failed: ${e.message}`);
     return false;
   }
 }
@@ -2140,6 +2187,7 @@ function computeBehByType(): Record<string, number> {
     if (!behByType['out'] && (n === 'output selection' || n === 'out')) behByType['out'] = id;
     if (!behByType['aml_tog'] && (n === 'toggle aml' || n === 'aml_tog')) behByType['aml_tog'] = id;
     if (!behByType['pinch_zm'] && (n === 'pinch zoom' || n === 'pinch_zm')) behByType['pinch_zm'] = id;
+    if (!behByType['double_tap'] && (n === 'double tap' || n === 'double_tap')) behByType['double_tap'] = id;
   }
   return behByType;
 }
@@ -2230,6 +2278,23 @@ export async function resolveKeyBindingRpc(binding: KeyBinding): Promise<{ behav
       param1 = (mods << 24) | (param1 & 0x00FFFFFF);
     }
     return { behaviorId: behByType['kp'], param1, param2: 0 };
+  }
+
+  if (binding.type === 'double-tap') {
+    if (behByType['double_tap'] === undefined) return null;
+    let param1 = labelToParam(binding.label, binding.keyCode);
+    if (binding.modifiers?.length) {
+      const modBits: Record<string, number> = {
+        lctrl: 0x01, lshift: 0x02, lalt: 0x04, lgui: 0x08,
+        rctrl: 0x10, rshift: 0x20, ralt: 0x40, rgui: 0x80,
+      };
+      let mods = (param1 >>> 24) & 0xFF;
+      for (const m of binding.modifiers) {
+        mods |= modBits[m] || 0;
+      }
+      param1 = (mods << 24) | (param1 & 0x00FFFFFF);
+    }
+    return { behaviorId: behByType['double_tap'], param1, param2: 0 };
   }
 
   if (binding.type === 'momentary') {
@@ -2544,6 +2609,7 @@ export async function writeKeymapToDevice(layers: Layer[], dirtyKeys?: Set<strin
     if (!behByType['out'] && (n === 'output selection' || n === 'out')) behByType['out'] = id;
     if (!behByType['aml_tog'] && (n === 'toggle aml' || n === 'aml_tog')) behByType['aml_tog'] = id;
     if (!behByType['pinch_zm'] && (n === 'pinch zoom' || n === 'pinch_zm')) behByType['pinch_zm'] = id;
+    if (!behByType['double_tap'] && (n === 'double tap' || n === 'double_tap')) behByType['double_tap'] = id;
   };
   // From raw bindings first (most reliable)
   for (const [, raw] of Object.entries(rawBindings)) {
@@ -2658,6 +2724,21 @@ export async function writeKeymapToDevice(layers: Layer[], dirtyKeys?: Set<strin
               }
               param1 = (mods << 24) | (param1 & 0x00FFFFFF);
             }
+          }
+          break;
+        case 'double-tap':
+          behaviorId = behByType["double_tap"] ?? 0;
+          param1 = labelToParam(binding.label, binding.keyCode);
+          if (binding.modifiers?.length) {
+            const modBits: Record<string, number> = {
+              lctrl: 0x01, lshift: 0x02, lalt: 0x04, lgui: 0x08,
+              rctrl: 0x10, rshift: 0x20, ralt: 0x40, rgui: 0x80,
+            };
+            let mods = (param1 >>> 24) & 0xFF;
+            for (const m of binding.modifiers) {
+              mods |= modBits[m] || 0;
+            }
+            param1 = (mods << 24) | (param1 & 0x00FFFFFF);
           }
           break;
         case 'momentary':
