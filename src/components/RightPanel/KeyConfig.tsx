@@ -10,7 +10,6 @@ interface Props {
 
 const BINDING_TYPES: { type: BindingType; label: string }[] = [
   { type: 'basic', label: 'Basic' },
-  { type: 'double-tap', label: 'Double Tap' },
   { type: 'mod-tap', label: 'Mod-Tap' },
   { type: 'layer-tap', label: 'Layer-Tap' },
   { type: 'momentary', label: 'Momentary' },
@@ -105,7 +104,7 @@ export function KeyConfig({ store }: Props) {
         </div>
       )}
 
-      {(binding.type === 'basic' || binding.type === 'double-tap' || binding.type === 'mod-tap' || binding.type === 'layer-tap') && (
+      {(binding.type === 'basic' || binding.type === 'mod-tap' || binding.type === 'layer-tap') && (
         <div className="config-section">
           <div className="config-label">Modifiers</div>
           <button className="btn btn-outline" style={{ fontSize: 10, padding: '2px 6px', marginBottom: 6 }}>Presets</button>
@@ -136,9 +135,9 @@ export function KeyConfig({ store }: Props) {
         </div>
       )}
 
-      {(binding.type === 'basic' || binding.type === 'double-tap' || binding.type === 'mod-tap' || binding.type === 'layer-tap') && (
+      {(binding.type === 'basic' || binding.type === 'mod-tap' || binding.type === 'layer-tap') && (
         <div className="config-section">
-          <div className="config-label">{(binding.type === 'basic' || binding.type === 'double-tap') ? 'Key Code' : 'Tap Key Code'}</div>
+          <div className="config-label">{binding.type === 'basic' ? 'Key Code' : 'Tap Key Code'}</div>
           <input
             type="text"
             className="keycode-search"
@@ -169,7 +168,7 @@ export function KeyConfig({ store }: Props) {
                     if (isTapKey) {
                       updateBinding({ tapKeyCode: kc.code, tapLabel: kc.label });
                     } else {
-                      updateBinding({ keyCode: kc.code, label: kc.label });
+                      updateBinding({ type: 'basic', keyCode: kc.code, label: kc.label });
                     }
                   }}
                 >{kc.label}</button>

@@ -171,7 +171,6 @@ export function Header({ store, showConsole, onToggleConsole, usbConnected, conn
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {[
-                { v: '0.38.24.0', at: '2026-07-23 JST', changes: ['新機能: Key ConfigのTYPEに「Double Tap」を追加。1回の押下で指定したキー/クリックを2回タップします(修飾キーにも対応)。2回のタップの間隔はTimingタブの新セクション「Double Tap 間隔」(デフォルト30ms)で設定でき、デバイスのFlashに保存され全Double Tapキーに共通適用されます(要ファームウェア更新: &double_tap behaviorとget/set_double_tap_gap RPCを追加)'] },
                 { v: '0.38.23.0', at: '2026-07-22 JST', changes: ['マクロの最大ステップ数をfirmware側で32→50に拡張(要ファームウェア更新)。editor側のステップ数チェック上限も追従。診断タブに前回CI確認時点のFlash/RAM使用量(Dongle/R/L)を追加(実機からのリアルタイム取得ではなく静的な参考値)'] },
                 { v: '0.38.22.0', at: '2026-07-22 JST', changes: ['マクロのsetMacroが応答すら返さずタイムアウトし続ける問題の真因を発見・修正。UIの「Tap」1ステップは実機送信時にPress+Releaseの2ステップへ展開されるため、UI上のステップ数(28)と実際の配線ステップ数(46)が乖離し、firmwareの上限32を超過していた。上限超過時はfirmwareが応答自体を返せずResponse timeoutになるだけだったため、これまでのスロット固有バグという推測は誤りだった(スロット0の修正自体はファームウェア側の改善として有効なため維持)。Steps見出しに実際の配線ステップ数を表示し、超過時はWrite to Device前に明確なエラーで止めるように変更'] },
                 { v: '0.38.21.0', at: '2026-07-22 JST', changes: ['前バージョンで追加した「特定スロットを避ける」editor側の回避策を撤去。真因がファームウェア側のマクロストレージスロット0固有のバグと判明し、firmware側で該当スロットを最初から使わないよう修正されたため(要ファームウェア更新)、editor側の場当たり的な回避は不要になった'] },

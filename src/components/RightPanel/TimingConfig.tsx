@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { KeymapStore } from '../../store/useKeymapStore';
-import { isConnected, isUnlocked, requestUnlock, getTappingTerm, setTappingTerm, saveChanges, listBehaviors, getBehaviorDetails, getHoldTapPositions, setHoldTapPositions, getHoldTapFlavor, setHoldTapFlavor, getKeyRepeatEnabled, setKeyRepeatEnabled, getDoubleTapGap, setDoubleTapGap } from '../../services/usbService';
+import { isConnected, isUnlocked, requestUnlock, getTappingTerm, setTappingTerm, saveChanges, listBehaviors, getBehaviorDetails, getHoldTapPositions, setHoldTapPositions, getHoldTapFlavor, setHoldTapFlavor, getKeyRepeatEnabled, setKeyRepeatEnabled } from '../../services/usbService';
 import { debugLog } from '../DebugConsole';
 import { keyIdsToPositions, positionsToKeyIds } from '../../data/layout';
 import { MiniKeyboardPicker } from './MiniKeyboardPicker';
@@ -66,9 +66,6 @@ export function TimingConfig({ store }: Props) {
   const [keyRepeatEnabled, setKeyRepeatEnabledState] = useState(false);
   const [keyRepeatLoaded, setKeyRepeatLoaded] = useState(false);
   const [keyRepeatBusy, setKeyRepeatBusy] = useState(false);
-  const [doubleTapGap, setDoubleTapGapState] = useState(30);
-  const [doubleTapGapLoaded, setDoubleTapGapLoaded] = useState(false);
-  const [doubleTapGapBusy, setDoubleTapGapBusy] = useState(false);
 
   useEffect(() => {
     if (!isConnected() || loaded) return;
@@ -93,33 +90,6 @@ export function TimingConfig({ store }: Props) {
       setKeyRepeatLoaded(true);
     })();
   }, [keyRepeatLoaded]);
-
-  useEffect(() => {
-    if (!isConnected() || doubleTapGapLoaded) return;
-    (async () => {
-      const gap = await getDoubleTapGap();
-      if (gap !== null) {
-        setDoubleTapGapState(gap);
-        debugLog('INF', 'Timing', `Loaded double-tap gap: ${gap}ms`);
-      }
-      setDoubleTapGapLoaded(true);
-    })();
-  }, [doubleTapGapLoaded]);
-
-  const saveDoubleTapGap = async () => {
-    if (!isConnected()) { debugLog('WRN', 'Timing', 'Not connected'); return; }
-    if (!isUnlocked() && !(await requestUnlock())) {
-      alert('デバイスがロックされています');
-      return;
-    }
-    setDoubleTapGapBusy(true);
-    const ok = await setDoubleTapGap(doubleTapGap);
-    if (ok) {
-      await saveChanges();
-      debugLog('INF', 'Timing', `Double-tap gap saved: ${doubleTapGap}ms`);
-    }
-    setDoubleTapGapBusy(false);
-  };
 
   const toggleKeyRepeat = async () => {
     if (!isConnected()) { debugLog('WRN', 'Timing', 'Not connected'); return; }
@@ -358,36 +328,6 @@ export function TimingConfig({ store }: Props) {
       <div className="save-note">
         この設定はデバイスのFlashメモリに保存され、再起動後も維持されます。
         全てのlayer-tapキーとmod-tapキーに適用されます。
-      </div>
-
-      <div className="config-section">
-        <div className="config-label">Double Tap 間隔</div>
-        <div className="config-description">
-          Key ConfigのTYPEで「Double Tap」を選んだキーが、1回の押下で2回タップを送るまでの間隔です。
-          全てのDouble Tapキーに共通で適用されます。
-        </div>
-        <div className="timing-value">
-          {doubleTapGap}<span className="timing-unit">ms</span>
-        </div>
-        <input
-          type="range"
-          className="timing-slider"
-          min={10}
-          max={100}
-          step={5}
-          value={doubleTapGap}
-          onChange={e => setDoubleTapGapState(Number(e.target.value))}
-        />
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)' }}>
-          <span>10ms（速い）</span>
-          <span>100ms（遅い）</span>
-        </div>
-        <button
-          className="btn btn-primary"
-          style={{ width: '100%', marginTop: 8, fontSize: 12 }}
-          onClick={saveDoubleTapGap}
-          disabled={doubleTapGapBusy}
-        >デバイスに保存</button>
       </div>
 
       <div className="config-section">

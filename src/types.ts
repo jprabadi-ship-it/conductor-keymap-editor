@@ -1,4 +1,4 @@
-export type BindingType = 'basic' | 'mod-tap' | 'layer-tap' | 'momentary' | 'toggle' | 'to-layer' | 'trans' | 'none' | 'double-tap';
+export type BindingType = 'basic' | 'mod-tap' | 'layer-tap' | 'momentary' | 'toggle' | 'to-layer' | 'trans' | 'none';
 
 export type Modifier = 'lshift' | 'lctrl' | 'lalt' | 'lgui' | 'rshift' | 'rctrl' | 'ralt' | 'rgui';
 
